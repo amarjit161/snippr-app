@@ -22,7 +22,7 @@ const Salons = () => {
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
   const [salons, setSalons] = useState<SalonWithQueueAndDistance[]>([]);
-  const [selectedSalon, setSelectedSalon] = useState<Tables<"salons"> | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [userLoc, setUserLoc] = useState<{lat: number, lng: number} | null>(null);
 
@@ -106,14 +106,7 @@ const Salons = () => {
 
       <main className="container py-8 space-y-8 pb-32">
         <AnimatePresence mode="wait">
-          {selectedSalon ? (
-            <SalonDetail
-              key="detail"
-              salon={selectedSalon}
-              onBack={() => setSelectedSalon(null)}
-              onJoined={() => setSelectedSalon(null)}
-            />
-          ) : (
+          {false ? null : (
             <div key="list" className="space-y-8">
               <section className="space-y-2">
                 <h1 className="font-display text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
@@ -141,7 +134,7 @@ const Salons = () => {
                       <div key={i} className="h-80 animate-pulse rounded-lg bg-muted" />
                     ))
                   : filtered.map((salon, i) => (
-                      <SalonCard key={salon.id} salon={salon as any} index={i} onSelect={setSelectedSalon} />
+                      <SalonCard key={salon.id} salon={salon as any} index={i} onSelect={() => navigate(`/salon/${salon.id}`)} />
                     ))}
               </section>
             </div>

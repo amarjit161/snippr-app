@@ -10,6 +10,7 @@ import Salons from "./pages/Salons.tsx";
 import Admin from "./pages/Admin.tsx";
 import OwnerRegistration from "./pages/OwnerRegistration.tsx";
 import Dashboard from "./pages/Dashboard.tsx";
+import SalonPage from "./pages/SalonPage.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import { ProtectedRoute } from "./components/ProtectedRoute.tsx";
 
@@ -26,11 +27,14 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/register" element={<OwnerRegistration />} />
-            <Route path="/salons" element={<Salons />} />
+            
             <Route element={<ProtectedRoute />}>
+              <Route path="/salons" element={<Salons />} />
+              <Route path="/salon/:id" element={<SalonPage />} />
               <Route path="/admin" element={<Admin />} />
-              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/bookings" element={<Dashboard />} />
             </Route>
+            
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

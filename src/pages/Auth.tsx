@@ -64,7 +64,7 @@ const Auth = () => {
     if (intended === "owner") {
       navigate("/admin", { replace: true });
     } else {
-      navigate("/dashboard", { replace: true });
+      navigate("/salons", { replace: true });
     }
   };
 
