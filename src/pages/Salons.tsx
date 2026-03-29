@@ -1,0 +1,157 @@
+import { useState, useEffect } from "react";
+import { Search } from "lucide-react";
+import { AnimatePresence } from "framer-motion";
+import { supabase } from "@/integrations/supabase/client";
+import { Input } from "@/components/ui/input";
+import Header from "@/components/Header";
+import SalonCard from "@/components/SalonCard";
+import SalonDetail from "@/components/SalonDetail";
+import QueueTracker from "@/components/QueueTracker";
+import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
+import type { Tables } from "@/integrations/supabase/types";
+import { getCurrentPosition, calculateDistance } from "@/lib/location";
+import { useDebounce } from "@/hooks/useDebounce";
+import { toast } from "sonner";
+
+export type SalonWithQueueAndDistance = Tables<"salons"> & { queueCount: number; waitTime: number; distance?: number };
+
+const Salons = () => {
+  const { user, profile, loading: authLoading, signOut } = useAuth();
+  const navigate = useNavigate();
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 300);
+  const [salons, setSalons] = useState<SalonWithQueueAndDistance[]>([]);
+  const [selectedSalon, setSelectedSalon] = useState<Tables<"salons"> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [userLoc, setUserLoc] = useState<{lat: number, lng: number} | null>(null);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/auth");
+    }
+  }, [user, authLoading, navigate]);
+
+  useEffect(() => {
+    getCurrentPosition()
+      .then(pos => setUserLoc(pos))
+      .catch(err => {
+        console.warn("Location error:", err);
+      });
+  }, []);
+
+  const fetchSalons = async () => {
+    const { data: salonData } = await supabase.from("salons").select("*");
+    if (!salonData) return;
+
+    const enriched: SalonWithQueueAndDistance[] = await Promise.all(
+      salonData.map(async (salon) => {
+         const { data: queueData } = await supabase
+          .from("queue")
+          .select("service_id, services(duration)")
+          .eq("salon_id", salon.id)
+          .eq("status", "waiting");
+
+         const queueCount = queueData?.length ?? 0;
+         const waitTime = (queueData ?? []).reduce(
+          (sum, e: any) => sum + (e.services?.duration ?? 20), 0
+         );
+
+         let dist = undefined;
+         if (userLoc && salon.lat && salon.lng) {
+             dist = calculateDistance(userLoc.lat, userLoc.lng, salon.lat, salon.lng);
+         }
+
+         return { ...salon, queueCount, waitTime, distance: dist };
+      })
+    );
+
+    // Sort by distance if available
+    enriched.sort((a, b) => {
+        if (a.distance && b.distance) return a.distance - b.distance;
+        return 0;
+    });
+
+    setSalons(enriched);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchSalons();
+    const channel = supabase
+      .channel("salon-queue-updates")
+      .on("postgres_changes", { event: "*", schema: "public", table: "queue" }, () => fetchSalons())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [userLoc]);
+
+  const filtered = salons.filter(
+    (s) =>
+      s.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      s.location.toLowerCase().includes(debouncedSearch.toLowerCase())
+  );
+
+  if (authLoading || (!user)) {
+    return null;
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Header
+        onSignOut={signOut}
+        userName={user.email ?? user.phone ?? "User"}
+        onAdminToggle={profile?.role === "salon_owner" ? () => navigate("/admin") : undefined}
+        isAdmin={false}
+      />
+
+      <main className="container py-8 space-y-8 pb-32">
+        <AnimatePresence mode="wait">
+          {selectedSalon ? (
+            <SalonDetail
+              key="detail"
+              salon={selectedSalon}
+              onBack={() => setSelectedSalon(null)}
+              onJoined={() => setSelectedSalon(null)}
+            />
+          ) : (
+            <div key="list" className="space-y-8">
+              <section className="space-y-2">
+                <h1 className="font-display text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
+                  Skip the wait.{" "}
+                  <span className="text-primary">Join the queue.</span>
+                </h1>
+                <p className="text-muted-foreground max-w-lg">
+                  Browse salons near you, see live wait times, and join the queue.
+                </p>
+              </section>
+
+              <div className="relative max-w-md">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search salons or locations…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+
+              <section className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {loading
+                  ? Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="h-80 animate-pulse rounded-lg bg-muted" />
+                    ))
+                  : filtered.map((salon, i) => (
+                      <SalonCard key={salon.id} salon={salon as any} index={i} onSelect={setSelectedSalon} />
+                    ))}
+              </section>
+            </div>
+          )}
+        </AnimatePresence>
+      </main>
+
+      <QueueTracker />
+    </div>
+  );
+};
+
+export default Salons;
