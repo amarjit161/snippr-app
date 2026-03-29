@@ -11,6 +11,7 @@ import Admin from "./pages/Admin.tsx";
 import OwnerRegistration from "./pages/OwnerRegistration.tsx";
 import Dashboard from "./pages/Dashboard.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import { ProtectedRoute } from "./components/ProtectedRoute.tsx";
 
 const queryClient = new QueryClient();
 
@@ -26,8 +27,10 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/register" element={<OwnerRegistration />} />
             <Route path="/salons" element={<Salons />} />
-            <Route path="/admin" element={<Admin />} />
-            <Route path="/dashboard" element={<Dashboard />} />
+            <Route element={<ProtectedRoute />}>
+              <Route path="/admin" element={<Admin />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+            </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
