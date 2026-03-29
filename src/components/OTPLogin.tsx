@@ -71,7 +71,15 @@ const OTPLogin = () => {
   };
 
   const handleGoogleLogin = async () => {
-    await supabase.auth.signInWithOAuth({ provider: "google" });
+    console.log("Initiating Google Login using Supabase default callback...");
+    const { error } = await supabase.auth.signInWithOAuth({ 
+      provider: "google"
+    });
+
+    if (error) {
+      console.error("Google login error:", error.message);
+      toast.error(error.message);
+    }
   };
 
   return (
