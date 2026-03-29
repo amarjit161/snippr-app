@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import OTPLogin from "@/components/OTPLogin";
 
@@ -8,6 +8,11 @@ const Auth = () => {
   const [searchParams] = useSearchParams();
   const role = searchParams.get("role");
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const location = useLocation();
+
+  // Parse errors from URL hash (Supabase usually appends OAuth/Magic Link errors here)
+  const hashParams = new URLSearchParams(location.hash.substring(1));
+  const authError = hashParams.get("error_description") || hashParams.get("error") || searchParams.get("error_description");
 
   useEffect(() => {
     if (role) {
@@ -18,17 +23,22 @@ const Auth = () => {
   useEffect(() => {
     let mounted = true;
 
-    // 1. Initial manual session check
     const checkSession = async () => {
       try {
+        if (authError) {
+           // Skip automatic check if there's an explicit error passed back from Supabase
+           setIsCheckingAuth(false);
+           return;
+        }
+
         const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) console.error("Session fetch error:", error);
+        if (error) throw error;
         
         if (session && mounted) {
            handleSuccessRedirect();
         }
       } catch (err) {
-        console.error("Unexpected error in checkSession:", err);
+        console.error("Auth session check error:", err);
       } finally {
         if (mounted) setIsCheckingAuth(false);
       }
@@ -36,9 +46,7 @@ const Auth = () => {
 
     checkSession();
 
-    // 2. Real-time auth listener (vital for Magic Links)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // SIGNED_IN covers Magic Links parsing the token from URL hash successfully
       if (event === "SIGNED_IN" && session) {
         handleSuccessRedirect();
       }
@@ -48,32 +56,32 @@ const Auth = () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [authError]);
 
   const handleSuccessRedirect = () => {
-    // Determine route based on previously stored intent
     const intended = localStorage.getItem("snippr_role");
     
     if (intended === "owner") {
       navigate("/admin", { replace: true });
     } else {
-      // Default / Customer redirect
       navigate("/dashboard", { replace: true });
     }
   };
 
   if (isCheckingAuth) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent shadow-sm" />
+      <div className="flex min-h-screen items-center justify-center bg-[#F9FAFB] dark:bg-[#09090B]">
+        <div className="h-6 w-6 animate-spin rounded-full border-[2.5px] border-zinc-200 border-t-zinc-900 dark:border-zinc-800 dark:border-t-zinc-50" />
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-md">
-        <OTPLogin />
+    <div className="flex min-h-screen items-center justify-center bg-[#F9FAFB] p-4 dark:bg-[#09090B]">
+      <div className="w-full max-w-[400px]">
+        <OTPLogin 
+           initialError={authError ? "This login link has expired or is invalid. Please request a new one." : null} 
+        />
       </div>
     </div>
   );
