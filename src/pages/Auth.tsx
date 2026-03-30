@@ -12,7 +12,11 @@ const Auth = () => {
 
   // Parse errors from URL hash (Supabase usually appends OAuth/Magic Link errors here)
   const hashParams = new URLSearchParams(location.hash.substring(1));
-  const authError = hashParams.get("error_description") || hashParams.get("error") || searchParams.get("error_description");
+  let authError = hashParams.get("error_description") || hashParams.get("error") || searchParams.get("error_description");
+  
+  if (searchParams.get("error") === "otp_expired") {
+    authError = "Session expired, please login again";
+  }
 
   useEffect(() => {
     if (role) {
@@ -80,7 +84,7 @@ const Auth = () => {
     <div className="flex min-h-screen items-center justify-center bg-[#F9FAFB] p-4 dark:bg-[#09090B]">
       <div className="w-full max-w-[400px]">
         <OTPLogin 
-           initialError={authError ? "This login link has expired or is invalid. Please request a new one." : null} 
+           initialError={authError === "Session expired, please login again" ? authError : (authError ? "This login link has expired or is invalid. Please request a new one." : null)} 
         />
       </div>
     </div>
