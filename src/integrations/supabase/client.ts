@@ -3,15 +3,23 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
+const SUPABASE_PUBLISHABLE_KEY =
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-console.log("VITE_SUPABASE_URL:", SUPABASE_URL);
-console.log("VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY:", SUPABASE_PUBLISHABLE_KEY);
+export const hasSupabaseEnv = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 
-if (!SUPABASE_URL) throw new Error("VITE_SUPABASE_URL is missing!");
-if (!SUPABASE_PUBLISHABLE_KEY) throw new Error("VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY is missing!");
+if (!hasSupabaseEnv) {
+  console.error(
+    "Supabase env missing. Set VITE_SUPABASE_URL and one of: VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY, VITE_SUPABASE_PUBLISHABLE_KEY, or VITE_SUPABASE_ANON_KEY."
+  );
+}
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+const supabaseUrl = SUPABASE_URL || "http://127.0.0.1:54321";
+const supabaseKey = SUPABASE_PUBLISHABLE_KEY || "missing-supabase-key";
+
+export const supabase = createClient<Database>(supabaseUrl, supabaseKey, {
   auth: {
     storage: window.localStorage,
     persistSession: true,

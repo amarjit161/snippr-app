@@ -28,9 +28,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const fetchProfile = async (s: Session | null) => {
+      setLoading(true);
       if (s?.user) {
-        const { data } = await supabase.from("profiles").select("*").eq("user_id", s.user.id).single();
-        setProfile(data);
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("user_id", s.user.id)
+          .maybeSingle();
+
+        if (error) {
+          // Avoid blank UI when profile table is missing or inaccessible.
+          console.warn("Profile fetch failed:", error.message);
+          setProfile(null);
+        } else {
+          setProfile(data ?? null);
+        }
       } else {
         setProfile(null);
       }

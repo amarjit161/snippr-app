@@ -1,18 +1,15 @@
 import { useState, useEffect } from "react";
 import { Search } from "lucide-react";
-import { AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import Header from "@/components/Header";
 import SalonCard from "@/components/SalonCard";
-import SalonDetail from "@/components/SalonDetail";
 import QueueTracker from "@/components/QueueTracker";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import type { Tables } from "@/integrations/supabase/types";
 import { getCurrentPosition, calculateDistance } from "@/lib/location";
 import { useDebounce } from "@/hooks/useDebounce";
-import { toast } from "sonner";
 
 export type SalonWithQueueAndDistance = Tables<"salons"> & { queueCount: number; waitTime: number; distance?: number };
 
@@ -24,6 +21,7 @@ const Salons = () => {
   const [salons, setSalons] = useState<SalonWithQueueAndDistance[]>([]);
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [userLoc, setUserLoc] = useState<{lat: number, lng: number} | null>(null);
 
   useEffect(() => {
@@ -41,39 +39,53 @@ const Salons = () => {
   }, []);
 
   const fetchSalons = async () => {
-    const { data: salonData } = await supabase.from("salons").select("*");
-    if (!salonData) return;
+    setLoading(true);
+    setLoadError(null);
 
-    const enriched: SalonWithQueueAndDistance[] = await Promise.all(
-      salonData.map(async (salon) => {
-         const { data: queueData } = await supabase
-          .from("queue")
-          .select("service_id, services(duration)")
-          .eq("salon_id", salon.id)
-          .eq("status", "waiting");
+    try {
+      const { data: salonData, error: salonError } = await supabase.from("salons").select("*");
+      if (salonError) throw salonError;
 
-         const queueCount = queueData?.length ?? 0;
-         const waitTime = (queueData ?? []).reduce(
-          (sum, e: any) => sum + (e.services?.duration ?? 20), 0
-         );
+      const enriched: SalonWithQueueAndDistance[] = await Promise.all(
+        (salonData ?? []).map(async (salon) => {
+           const { data: queueData, error: queueError } = await supabase
+            .from("queue")
+            .select("service_id, services(duration)")
+            .eq("salon_id", salon.id)
+            .eq("status", "waiting");
 
-         let dist = undefined;
-         if (userLoc && salon.lat && salon.lng) {
-             dist = calculateDistance(userLoc.lat, userLoc.lng, salon.lat, salon.lng);
-         }
+           if (queueError) {
+            console.warn("Queue fetch failed for salon", salon.id, queueError.message);
+           }
 
-         return { ...salon, queueCount, waitTime, distance: dist };
-      })
-    );
+           const queueCount = queueData?.length ?? 0;
+           const waitTime = (queueData ?? []).reduce(
+            (sum, e: any) => sum + (e.services?.duration ?? 20), 0
+           );
 
-    // Sort by distance if available
-    enriched.sort((a, b) => {
-        if (a.distance && b.distance) return a.distance - b.distance;
-        return 0;
-    });
+           let dist = undefined;
+           if (userLoc && salon.lat && salon.lng) {
+               dist = calculateDistance(userLoc.lat, userLoc.lng, salon.lat, salon.lng);
+           }
 
-    setSalons(enriched);
-    setLoading(false);
+           return { ...salon, queueCount, waitTime, distance: dist };
+        })
+      );
+
+      // Sort by distance if available
+      enriched.sort((a, b) => {
+          if (a.distance && b.distance) return a.distance - b.distance;
+          return 0;
+      });
+
+      setSalons(enriched);
+    } catch (error) {
+      console.error("Failed to load salons:", error);
+      setLoadError("Could not load salons right now. Please try again.");
+      setSalons([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -105,41 +117,41 @@ const Salons = () => {
       />
 
       <main className="container py-8 space-y-8 pb-32">
-        <AnimatePresence mode="wait">
-          {false ? null : (
-            <div key="list" className="space-y-8">
-              <section className="space-y-2">
-                <h1 className="font-display text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
-                  Skip the wait.{" "}
-                  <span className="text-primary">Join the queue.</span>
-                </h1>
-                <p className="text-muted-foreground max-w-lg">
-                  Browse salons near you, see live wait times, and join the queue.
-                </p>
-              </section>
+        <div className="space-y-8">
+          <section className="space-y-2">
+            <h1 className="font-display text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
+              Skip the wait.{" "}
+              <span className="text-primary">Join the queue.</span>
+            </h1>
+            <p className="text-muted-foreground max-w-lg">
+              Browse salons near you, see live wait times, and join the queue.
+            </p>
+          </section>
 
-              <div className="relative max-w-md">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search salons or locations…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search salons or locations…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10"
+            />
+          </div>
 
-              <section className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {loading
-                  ? Array.from({ length: 4 }).map((_, i) => (
-                      <div key={i} className="h-80 animate-pulse rounded-lg bg-muted" />
-                    ))
-                  : filtered.map((salon, i) => (
-                      <SalonCard key={salon.id} salon={salon as any} index={i} onSelect={() => navigate(`/salon/${salon.id}`)} />
-                    ))}
-              </section>
-            </div>
-          )}
-        </AnimatePresence>
+          <section className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {loading
+              ? [1, 2, 3, 4].map((i) => (
+                  <div key={i} className="h-40 rounded-xl bg-gray-200 animate-pulse" />
+                ))
+              : loadError
+              ? <p className="col-span-full text-center text-gray-400">{loadError}</p>
+              : filtered.length === 0
+              ? <p className="col-span-full text-center text-gray-400">No data available</p>
+              : filtered.map((salon, i) => (
+                  <SalonCard key={salon.id} salon={salon as any} index={i} onSelect={() => navigate(`/salon/${salon.id}`)} />
+                ))}
+          </section>
+        </div>
       </main>
 
       <QueueTracker />
