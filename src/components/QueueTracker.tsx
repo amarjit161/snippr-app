@@ -12,9 +12,27 @@ const QueueTracker = () => {
   const { user } = useAuth();
   const { location } = useGeolocation();
   const [entry, setEntry] = useState<(Tables<"queue"> & { salons: Tables<"salons">; services: Tables<"services"> }) | null>(null);
+  const [queue, setQueue] = useState<Tables<"queue">[]>([]);
   const [aheadCount, setAheadCount] = useState(0);
+  const [myPosition, setMyPosition] = useState<number | null>(null);
   const [totalWait, setTotalWait] = useState(0);
-  const prevAhead = useRef<number | null>(null);
+  const [pulseUpdate, setPulseUpdate] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const prevPosition = useRef<number | null>(null);
+
+  const AVG_SERVICE_TIME = 20;
+
+  const fetchQueue = async (salonId: string) => {
+    const { data } = await supabase
+      .from("queue")
+      .select("*")
+      .eq("salon_id", salonId)
+      .eq("status", "waiting")
+      .order("created_at", { ascending: true });
+
+    setQueue((data as Tables<"queue">[]) || []);
+    setLastUpdatedAt(new Date());
+  };
 
   const fetchMyQueue = async () => {
     if (!user) return;
@@ -34,55 +52,66 @@ const QueueTracker = () => {
 
       if (data.status === "in_progress") {
         setAheadCount(0);
+        setMyPosition(1);
         setTotalWait(0);
-        if (prevAhead.current !== -1) {
+        if (prevPosition.current !== -1) {
           toast.success("✂️ Your service has started!", { duration: 8000 });
-          prevAhead.current = -1;
+          prevPosition.current = -1;
         }
         return;
       }
 
-      const { data: aheadEntries } = await supabase
-        .from("queue")
-        .select("service_id, services(duration)")
-        .eq("salon_id", data.salon_id)
-        .in("status", ["waiting", "in_progress"])
-        .lt("created_at", data.created_at);
-
-      const ahead = aheadEntries?.length ?? 0;
-      const wait = (aheadEntries ?? []).reduce(
-        (sum, e: any) => sum + (e.services?.duration ?? 20), 0
-      );
-      
-      setAheadCount(ahead);
-      setTotalWait(wait);
-
-      // Smart notifications based on position changes
-      if (prevAhead.current !== null && prevAhead.current !== ahead) {
-        if (ahead === 0) {
-          toast.success("🎉 You're next! Get ready!", { duration: 10000 });
-        } else if (ahead <= 2 && prevAhead.current > 2) {
-          toast.info(`⏰ Your turn in ~${wait} minutes`, { duration: 6000 });
-        } else if (ahead < prevAhead.current) {
-          toast("Queue updated", { description: `You're now #${ahead + 1}` });
-        }
-      }
-      prevAhead.current = ahead;
+      await fetchQueue(data.salon_id);
     } else {
-      if (entry && prevAhead.current === -1) {
+      if (entry && prevPosition.current === -1) {
         toast.success("✅ Service completed! See you next time!", { duration: 6000 });
       }
       setEntry(null);
-      prevAhead.current = null;
+      setQueue([]);
+      setAheadCount(0);
+      setMyPosition(null);
+      setTotalWait(0);
+      prevPosition.current = null;
     }
   };
+
+  useEffect(() => {
+    if (!entry || entry.status !== "waiting") return;
+
+    const myIndex = queue.findIndex((q) => q.id === entry.id);
+    const nextPosition = myIndex >= 0 ? myIndex + 1 : null;
+    const peopleAhead = myIndex >= 0 ? myIndex : 0;
+    const wait = nextPosition ? nextPosition * AVG_SERVICE_TIME : 0;
+
+    setMyPosition(nextPosition);
+    setAheadCount(peopleAhead);
+    setTotalWait(wait);
+
+    if (nextPosition && prevPosition.current !== null && prevPosition.current !== nextPosition) {
+      setPulseUpdate(true);
+      window.setTimeout(() => setPulseUpdate(false), 900);
+
+      if (nextPosition === 1) {
+          toast.success("🎉 You're next! Get ready!", { duration: 10000 });
+        } else if (nextPosition <= 3 && (prevPosition.current || 99) > 3) {
+          toast.info(`⏰ Your turn in ~${wait} minutes`, { duration: 6000 });
+        } else if (nextPosition < (prevPosition.current || Number.MAX_SAFE_INTEGER)) {
+          toast("Queue updated", { description: `Your position: #${nextPosition}` });
+        }
+      }
+
+    if (nextPosition !== null) {
+      prevPosition.current = nextPosition;
+    }
+  }, [AVG_SERVICE_TIME, entry, queue]);
 
   useEffect(() => {
     fetchMyQueue();
 
     const channel = supabase
       .channel("queue-tracker-updates")
-      .on("postgres_changes", { event: "*", schema: "public", table: "queue" }, () => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "queue" }, (payload) => {
+        console.log("Realtime update:", payload);
         fetchMyQueue();
       })
       .subscribe();
@@ -108,6 +137,7 @@ const QueueTracker = () => {
     ? estimateTravelMinutes(location.lat, location.lng, salon.lat, salon.lng)
     : 10;
   const leaveIn = Math.max(0, totalWait - travelMin);
+  const hasQueueData = queue.length > 0;
 
   return (
     <motion.div
@@ -145,22 +175,38 @@ const QueueTracker = () => {
         </motion.div>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-3 text-center">
+          <motion.div
+            animate={pulseUpdate ? { scale: [1, 1.03, 1] } : { scale: 1 }}
+            transition={{ duration: 0.45 }}
+            className="grid grid-cols-3 gap-3 text-center"
+          >
             <div className="rounded-lg bg-secondary p-3">
               <Users className="mx-auto h-4 w-4 text-primary mb-1" />
-              <p className="font-display text-lg font-bold text-foreground">#{aheadCount + 1}</p>
-              <p className="text-xs text-muted-foreground">Position</p>
+              <p className="font-display text-lg font-bold text-foreground">#{myPosition ?? "--"}</p>
+              <p className="text-xs text-muted-foreground">Your position</p>
             </div>
             <div className="rounded-lg bg-secondary p-3">
               <Clock className="mx-auto h-4 w-4 text-accent mb-1" />
               <p className="font-display text-lg font-bold text-foreground">~{totalWait}m</p>
-              <p className="text-xs text-muted-foreground">Wait time</p>
+              <p className="text-xs text-muted-foreground">Estimated wait</p>
             </div>
             <div className="rounded-lg bg-secondary p-3">
               <Navigation className="mx-auto h-4 w-4 text-success mb-1" />
               <p className="font-display text-lg font-bold text-foreground">{travelMin}m</p>
               <p className="text-xs text-muted-foreground">Travel</p>
             </div>
+          </motion.div>
+
+          <div className="rounded-lg bg-primary/5 px-3 py-2 text-sm text-foreground">
+            {myPosition
+              ? `Your position: #${myPosition} • People ahead: ${aheadCount}`
+              : hasQueueData
+              ? "Not in queue"
+              : "No wait"}
+          </div>
+
+          <div className="rounded-lg bg-secondary/70 px-3 py-2 text-sm text-muted-foreground">
+            Estimated wait: {myPosition ? `~${totalWait} minutes` : "No wait"}
           </div>
 
           {leaveIn > 0 && (
@@ -191,6 +237,10 @@ const QueueTracker = () => {
         <span>•</span>
         <span>${service.price}</span>
       </div>
+
+      <p className="text-xs text-muted-foreground">
+        Last updated {lastUpdatedAt ? "just now" : "-"}
+      </p>
 
       {aheadCount === 0 && !isInProgress && (
         <motion.div

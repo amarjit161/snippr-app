@@ -2,6 +2,12 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
+declare global {
+  interface Window {
+    __SNIPPR_SUPABASE__?: ReturnType<typeof createClient<Database>>;
+  }
+}
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY =
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||
@@ -19,10 +25,29 @@ if (!hasSupabaseEnv) {
 const supabaseUrl = SUPABASE_URL || "http://127.0.0.1:54321";
 const supabaseKey = SUPABASE_PUBLISHABLE_KEY || "missing-supabase-key";
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseKey, {
+if (typeof window !== "undefined") {
+  console.log(import.meta.env.VITE_SUPABASE_URL);
+  console.info("Supabase project URL:", supabaseUrl);
+  if (window.__SNIPPR_SUPABASE__) {
+    delete window.__SNIPPR_SUPABASE__;
+  }
+}
+
+const createSupabaseClient = () =>
+  createClient<Database>(supabaseUrl, supabaseKey, {
+  db: {
+    schema: "public",
+  },
+  global: {
+    fetch: (input, init) => fetch(input, { ...(init ?? {}), cache: "no-store" }),
+  },
   auth: {
     storage: window.localStorage,
     persistSession: true,
     autoRefreshToken: true,
   }
 });
+
+export const supabase = typeof window !== "undefined"
+  ? (window.__SNIPPR_SUPABASE__ = createSupabaseClient())
+  : createSupabaseClient();

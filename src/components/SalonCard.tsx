@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Tables } from "@/integrations/supabase/types";
+import { supabase } from "@/integrations/supabase/client";
 
 import salon1 from "@/assets/salon-1.jpg";
 import salon2 from "@/assets/salon-2.jpg";
@@ -14,6 +15,23 @@ const salonImages: Record<string, string> = {
   "/salon-2": salon2,
   "/salon-3": salon3,
   "/salon-4": salon4,
+};
+
+const getSalonImageSrc = (imageUrl: string | null) => {
+  if (!imageUrl) {
+    return "/default-salon.jpg";
+  }
+
+  if (salonImages[imageUrl]) {
+    return salonImages[imageUrl];
+  }
+
+  if (imageUrl.startsWith("http") || imageUrl.startsWith("/")) {
+    return imageUrl;
+  }
+
+  const { data } = supabase.storage.from("salon-images").getPublicUrl(imageUrl);
+  return data.publicUrl || "/default-salon.jpg";
 };
 
 interface SalonCardProps {
@@ -30,17 +48,17 @@ const SalonCard = ({ salon, index, onSelect }: SalonCardProps) => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: index * 0.08 }}
-      className="group overflow-hidden rounded-lg bg-card shadow-elevation-1 hover:shadow-elevation-3 transition-shadow duration-300 cursor-pointer"
+      className="group cursor-pointer overflow-hidden rounded-2xl bg-white shadow-md transition hover:shadow-xl"
       onClick={() => onSelect(salon)}
     >
       <div className="relative h-48 overflow-hidden">
         <img
-          src={salonImages[salon.image_url ?? ""] ?? salon1}
+          src={getSalonImageSrc(salon.image_url)}
           alt={salon.name}
           loading={index === 0 ? undefined : "lazy"}
           width={640}
           height={512}
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          className="h-48 w-full rounded-t-2xl object-cover transition-transform duration-500 group-hover:scale-105"
         />
         <Badge
           className={`absolute top-3 right-3 ${
@@ -66,7 +84,7 @@ const SalonCard = ({ salon, index, onSelect }: SalonCardProps) => {
 
         <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
           <MapPin className="h-3.5 w-3.5" />
-          {salon.location} {salon.distance !== undefined ? `• ${salon.distance.toFixed(1)} km` : ""}
+          {salon.location} {salon.distance !== undefined ? `• ${salon.distance.toFixed(1)} km away` : ""}
         </p>
 
         {isOpen && (

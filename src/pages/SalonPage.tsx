@@ -49,19 +49,19 @@ export default function SalonPage() {
   );
 
   if (errorMessage) return (
-    <div className="flex min-h-screen items-center justify-center bg-[#F9FAFB] dark:bg-[#09090B] px-6">
+    <div className="flex min-h-screen items-center justify-center bg-background px-6">
       <p className="text-center text-gray-400">{errorMessage}</p>
     </div>
   );
 
   if (!salon) return (
-    <div className="flex min-h-screen items-center justify-center bg-[#F9FAFB] dark:bg-[#09090B]">
+    <div className="flex min-h-screen items-center justify-center bg-background">
       <p className="text-center text-gray-400">No data available</p>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#F9FAFB] pb-16 dark:bg-[#09090B]">
+    <div className="min-h-screen bg-background pb-16">
       <Header
         onSignOut={signOut}
         userName={user?.email || "User"}

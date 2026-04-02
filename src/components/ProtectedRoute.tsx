@@ -14,6 +14,8 @@ export const ProtectedRoute = () => {
   }
 
   if (!session) {
+    const redirectPath = `${location.pathname}${location.search}${location.hash}`;
+    localStorage.setItem("redirectAfterLogin", redirectPath);
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 

@@ -8,7 +8,7 @@ import QueueTracker from "@/components/QueueTracker";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import type { Tables } from "@/integrations/supabase/types";
-import { getCurrentPosition, calculateDistance } from "@/lib/location";
+import { calculateDistance } from "@/lib/location";
 import { useDebounce } from "@/hooks/useDebounce";
 
 export type SalonWithQueueAndDistance = Tables<"salons"> & { queueCount: number; waitTime: number; distance?: number };
@@ -23,6 +23,8 @@ const Salons = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [userLoc, setUserLoc] = useState<{lat: number, lng: number} | null>(null);
+  const [locationDenied, setLocationDenied] = useState(false);
+  const [selectedCity, setSelectedCity] = useState("");
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -31,11 +33,27 @@ const Salons = () => {
   }, [user, authLoading, navigate]);
 
   useEffect(() => {
-    getCurrentPosition()
-      .then(pos => setUserLoc(pos))
-      .catch(err => {
-        console.warn("Location error:", err);
-      });
+    if (!navigator.geolocation) {
+      setLocationDenied(true);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setUserLoc({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+      },
+      () => {
+        setLocationDenied(true);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 300000,
+      }
+    );
   }, []);
 
   const fetchSalons = async () => {
@@ -97,11 +115,29 @@ const Salons = () => {
     return () => { supabase.removeChannel(channel); };
   }, [userLoc]);
 
-  const filtered = salons.filter(
+  const filteredBySearch = salons.filter(
     (s) =>
       s.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
       s.location.toLowerCase().includes(debouncedSearch.toLowerCase())
   );
+
+  const cityOptions = Array.from(
+    new Set(
+      salons
+        .map((salon) => ((salon as any).city as string | null) ?? "")
+        .map((city) => city.trim())
+        .filter(Boolean)
+    )
+  ).sort((a, b) => a.localeCompare(b));
+
+  const filtered = locationDenied && selectedCity
+    ? filteredBySearch.filter((salon) => (((salon as any).city as string | null) ?? "").toLowerCase() === selectedCity.toLowerCase())
+    : filteredBySearch;
+
+  const nearYouSalons = filtered
+    .filter((salon) => salon.distance !== undefined)
+    .slice()
+    .sort((a, b) => (a.distance as number) - (b.distance as number));
 
   if (authLoading || (!user)) {
     return null;
@@ -116,9 +152,9 @@ const Salons = () => {
         isAdmin={false}
       />
 
-      <main className="container py-8 space-y-8 pb-32">
+      <main className="container space-y-8 pb-32 py-8">
         <div className="space-y-8">
-          <section className="space-y-2">
+          <section className="ds-gradient-header space-y-2 p-5 sm:p-6">
             <h1 className="font-display text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
               Skip the wait.{" "}
               <span className="text-primary">Join the queue.</span>
@@ -134,9 +170,41 @@ const Salons = () => {
               placeholder="Search salons or locations…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-10"
+              className="ds-input pl-10"
             />
           </div>
+
+          {locationDenied ? (
+            <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
+              <p className="text-sm text-muted-foreground">Location permission is off. Select your city to find nearby salons.</p>
+              <div className="mt-3 max-w-sm">
+                <select
+                  value={selectedCity}
+                  onChange={(e) => setSelectedCity(e.target.value)}
+                  className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:ring-2 focus:ring-primary/30"
+                >
+                  <option value="">Select city</option>
+                  {cityOptions.map((city) => (
+                    <option key={city} value={city}>{city}</option>
+                  ))}
+                </select>
+              </div>
+            </section>
+          ) : null}
+
+          {userLoc && nearYouSalons.length > 0 ? (
+            <section className="space-y-4">
+              <div>
+                <h2 className="text-xl font-semibold text-foreground">Near you</h2>
+                <p className="text-sm text-muted-foreground">Closest salons based on your current location.</p>
+              </div>
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {nearYouSalons.slice(0, 8).map((salon, i) => (
+                  <SalonCard key={`near-${salon.id}`} salon={salon as any} index={i} onSelect={() => navigate(`/salon/${salon.id}`)} />
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           <section className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {loading
@@ -144,9 +212,9 @@ const Salons = () => {
                   <div key={i} className="h-40 rounded-xl bg-gray-200 animate-pulse" />
                 ))
               : loadError
-              ? <p className="col-span-full text-center text-gray-400">{loadError}</p>
+              ? <p className="col-span-full rounded-xl border border-border bg-card p-6 text-center text-muted-foreground">{loadError}</p>
               : filtered.length === 0
-              ? <p className="col-span-full text-center text-gray-400">No data available</p>
+              ? <p className="col-span-full rounded-xl border border-border bg-card p-6 text-center text-muted-foreground">No salons found for your current search.</p>
               : filtered.map((salon, i) => (
                   <SalonCard key={salon.id} salon={salon as any} index={i} onSelect={() => navigate(`/salon/${salon.id}`)} />
                 ))}

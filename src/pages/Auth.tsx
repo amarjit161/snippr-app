@@ -63,10 +63,19 @@ const Auth = () => {
   }, [authError]);
 
   const handleSuccessRedirect = () => {
+    const redirectPath = localStorage.getItem("redirectAfterLogin");
+    console.log("Redirect path:", redirectPath);
+
+    if (redirectPath) {
+      localStorage.removeItem("redirectAfterLogin");
+      navigate(redirectPath, { replace: true });
+      return;
+    }
+
     const intended = localStorage.getItem("snippr_role");
     
     if (intended === "owner") {
-      navigate("/admin", { replace: true });
+      navigate("/register-salon", { replace: true });
     } else {
       navigate("/salons", { replace: true });
     }
@@ -74,15 +83,16 @@ const Auth = () => {
 
   if (isCheckingAuth) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F9FAFB] dark:bg-[#09090B]">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="h-6 w-6 animate-spin rounded-full border-[2.5px] border-zinc-200 border-t-zinc-900 dark:border-zinc-800 dark:border-t-zinc-50" />
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#F9FAFB] p-4 dark:bg-[#09090B]">
-      <div className="w-full max-w-[400px]">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-4">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_10%,_rgba(109,40,217,0.2),_transparent_35%),radial-gradient(circle_at_84%_16%,_rgba(249,115,22,0.2),_transparent_38%)]" />
+      <div className="relative w-full max-w-[440px]">
         <OTPLogin 
            initialError={authError === "Session expired, please login again" ? authError : (authError ? "This login link has expired or is invalid. Please request a new one." : null)} 
         />
