@@ -26,7 +26,7 @@ export function OwnerShell({ children, onLogout }: OwnerShellProps) {
     <div className="min-h-screen bg-[#faf9fc] text-[#1a1c1e]">
       <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col space-y-2 border-r border-[#e3e2e5] bg-slate-50 p-4 md:flex">
         <div className="mb-8 px-4 pt-1">
-          <h1 className="font-display text-xl font-extrabold text-violet-900">QueueCut AI</h1>
+          <h1 className="font-display text-xl font-extrabold text-violet-900">snippr</h1>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Salon Concierge</p>
         </div>
 

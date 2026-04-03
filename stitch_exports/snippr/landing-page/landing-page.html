@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>QueueCut AI - Skip the Wait</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-secondary-fixed-variant": "#832600",
+              "error-container": "#ffdad6",
+              "on-error": "#ffffff",
+              "surface-variant": "#e3e2e5",
+              "background": "#faf9fc",
+              "surface-bright": "#faf9fc",
+              "on-tertiary-container": "#503d00",
+              "surface-container-high": "#e8e8eb",
+              "on-tertiary-fixed": "#241a00",
+              "primary-container": "#6750a4",
+              "secondary-fixed-dim": "#ffb59d",
+              "error": "#ba1a1a",
+              "on-secondary": "#ffffff",
+              "primary-fixed-dim": "#cfbcff",
+              "on-error-container": "#93000a",
+              "surface-container-highest": "#e3e2e5",
+              "surface": "#faf9fc",
+              "primary": "#4f378a",
+              "surface-dim": "#dadadc",
+              "on-tertiary-fixed-variant": "#594400",
+              "tertiary-fixed-dim": "#e7c365",
+              "secondary-fixed": "#ffdbd0",
+              "on-primary-fixed-variant": "#4f378a",
+              "on-primary-container": "#e0d2ff",
+              "on-primary-fixed": "#22005d",
+              "tertiary": "#765b00",
+              "surface-container-lowest": "#ffffff",
+              "on-surface": "#1a1c1e",
+              "surface-tint": "#6750a4",
+              "on-primary": "#ffffff",
+              "on-secondary-container": "#5d1900",
+              "primary-fixed": "#e9ddff",
+              "on-background": "#1a1c1e",
+              "outline": "#7a7582",
+              "surface-container-low": "#f4f3f6",
+              "tertiary-fixed": "#ffdf93",
+              "inverse-surface": "#2f3033",
+              "tertiary-container": "#c9a74d",
+              "secondary-container": "#fe6a34",
+              "secondary": "#ab3500",
+              "outline-variant": "#cbc4d2",
+              "inverse-on-surface": "#f1f0f3",
+              "on-secondary-fixed": "#390c00",
+              "inverse-primary": "#cfbcff",
+              "surface-container": "#eeedf0",
+              "on-surface-variant": "#494551",
+              "on-tertiary": "#ffffff"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Plus Jakarta Sans"],
+              "label": ["Plus Jakarta Sans"]
+            },
+            borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-nav {
+            backdrop-filter: blur(20px);
+            background-color: rgba(250, 249, 252, 0.8);
+        }
+        .hero-gradient {
+            background: linear-gradient(135deg, #4f378a 0%, #6750a4 100%);
+        }
+        .editorial-spacing {
+            padding-top: 8.5rem;
+            padding-bottom: 4rem;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body antialiased">
+<!-- TopAppBar -->
+<header class="sticky top-0 w-full flex justify-between items-center px-6 py-4 mx-auto z-50 glass-nav shadow-sm">
+<div class="flex items-center gap-8">
+<span class="text-2xl font-manrope font-extrabold tracking-tight text-violet-900">QueueCut AI</span>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-violet-700 font-bold border-b-2 border-violet-700 font-plus-jakarta transition-all" href="#">Explore</a>
+<a class="text-slate-600 font-medium hover:text-violet-600 transition-colors font-plus-jakarta" href="#">Bookings</a>
+<a class="text-slate-600 font-medium hover:text-violet-600 transition-colors font-plus-jakarta" href="#">Live Queue</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-slate-600 hover:text-violet-600 transition-colors">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 text-slate-600 hover:text-violet-600 transition-colors">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+<div class="w-10 h-10 rounded-full overflow-hidden bg-surface-container-high border-2 border-primary-container/20">
+<img alt="User profile avatar" data-alt="close-up portrait of a professional man with a kind expression and clean-cut hairstyle in soft studio lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC1VPrBWTEwyLfdYhrlTmYOQ1wIPIQSeCCfAR__6fAcUGf37-C6Hk6JUezNdCLzRDTgZ0sq2H-AvCGTTSy4R_p6VeDIi58fcHByZAZsv_RkslONStTgr0JoTeL4QIs7DBBNwzVXelBbFwcuukwcX-s3OQ5cXeyG4SJ-g1WI21U6llL8rAA7JaAmOvCji3VhXBcPACnTirGiI0ptdIstAa0hlNjN_gz_tLfSi_FdRnN9iAYwiTfUL2wM8lSIODzAIZJjlVFUYrg4Pgc"/>
+</div>
+</div>
+</header>
+<main>
+<!-- Hero Section -->
+<section class="editorial-spacing px-6 lg:px-16 max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-12">
+<div class="flex-1 space-y-8">
+<div class="flex flex-wrap gap-3">
+<span class="px-4 py-1.5 bg-primary-fixed text-on-primary-fixed-variant rounded-full text-xs font-bold font-label uppercase tracking-wider">AI Wait Time</span>
+<span class="px-4 py-1.5 bg-secondary-fixed text-on-secondary-fixed-variant rounded-full text-xs font-bold font-label uppercase tracking-wider">Live Queue</span>
+<span class="px-4 py-1.5 bg-tertiary-fixed text-on-tertiary-fixed-variant rounded-full text-xs font-bold font-label uppercase tracking-wider">Smart ETA</span>
+</div>
+<h1 class="text-5xl lg:text-7xl font-headline font-extrabold text-on-surface leading-[1.1] tracking-tight">
+                    Skip the wait at <br/>
+<span class="text-primary italic">premium</span> salons.
+                </h1>
+<p class="text-xl text-on-surface-variant max-w-xl leading-relaxed">
+                    QueueCut AI uses predictive intelligence to choreograph your salon visit. No more waiting areas—just arrive exactly when your stylist is ready.
+                </p>
+<div class="flex flex-col sm:flex-row gap-4">
+<button class="hero-gradient text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg hover:opacity-90 transition-all flex items-center justify-center gap-2">
+                        Join Queue
+                        <span class="material-symbols-outlined" data-icon="arrow_forward">arrow_forward</span>
+</button>
+<button class="bg-surface-container-high text-on-surface px-8 py-4 rounded-xl font-bold text-lg hover:bg-surface-container-highest transition-all">
+                        How it works
+                    </button>
+</div>
+</div>
+<div class="flex-1 relative">
+<div class="w-full aspect-[4/5] rounded-xl overflow-hidden shadow-2xl relative z-10">
+<img class="w-full h-full object-cover" data-alt="ultra-modern minimalist hair salon interior with soft ambient lighting, clean white surfaces, and premium leather styling chairs" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCoI_jZdpbU7WAHr4TBPgjxpF1ABoa9pXOq0hiKsoo38v5El1zmqa9lkv5RidzoO8jdyhOuzv1CDwRXFP-bDVTjBnqtjgJ17LqghNnYUiXXnvZkrGyhs9awWZK92AHSXqpLD2JhfcHH6SyobKibycSVKNFYfUpC8yKjundT_oTA1l6-ABSmHzBKhKNc3QTGgeNj24CoxdxTyEj7IvA9Q0-HLxKgu39Yuv8d88qh40arMjTq8i_DbmwCF8RV_V-TBPzEGdeski_DV1Y"/>
+</div>
+<!-- Abstract Floating Card -->
+<div class="absolute -bottom-6 -left-6 bg-surface-container-lowest p-6 rounded-lg shadow-xl z-20 max-w-[240px]">
+<div class="flex items-center gap-3 mb-4">
+<div class="w-3 h-3 rounded-full bg-secondary animate-pulse"></div>
+<span class="font-label text-xs font-bold text-secondary uppercase tracking-widest">Live Now</span>
+</div>
+<p class="font-headline text-3xl font-bold text-primary">12 mins</p>
+<p class="text-sm text-on-surface-variant font-medium">Estimated wait at Luxe Studio</p>
+</div>
+</div>
+</section>
+<!-- Explore Salons (Bento Grid) -->
+<section class="py-24 px-6 lg:px-16 max-w-7xl mx-auto">
+<div class="flex justify-between items-end mb-12">
+<div>
+<h2 class="text-3xl font-headline font-bold text-on-surface">Explore Salons</h2>
+<p class="text-on-surface-variant mt-2 font-medium">Top rated destinations near your current location</p>
+</div>
+<button class="text-primary font-bold flex items-center gap-2 hover:underline underline-offset-4">
+                    View all 
+                    <span class="material-symbols-outlined text-sm" data-icon="open_in_new">open_in_new</span>
+</button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Main Featured Card -->
+<div class="md:col-span-2 group relative h-[400px] rounded-xl overflow-hidden cursor-pointer">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="wide shot of a bright contemporary hair salon with industrial ceiling elements and large windows letting in natural sunlight" src="https://lh3.googleusercontent.com/aida-public/AB6AXuArcaUjyxVSPDYlglwGzYFNOlq-PRh5js8gKHY1pTjbb-FBEB7RJN2q2IdQDwHjaaiR-rw2JVc5GYlMz-trNglDAsZNtg8nU5YeiiBN7bRlV7U6LzoP15iy5UlBtJKAyC2kXIf97xU5G9xhJqG8zEv4kITSyBsIjij0doY7YKH5r62lwHTUgVl_jS-oF7oSY9DsX44rOdUXKkeoSbmBGAG-wyjOhCAG5DQvgQWYa-Oi9VZqKazcmoP_n-qNYHMC7XRWyViL2BjZZiQ"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+<div class="absolute bottom-0 left-0 p-8 text-white w-full">
+<div class="flex items-center justify-between">
+<div>
+<h3 class="text-2xl font-headline font-bold">The Collective Artistry</h3>
+<p class="opacity-90 font-medium">Luxury Styling &amp; Color Bar</p>
+</div>
+<div class="bg-white/20 backdrop-blur-md px-4 py-2 rounded-full flex items-center gap-2">
+<span class="material-symbols-outlined text-yellow-400" data-icon="star" data-weight="fill">star</span>
+<span class="font-bold">4.9</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Secondary Cards -->
+<div class="flex flex-col gap-6">
+<div class="flex-1 bg-surface-container-lowest p-6 rounded-xl shadow-sm hover:shadow-md transition-all border border-transparent hover:border-primary/10 group">
+<div class="flex justify-between items-start mb-4">
+<div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="content_cut">content_cut</span>
+</div>
+<span class="text-xs font-bold text-on-surface-variant bg-surface-container-high px-3 py-1 rounded-full">2.4 mi</span>
+</div>
+<h4 class="font-headline font-bold text-lg group-hover:text-primary transition-colors">Urban Groomers</h4>
+<p class="text-sm text-on-surface-variant mt-1 mb-4">Modern barbering &amp; grooming lounge.</p>
+<div class="flex items-center gap-2 text-secondary font-bold text-sm">
+<span class="material-symbols-outlined text-sm" data-icon="timer">timer</span>
+                            5 min wait
+                        </div>
+</div>
+<div class="flex-1 bg-surface-container-lowest p-6 rounded-xl shadow-sm hover:shadow-md transition-all border border-transparent hover:border-primary/10 group">
+<div class="flex justify-between items-start mb-4">
+<div class="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined" data-icon="spa">spa</span>
+</div>
+<span class="text-xs font-bold text-on-surface-variant bg-surface-container-high px-3 py-1 rounded-full">0.8 mi</span>
+</div>
+<h4 class="font-headline font-bold text-lg group-hover:text-primary transition-colors">Aura Wellness</h4>
+<p class="text-sm text-on-surface-variant mt-1 mb-4">Holistic hair treatments and scalp spa.</p>
+<div class="flex items-center gap-2 text-green-600 font-bold text-sm">
+<span class="material-symbols-outlined text-sm" data-icon="check_circle">check_circle</span>
+                            Immediate start
+                        </div>
+</div>
+</div>
+</div>
+</section>
+<!-- CTA Section -->
+<section class="py-24 px-6">
+<div class="max-w-4xl mx-auto hero-gradient rounded-xl p-12 text-center text-white relative overflow-hidden">
+<!-- Abstract patterns -->
+<div class="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32 blur-3xl"></div>
+<div class="absolute bottom-0 left-0 w-64 h-64 bg-primary-container/20 rounded-full -ml-32 -mb-32 blur-3xl"></div>
+<h2 class="text-4xl font-headline font-extrabold mb-6 relative z-10">Ready to cut the queue?</h2>
+<p class="text-lg opacity-90 mb-10 max-w-xl mx-auto relative z-10">Download the QueueCut AI app and get real-time ETAs for your favorite salons in your pocket.</p>
+<div class="flex flex-wrap justify-center gap-4 relative z-10">
+<button class="bg-white text-primary px-8 py-4 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-50 transition-colors">
+<span class="material-symbols-outlined" data-icon="apple">ios</span>
+                        App Store
+                    </button>
+<button class="bg-white/20 backdrop-blur-md text-white px-8 py-4 rounded-xl font-bold flex items-center gap-2 hover:bg-white/30 transition-colors">
+<span class="material-symbols-outlined" data-icon="shop">shop</span>
+                        Google Play
+                    </button>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-slate-50 py-16 px-8 mt-12 border-t-0">
+<div class="max-w-7xl mx-auto">
+<div class="flex flex-col md:flex-row justify-between items-start gap-12 mb-12">
+<div class="max-w-sm">
+<span class="font-manrope font-black text-2xl text-slate-900 block mb-4">QueueCut AI</span>
+<p class="text-slate-500 font-plus-jakarta text-sm leading-relaxed">
+                        Redefining the salon experience through intelligent scheduling. Precision in every second, convenience in every click.
+                    </p>
+</div>
+<div class="grid grid-cols-2 sm:grid-cols-3 gap-12">
+<div>
+<h5 class="font-bold text-slate-900 mb-4 text-sm">Product</h5>
+<ul class="space-y-3">
+<li><a class="text-slate-500 hover:text-orange-600 transition-colors text-xs font-plus-jakarta" href="#">Explore</a></li>
+<li><a class="text-slate-500 hover:text-orange-600 transition-colors text-xs font-plus-jakarta" href="#">Live Queue</a></li>
+<li><a class="text-slate-500 hover:text-orange-600 transition-colors text-xs font-plus-jakarta" href="#">Bookings</a></li>
+</ul>
+</div>
+<div>
+<h5 class="font-bold text-slate-900 mb-4 text-sm">Company</h5>
+<ul class="space-y-3">
+<li><a class="text-slate-500 hover:text-orange-600 transition-colors text-xs font-plus-jakarta" href="#">Careers</a></li>
+<li><a class="text-slate-500 hover:text-orange-600 transition-colors text-xs font-plus-jakarta" href="#">Salon Partner Portal</a></li>
+<li><a class="text-slate-500 hover:text-orange-600 transition-colors text-xs font-plus-jakarta" href="#">Support</a></li>
+</ul>
+</div>
+<div>
+<h5 class="font-bold text-slate-900 mb-4 text-sm">Legal</h5>
+<ul class="space-y-3">
+<li><a class="text-slate-500 hover:text-orange-600 transition-colors text-xs font-plus-jakarta" href="#">Privacy</a></li>
+<li><a class="text-slate-500 hover:text-orange-600 transition-colors text-xs font-plus-jakarta" href="#">Terms</a></li>
+</ul>
+</div>
+</div>
+</div>
+<div class="pt-8 border-t border-slate-200 flex flex-col md:flex-row justify-between items-center gap-6">
+<p class="text-slate-500 text-xs font-plus-jakarta">© 2024 QueueCut AI. Precision in every second.</p>
+<div class="flex gap-6">
+<a class="text-slate-400 hover:text-orange-600 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="share">share</span>
+</a>
+<a class="text-slate-400 hover:text-orange-600 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="language">language</span>
+</a>
+</div>
+</div>
+</div>
+</footer>
+<!-- BottomNavBar (Mobile only) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-3 glass-nav shadow-[0_-8px_30px_rgb(0,0,0,0.04)] rounded-t-xl">
+<a class="flex flex-col items-center justify-center bg-violet-100 text-violet-800 rounded-2xl px-6 py-2 transition-all scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+<span class="text-[10px] uppercase tracking-widest font-bold mt-1">Explore</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 px-6 py-2 hover:bg-slate-100 rounded-2xl transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="event_note">event_note</span>
+<span class="text-[10px] uppercase tracking-widest font-bold mt-1">Bookings</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 px-6 py-2 hover:bg-slate-100 rounded-2xl transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="hourglass_empty">hourglass_empty</span>
+<span class="text-[10px] uppercase tracking-widest font-bold mt-1">Live Queue</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 px-6 py-2 hover:bg-slate-100 rounded-2xl transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="text-[10px] uppercase tracking-widest font-bold mt-1">Profile</span>
+</a>
+</nav>
+</body></html>

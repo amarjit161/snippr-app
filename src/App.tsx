@@ -23,6 +23,7 @@ import Settings from "./pages/Settings.tsx";
 import Services from "./pages/Services.tsx";
 import Team from "./pages/Team.tsx";
 import Queue from "./pages/Queue.tsx";
+import Careers from "./pages/Careers.tsx";
 import { OwnerProtectedRoute } from "./components/OwnerProtectedRoute.tsx";
 
 const queryClient = new QueryClient();
@@ -41,6 +42,7 @@ const App = () => (
             <Route path="/verify" element={<Verify />} />
             <Route path="/owner-login" element={<OwnerLogin />} />
             <Route path="/owner-register" element={<OwnerRegister />} />
+            <Route path="/careers" element={<Careers />} />
 
             <Route path="/register-salon" element={<OwnerProtectedRoute><RegisterSalon /></OwnerProtectedRoute>} />
             <Route path="/owner-dashboard" element={<OwnerProtectedRoute><OwnerDashboard /></OwnerProtectedRoute>} />

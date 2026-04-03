@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-secondary-fixed-variant": "#832600",
+                        "error-container": "#ffdad6",
+                        "on-error": "#ffffff",
+                        "surface-variant": "#e3e2e5",
+                        "background": "#faf9fc",
+                        "surface-bright": "#faf9fc",
+                        "on-tertiary-container": "#503d00",
+                        "surface-container-high": "#e8e8eb",
+                        "on-tertiary-fixed": "#241a00",
+                        "primary-container": "#6750a4",
+                        "secondary-fixed-dim": "#ffb59d",
+                        "error": "#ba1a1a",
+                        "on-secondary": "#ffffff",
+                        "primary-fixed-dim": "#cfbcff",
+                        "on-error-container": "#93000a",
+                        "surface-container-highest": "#e3e2e5",
+                        "surface": "#faf9fc",
+                        "primary": "#4f378a",
+                        "surface-dim": "#dadadc",
+                        "on-tertiary-fixed-variant": "#594400",
+                        "tertiary-fixed-dim": "#e7c365",
+                        "secondary-fixed": "#ffdbd0",
+                        "on-primary-fixed-variant": "#4f378a",
+                        "on-primary-container": "#e0d2ff",
+                        "on-primary-fixed": "#22005d",
+                        "tertiary": "#765b00",
+                        "surface-container-lowest": "#ffffff",
+                        "on-surface": "#1a1c1e",
+                        "surface-tint": "#6750a4",
+                        "on-primary": "#ffffff",
+                        "on-secondary-container": "#5d1900",
+                        "primary-fixed": "#e9ddff",
+                        "on-background": "#1a1c1e",
+                        "outline": "#7a7582",
+                        "surface-container-low": "#f4f3f6",
+                        "tertiary-fixed": "#ffdf93",
+                        "inverse-surface": "#2f3033",
+                        "tertiary-container": "#c9a74d",
+                        "secondary-container": "#fe6a34",
+                        "secondary": "#ab3500",
+                        "outline-variant": "#cbc4d2",
+                        "inverse-on-surface": "#f1f0f3",
+                        "on-secondary-fixed": "#390c00",
+                        "inverse-primary": "#cfbcff",
+                        "surface-container": "#eeedf0",
+                        "on-surface-variant": "#494551",
+                        "on-tertiary": "#ffffff"
+                    },
+                    fontFamily: {
+                        "headline": ["Manrope"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["Plus Jakarta Sans"]
+                    },
+                    borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .floating-label-input:focus-within label,
+        .floating-label-input input:not(:placeholder-shown) + label {
+            transform: translateY(-1.5rem) scale(0.85);
+            background-color: #faf9fc;
+            padding: 0 0.25rem;
+            color: #4f378a;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #e3e2e5;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="bg-background font-body text-on-surface">
+<!-- TopAppBar -->
+<nav class="bg-white/80 dark:bg-slate-950/80 backdrop-blur-md sticky top-0 w-full flex justify-between items-center px-6 py-4 mx-auto z-50 shadow-sm dark:shadow-none">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-violet-700">content_cut</span>
+<span class="text-2xl font-manrope font-extrabold tracking-tight text-violet-900 dark:text-violet-100">QueueCut AI</span>
+</div>
+<div class="hidden md:flex items-center space-gap-8 gap-8">
+<a class="text-slate-600 dark:text-slate-400 font-medium hover:text-violet-600 transition-colors" href="#">Explore</a>
+<a class="text-violet-700 dark:text-violet-400 font-bold border-b-2 border-violet-700 transition-colors" href="#">Bookings</a>
+<a class="text-slate-600 dark:text-slate-400 font-medium hover:text-violet-600 transition-colors" href="#">Live Queue</a>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-on-surface-variant">notifications</button>
+<div class="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-fixed">
+<img alt="User profile avatar" data-alt="close-up portrait of a professional male user with a friendly expression in a brightly lit office setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA-jWH1zem4fcjG0Jr7agjO611wA2jVN5A3jgn-VLPqnmsIk6vulGMBACL8zd41Yf7vm_YpkYTKCnRDPGUlxYBGUqHCK3745rrI1nBD5nusVyfXvzC6361Dy7CUmI_XX_b98s1RcJL0uslUUxMosTqH41d-dEejqAUHYERMfaJw9TtmUBwYbuf1b1ZxU_CKb2cwaDg1VHcZXdV89ODZ-8UEBSP70FFpwb1E709bbGiDqdB3j6CyUOHM7cYOvNBMLEaLTrzHXm2x3Z0"/>
+</div>
+</div>
+</nav>
+<main class="max-w-4xl mx-auto px-6 pt-12 pb-32">
+<!-- Editorial Header -->
+<header class="mb-12">
+<span class="text-secondary font-bold tracking-widest text-xs uppercase mb-2 block">Secure Your Spot</span>
+<h1 class="font-headline font-extrabold text-5xl md:text-6xl text-on-surface tracking-tight leading-tight">
+                Craft Your <br/><span class="text-primary">Perfect Look.</span>
+</h1>
+<p class="text-on-surface-variant mt-4 text-lg max-w-lg">Enter your details below to join the live queue at <span class="font-bold">Luxe Grooming Lounge</span>.</p>
+</header>
+<!-- Booking Flow Container -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+<!-- Form Section -->
+<div class="lg:col-span-7 space-y-8">
+<!-- Step 1: Client Info -->
+<section class="bg-surface-container-lowest p-8 rounded-lg shadow-[0px_12px_32px_rgba(79,55,138,0.04)]">
+<div class="flex items-center gap-4 mb-8">
+<div class="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center text-primary font-bold">1</div>
+<h2 class="font-headline text-xl font-bold">Your Information</h2>
+</div>
+<div class="space-y-6">
+<div class="relative floating-label-input">
+<input class="block w-full px-4 py-4 text-on-surface bg-transparent border border-outline-variant rounded-xl focus:ring-0 focus:border-primary peer transition-all" id="name" placeholder=" " type="text"/>
+<label class="absolute left-4 top-4 text-on-surface-variant pointer-events-none transition-all duration-200 origin-left" for="name">Full Name</label>
+</div>
+<div class="relative floating-label-input">
+<input class="block w-full px-4 py-4 text-on-surface bg-transparent border border-outline-variant rounded-xl focus:ring-0 focus:border-primary peer transition-all" id="phone" placeholder=" " type="tel"/>
+<label class="absolute left-4 top-4 text-on-surface-variant pointer-events-none transition-all duration-200 origin-left" for="phone">Phone Number</label>
+</div>
+</div>
+</section>
+<!-- Step 2: Service Selection -->
+<section class="bg-surface-container-low p-8 rounded-lg">
+<div class="flex items-center gap-4 mb-8">
+<div class="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center text-primary font-bold">2</div>
+<h2 class="font-headline text-xl font-bold">Select Service</h2>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<!-- Haircut -->
+<div class="group relative bg-surface-container-lowest p-5 rounded-lg cursor-pointer border-2 border-transparent hover:border-primary/20 transition-all active:scale-95 shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<span class="material-symbols-outlined text-primary text-3xl">content_cut</span>
+<span class="text-sm font-bold text-primary bg-primary-fixed px-3 py-1 rounded-full">$45</span>
+</div>
+<h3 class="font-bold text-on-surface">Signature Haircut</h3>
+<p class="text-xs text-on-surface-variant mt-1">45 Mins • Wash &amp; Style included</p>
+</div>
+<!-- Beard Trim -->
+<div class="group relative bg-surface-container-lowest p-5 rounded-lg cursor-pointer border-2 border-primary transition-all active:scale-95 shadow-md">
+<div class="flex justify-between items-start mb-4">
+<span class="material-symbols-outlined text-primary text-3xl">face</span>
+<span class="text-sm font-bold text-primary bg-primary-fixed px-3 py-1 rounded-full">$30</span>
+</div>
+<h3 class="font-bold text-on-surface">Beard Sculpting</h3>
+<p class="text-xs text-on-surface-variant mt-1">30 Mins • Razor finish</p>
+<div class="absolute -top-2 -right-2 w-6 h-6 bg-primary text-white rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</div>
+</div>
+<!-- Luxury Styling -->
+<div class="group relative bg-surface-container-lowest p-5 rounded-lg cursor-pointer border-2 border-transparent hover:border-primary/20 transition-all active:scale-95 shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<span class="material-symbols-outlined text-primary text-3xl">brush</span>
+<span class="text-sm font-bold text-primary bg-primary-fixed px-3 py-1 rounded-full">$65</span>
+</div>
+<h3 class="font-bold text-on-surface">Full Grooming</h3>
+<p class="text-xs text-on-surface-variant mt-1">75 Mins • Hair + Beard + Mask</p>
+</div>
+</div>
+</section>
+</div>
+<!-- Barber Selection & Summary -->
+<aside class="lg:col-span-5 space-y-8">
+<!-- Step 3: Barber -->
+<section class="bg-surface-container-low p-8 rounded-lg">
+<div class="flex items-center gap-4 mb-8">
+<div class="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center text-primary font-bold">3</div>
+<h2 class="font-headline text-xl font-bold">Choose Barber</h2>
+</div>
+<div class="space-y-4">
+<!-- Barber Card 1 -->
+<div class="flex items-center gap-4 p-4 bg-surface-container-lowest rounded-xl border border-transparent hover:border-primary-fixed transition-all cursor-pointer">
+<div class="relative">
+<img alt="Barber Alex" class="w-14 h-14 rounded-full object-cover" data-alt="headshot of a stylish professional barber with a manicured beard and modern haircut in a sleek barbershop" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDRTg_yp0T4Ys6WEj3lIzhjGX8b8_ZIRc3A6_JFEn4pggBMjEAezkcvCWrThe2Dk91d2pTkpVBPfwrIMZvKdPE4L0rexPgS2hyrAFDsw7Me_EEvht2XvWKwGIva8QjFXypy9mBJ4r_SFUrqgZh1Kbw0BNw15q3Vb8JIOK1_fxeF5ou9_RVDvfw8hINK6WYDBKgmvPahZCPccguJvs6cQPymOBFCDV1sWbDxttdWPbdDxqMmUfNaXHkreiMscLZBZC2kMpBkgxHPu4w"/>
+<div class="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
+</div>
+<div class="flex-1">
+<h4 class="font-bold text-on-surface">Alex Rivera</h4>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-tertiary" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="text-xs font-bold">4.9</span>
+<span class="text-xs text-on-surface-variant">(120+ reviews)</span>
+</div>
+</div>
+<div class="text-xs font-bold text-secondary uppercase">Next: 15m</div>
+</div>
+<!-- Barber Card 2 (Selected) -->
+<div class="flex items-center gap-4 p-4 bg-primary-fixed/30 rounded-xl border-2 border-primary transition-all cursor-pointer">
+<div class="relative">
+<img alt="Barber Marcus" class="w-14 h-14 rounded-full object-cover" data-alt="portrait of a confident barber with glasses smiling in a modern studio with warm ambient lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDFFSQdQVVjr7Q_J3LcuaEmTD0Yqs6JOj35fKLXTyPg89iw3ACixNIHoKQEIZ2w3qRSR75hy395SWv2Mq5ZdKfwrQn9Ha9wTQkUQim85yv36zDUXj6CtoRWtBr1yTkRnTVqinsRVg4Tbul166Nn9iE-n66JmWKDgyok9B5C6UzGkca5qmG6pzeBe7nC2y2KNEiDcONrsmVVRYVc5SKlk5k4CWp9q9SgmazhFiyDsh86YdDBuxFnExIAih2A72nY-e6FVd0wfAXQGMQ"/>
+<div class="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
+</div>
+<div class="flex-1">
+<h4 class="font-bold text-on-surface">Marcus Chen</h4>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-tertiary" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="text-xs font-bold">5.0</span>
+<span class="text-xs text-on-surface-variant">(200+ reviews)</span>
+</div>
+</div>
+<div class="text-xs font-bold text-secondary uppercase">Available Now</div>
+</div>
+</div>
+</section>
+<!-- Booking Summary Card -->
+<div class="bg-primary text-on-primary p-8 rounded-xl shadow-[0px_20px_40px_rgba(79,55,138,0.15)] relative overflow-hidden">
+<!-- Decorative Gradient -->
+<div class="absolute top-0 right-0 w-32 h-32 bg-primary-container/20 rounded-full -mr-16 -mt-16 blur-3xl"></div>
+<h3 class="font-headline text-lg font-bold mb-6">Booking Summary</h3>
+<div class="space-y-4 mb-8">
+<div class="flex justify-between items-center opacity-80">
+<span class="text-sm">Service</span>
+<span class="text-sm font-bold">Beard Sculpting</span>
+</div>
+<div class="flex justify-between items-center opacity-80">
+<span class="text-sm">Professional</span>
+<span class="text-sm font-bold">Marcus Chen</span>
+</div>
+<div class="flex justify-between items-center opacity-80">
+<span class="text-sm">Estimated Wait</span>
+<span class="text-sm font-bold">~ 12 Minutes</span>
+</div>
+<div class="pt-4 border-t border-white/10 flex justify-between items-center">
+<span class="font-bold">Total</span>
+<span class="text-2xl font-headline font-extrabold">$30.00</span>
+</div>
+</div>
+<button class="w-full bg-secondary hover:bg-on-secondary-container text-white font-bold py-4 rounded-xl transition-all active:scale-95 shadow-lg flex items-center justify-center gap-2">
+<span>Join Queue</span>
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+</aside></div>
+</main>
+<!-- Success Message Overlay (Static Representation) -->
+<div class="fixed inset-0 z-[60] flex items-center justify-center px-6 pointer-events-none opacity-0 invisible">
+<div class="bg-white dark:bg-slate-900 p-10 rounded-xl shadow-2xl max-w-sm text-center transform scale-90">
+<div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+<span class="material-symbols-outlined text-4xl text-green-600">check_circle</span>
+</div>
+<h2 class="font-headline text-2xl font-extrabold mb-2">You're in!</h2>
+<p class="text-on-surface-variant mb-6">We'll notify you when Marcus is ready.</p>
+<div class="bg-surface-container-low p-4 rounded-lg inline-block">
+<span class="text-xs uppercase tracking-widest font-bold block mb-1">Queue Position</span>
+<span class="text-4xl font-headline font-black text-primary">#3</span>
+</div>
+</div>
+</div>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-3 bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl shadow-[0_-8px_30px_rgb(0,0,0,0.04)] rounded-t-3xl">
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-6 py-2">
+<span class="material-symbols-outlined">search</span>
+<span class="font-plus-jakarta text-[10px] uppercase tracking-widest font-bold mt-1">Explore</span>
+</div>
+<div class="flex flex-col items-center justify-center bg-violet-100 dark:bg-violet-900/40 text-violet-800 dark:text-violet-200 rounded-2xl px-6 py-2 scale-90">
+<span class="material-symbols-outlined">event_note</span>
+<span class="font-plus-jakarta text-[10px] uppercase tracking-widest font-bold mt-1">Bookings</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-6 py-2">
+<span class="material-symbols-outlined">hourglass_empty</span>
+<span class="font-plus-jakarta text-[10px] uppercase tracking-widest font-bold mt-1">Live Queue</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-6 py-2">
+<span class="material-symbols-outlined">person</span>
+<span class="font-plus-jakarta text-[10px] uppercase tracking-widest font-bold mt-1">Profile</span>
+</div>
+</nav>
+<!-- Footer -->
+<footer class="bg-slate-50 dark:bg-slate-950 w-full py-12 px-8 border-t-0">
+<div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+<div class="flex items-center gap-2">
+<span class="font-manrope font-black text-slate-900 dark:text-white">QueueCut AI</span>
+<span class="text-xs text-slate-500 font-plus-jakarta">© 2024 Precision in every second.</span>
+</div>
+<div class="flex gap-6">
+<a class="text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 font-plus-jakarta text-xs transition-opacity" href="#">Privacy</a>
+<a class="text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 font-plus-jakarta text-xs transition-opacity" href="#">Terms</a>
+<a class="text-orange-600 font-bold font-plus-jakarta text-xs transition-opacity" href="#">Salon Partner Portal</a>
+<a class="text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 font-plus-jakarta text-xs transition-opacity" href="#">Careers</a>
+</div>
+</div>
+</footer>
+</body></html>

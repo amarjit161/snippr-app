@@ -1,0 +1,36 @@
+{
+  "projectId": "6764743268341172184",
+  "assetId": "05e512b81c59462d870e1e6b504888da",
+  "requestedAssetId": "asset-stub-assets-05e512b81c59462d870e1e6b504888da-1774609051477",
+  "displayName": "Velvet Queue",
+  "theme": {
+    "bodyFont": "PLUS_JAKARTA_SANS",
+    "headlineFont": "MANROPE",
+    "labelFont": "PLUS_JAKARTA_SANS",
+    "colorMode": "LIGHT",
+    "colorVariant": "FIDELITY",
+    "customColor": "#6750A4",
+    "overridePrimaryColor": "#6750A4",
+    "overrideSecondaryColor": "#FF6B35",
+    "overrideNeutralColor": "#FDFCFF",
+    "roundness": "ROUND_FULL"
+  },
+  "namedColors": {
+    "primary": "#4f378a",
+    "primary_container": "#6750a4",
+    "secondary": "#ab3500",
+    "secondary_container": "#fe6a34",
+    "background": "#faf9fc",
+    "surface": "#faf9fc",
+    "surface_container": "#eeedf0",
+    "surface_container_low": "#f4f3f6",
+    "surface_container_high": "#e8e8eb",
+    "surface_container_lowest": "#ffffff",
+    "on_surface": "#1a1c1e",
+    "on_surface_variant": "#494551",
+    "outline": "#7a7582",
+    "outline_variant": "#cbc4d2",
+    "error": "#ba1a1a",
+    "tertiary": "#765b00"
+  }
+}

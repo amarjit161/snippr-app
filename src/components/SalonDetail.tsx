@@ -345,36 +345,28 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
             <section className="rounded-xl bg-white p-6 shadow-sm">
-              <h3 className="text-xl font-semibold text-foreground">User Details</h3>
-              <div className="mt-4 flex flex-col gap-3 rounded-xl border border-gray-100 bg-gray-50/70 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={bookingForSomeoneElse}
-                    onClick={() => {
-                      const next = !bookingForSomeoneElse;
-                      setBookingForSomeoneElse(next);
-                      setTouched({ firstName: false, lastName: false, phone: false });
+              <div className="flex flex-col gap-4 rounded-2xl bg-[#faf9fc] p-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xl font-semibold text-foreground">Profile</h3>
+                    <span className="rounded-full bg-purple-50 px-2.5 py-1 text-[11px] font-semibold text-purple-700">
+                      {hasSavedProfile ? "Saved" : "One-time setup"}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-500">Create it once and reuse it for every booking.</p>
 
-                      if (next) {
-                        setCustomer((prev) => ({ ...prev, firstName: "", lastName: "", phone: "" }));
-                      } else if (hasSavedProfile) {
-                        setCustomer((prev) => ({ ...prev, ...savedProfile }));
-                      }
-                    }}
-                    className={`relative h-6 w-11 rounded-full transition ${bookingForSomeoneElse ? "bg-purple-600" : "bg-gray-300"}`}
-                  >
-                    <span
-                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition ${bookingForSomeoneElse ? "left-5" : "left-0.5"}`}
-                    />
-                  </button>
-                  <p className="text-sm text-gray-600">Booking for someone else?</p>
+                  {hasSavedProfile ? (
+                    <div className="mt-2 space-y-1 text-sm text-gray-700">
+                      <p className="font-medium text-gray-900">{savedProfile.firstName} {savedProfile.lastName}</p>
+                      <p>{savedProfile.phone}</p>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-gray-700">Enter your name and phone one time to unlock faster booking.</p>
+                  )}
                 </div>
 
-                {!bookingForSomeoneElse && hasSavedProfile ? (
-                  <div className="flex items-center gap-3">
-                    <p className="text-sm text-gray-600">Continue as {savedProfile.firstName} {savedProfile.lastName}</p>
+                <div className="flex flex-col gap-3 sm:items-end">
+                  {hasSavedProfile ? (
                     <button
                       type="button"
                       onClick={() => {
@@ -383,10 +375,35 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
                       }}
                       className="text-sm font-medium text-purple-700 transition hover:text-purple-800"
                     >
-                      Change profile
+                      Edit profile
                     </button>
+                  ) : null}
+
+                  <div className="flex items-center gap-2 rounded-full bg-white px-3 py-2 shadow-sm">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={bookingForSomeoneElse}
+                      onClick={() => {
+                        const next = !bookingForSomeoneElse;
+                        setBookingForSomeoneElse(next);
+                        setTouched({ firstName: false, lastName: false, phone: false });
+
+                        if (next) {
+                          setCustomer((prev) => ({ ...prev, firstName: "", lastName: "", phone: "" }));
+                        } else if (hasSavedProfile) {
+                          setCustomer((prev) => ({ ...prev, ...savedProfile }));
+                        }
+                      }}
+                      className={`relative h-6 w-11 rounded-full transition ${bookingForSomeoneElse ? "bg-purple-600" : "bg-gray-300"}`}
+                    >
+                      <span
+                        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition ${bookingForSomeoneElse ? "left-5" : "left-0.5"}`}
+                      />
+                    </button>
+                    <p className="text-sm text-gray-600">Booking for someone else?</p>
                   </div>
-                ) : null}
+                </div>
               </div>
 
               <div className="mt-4 space-y-4">

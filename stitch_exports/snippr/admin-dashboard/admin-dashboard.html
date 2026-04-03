@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>QueueCut AI - Admin Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-secondary-fixed-variant": "#832600",
+                        "error-container": "#ffdad6",
+                        "on-error": "#ffffff",
+                        "surface-variant": "#e3e2e5",
+                        "background": "#faf9fc",
+                        "surface-bright": "#faf9fc",
+                        "on-tertiary-container": "#503d00",
+                        "surface-container-high": "#e8e8eb",
+                        "on-tertiary-fixed": "#241a00",
+                        "primary-container": "#6750a4",
+                        "secondary-fixed-dim": "#ffb59d",
+                        "error": "#ba1a1a",
+                        "on-secondary": "#ffffff",
+                        "primary-fixed-dim": "#cfbcff",
+                        "on-error-container": "#93000a",
+                        "surface-container-highest": "#e3e2e5",
+                        "surface": "#faf9fc",
+                        "primary": "#4f378a",
+                        "surface-dim": "#dadadc",
+                        "on-tertiary-fixed-variant": "#594400",
+                        "tertiary-fixed-dim": "#e7c365",
+                        "secondary-fixed": "#ffdbd0",
+                        "on-primary-fixed-variant": "#4f378a",
+                        "on-primary-container": "#e0d2ff",
+                        "on-primary-fixed": "#22005d",
+                        "tertiary": "#765b00",
+                        "surface-container-lowest": "#ffffff",
+                        "on-surface": "#1a1c1e",
+                        "surface-tint": "#6750a4",
+                        "on-primary": "#ffffff",
+                        "on-secondary-container": "#5d1900",
+                        "primary-fixed": "#e9ddff",
+                        "on-background": "#1a1c1e",
+                        "outline": "#7a7582",
+                        "surface-container-low": "#f4f3f6",
+                        "tertiary-fixed": "#ffdf93",
+                        "inverse-surface": "#2f3033",
+                        "tertiary-container": "#c9a74d",
+                        "secondary-container": "#fe6a34",
+                        "secondary": "#ab3500",
+                        "outline-variant": "#cbc4d2",
+                        "inverse-on-surface": "#f1f0f3",
+                        "on-secondary-fixed": "#390c00",
+                        "inverse-primary": "#cfbcff",
+                        "surface-container": "#eeedf0",
+                        "on-surface-variant": "#494551",
+                        "on-tertiary": "#ffffff"
+                    },
+                    fontFamily: {
+                        "headline": ["Manrope"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["Plus Jakarta Sans"]
+                    },
+                    borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        h1, h2, h3 { font-family: 'Manrope', sans-serif; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface flex min-h-screen">
+<!-- Sidebar Navigation -->
+<aside class="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 bg-slate-50 dark:bg-slate-900 p-4 space-y-2 z-40">
+<div class="mb-10 px-4">
+<h1 class="font-manrope text-xl font-bold text-violet-900 dark:text-violet-100">QueueCut AI</h1>
+<p class="font-plus-jakarta text-xs font-semibold text-slate-500 uppercase tracking-widest">Salon Concierge</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-800 text-violet-700 dark:text-violet-300 rounded-full shadow-sm scale-[0.98] transition-all" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-sm font-semibold">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 hover:translate-x-1 transition-transform duration-200 rounded-full" href="#">
+<span class="material-symbols-outlined">reorder</span>
+<span class="text-sm font-semibold">Queue</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 hover:translate-x-1 transition-transform duration-200 rounded-full" href="#">
+<span class="material-symbols-outlined">content_cut</span>
+<span class="text-sm font-semibold">Stylists</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 hover:translate-x-1 transition-transform duration-200 rounded-full" href="#">
+<span class="material-symbols-outlined">leaderboard</span>
+<span class="text-sm font-semibold">Analytics</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 hover:translate-x-1 transition-transform duration-200 rounded-full" href="#">
+<span class="material-symbols-outlined">campaign</span>
+<span class="text-sm font-semibold">Marketing</span>
+</a>
+</nav>
+<button class="mb-6 w-full bg-gradient-to-br from-primary to-primary-container text-on-primary py-4 px-6 rounded-xl font-bold text-sm shadow-lg hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined">add</span>
+            Add New Booking
+        </button>
+<div class="pt-4 border-t border-slate-200/50 space-y-1">
+<a class="flex items-center gap-3 px-4 py-2 text-slate-500 hover:text-slate-900 transition-colors" href="#">
+<span class="material-symbols-outlined">help</span>
+<span class="text-xs font-semibold">Support</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-slate-500 hover:text-slate-900 transition-colors" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span class="text-xs font-semibold">Logout</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="flex-1 md:ml-64 p-6 md:p-12 bg-background min-h-screen">
+<!-- Header Section -->
+<header class="flex justify-between items-center mb-12">
+<div>
+<h2 class="text-3xl font-manrope font-extrabold tracking-tight text-on-background">Dashboard Overview</h2>
+<p class="text-on-surface-variant font-body mt-1">Real-time salon operations and queue metrics.</p>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 rounded-full bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="h-10 w-10 rounded-full overflow-hidden border-2 border-primary-container">
+<img alt="User avatar" data-alt="close up headshot of a professional salon manager in a clean white studio with soft lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBU641d_ofRxOjfU7pJ3ncLsIwGspza8y1L-ORIPqIpDvaJtOfhCb6cL-oYaMvf5criiqxKGM9Jh_fAoZMIZ8ujOKDfKfefeaWrYOsiLDbUxAyEFWwYMVajip4UqavU9jaiNweceOBujGBegiTV7z74ZUMlTAxn083YwlVgrYYRiqJ10_J2nl0OysZN9FbiHvz4lz3gC4Y_O6F2hAFozUEYqYKLMMlOCrgrc9HJOBwyBLJQ59lzsNjtLXwnduJ-Unh3sZY1r8wZGtI"/>
+</div>
+</div>
+</header>
+<!-- KPI Grid -->
+<section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+<!-- Total Customers -->
+<div class="bg-surface-container-lowest p-6 rounded-lg shadow-[0px_12px_32px_rgba(79,55,138,0.04)] flex flex-col gap-4">
+<div class="flex justify-between items-start">
+<div class="p-3 bg-primary/10 text-primary rounded-2xl">
+<span class="material-symbols-outlined">groups</span>
+</div>
+<span class="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">+12%</span>
+</div>
+<div>
+<p class="text-on-surface-variant text-xs font-bold uppercase tracking-wider mb-1">Total Customers</p>
+<h3 class="text-4xl font-manrope font-extrabold text-on-background">1,284</h3>
+</div>
+</div>
+<!-- Today's Earnings -->
+<div class="bg-surface-container-lowest p-6 rounded-lg shadow-[0px_12px_32px_rgba(79,55,138,0.04)] flex flex-col gap-4">
+<div class="flex justify-between items-start">
+<div class="p-3 bg-secondary/10 text-secondary rounded-2xl">
+<span class="material-symbols-outlined">payments</span>
+</div>
+<span class="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">+5.4%</span>
+</div>
+<div>
+<p class="text-on-surface-variant text-xs font-bold uppercase tracking-wider mb-1">Today's Earnings</p>
+<h3 class="text-4xl font-manrope font-extrabold text-on-background">$2,410</h3>
+</div>
+</div>
+<!-- Active Queue -->
+<div class="bg-primary text-on-primary p-6 rounded-lg shadow-[0px_12px_32px_rgba(79,55,138,0.1)] flex flex-col gap-4">
+<div class="flex justify-between items-start">
+<div class="p-3 bg-white/20 text-white rounded-2xl">
+<span class="material-symbols-outlined">hourglass_top</span>
+</div>
+<div class="flex items-center gap-1 bg-white/10 px-2 py-1 rounded-full">
+<span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
+<span class="text-[10px] font-bold uppercase">Live</span>
+</div>
+</div>
+<div>
+<p class="text-primary-fixed-dim text-xs font-bold uppercase tracking-wider mb-1">Active Queue count</p>
+<h3 class="text-4xl font-manrope font-extrabold">18</h3>
+</div>
+</div>
+<!-- Avg. Wait Time -->
+<div class="bg-surface-container-lowest p-6 rounded-lg shadow-[0px_12px_32px_rgba(79,55,138,0.04)] flex flex-col gap-4">
+<div class="flex justify-between items-start">
+<div class="p-3 bg-tertiary/10 text-tertiary rounded-2xl">
+<span class="material-symbols-outlined">schedule</span>
+</div>
+<span class="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full">-2m</span>
+</div>
+<div>
+<p class="text-on-surface-variant text-xs font-bold uppercase tracking-wider mb-1">Avg. Wait Time</p>
+<h3 class="text-4xl font-manrope font-extrabold text-on-background">24m</h3>
+</div>
+</div>
+</section>
+<!-- Analytics & Trends Section -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
+<!-- Chart Placeholder -->
+<section class="lg:col-span-2 bg-surface-container-lowest p-8 rounded-lg shadow-[0px_12px_32px_rgba(79,55,138,0.04)]">
+<div class="flex justify-between items-center mb-8">
+<h4 class="text-xl font-manrope font-bold text-on-background">Peak Traffic Trends</h4>
+<select class="bg-surface-container-low border-none rounded-full text-xs font-bold px-4 py-2 outline-none focus:ring-2 focus:ring-primary/20">
+<option>Last 7 Days</option>
+<option>Last 30 Days</option>
+</select>
+</div>
+<div class="relative h-64 w-full bg-surface-container-low rounded-xl overflow-hidden group">
+<!-- Visual representation of a line chart -->
+<svg class="absolute inset-0 w-full h-full" preserveaspectratio="none">
+<path d="M0 256 Q 100 200, 200 220 T 400 150 T 600 180 T 800 50 T 1000 100 L 1000 256 L 0 256 Z" fill="url(#gradient-chart)" opacity="0.3"></path>
+<path d="M0 256 Q 100 200, 200 220 T 400 150 T 600 180 T 800 50 T 1000 100" fill="none" stroke="#6750a4" stroke-width="4"></path>
+<defs>
+<lineargradient id="gradient-chart" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#6750a4"></stop>
+<stop offset="100%" stop-color="#6750a4" stop-opacity="0"></stop>
+</lineargradient>
+</defs>
+</svg>
+<!-- Data points simulation -->
+<div class="absolute inset-0 flex justify-around items-end pb-4 px-4">
+<div class="h-full flex flex-col justify-end items-center group">
+<div class="w-1 h-32 bg-primary/10 rounded-full group-hover:bg-primary/30 transition-all"></div>
+<span class="text-[10px] font-bold mt-2 text-on-surface-variant">Mon</span>
+</div>
+<div class="h-full flex flex-col justify-end items-center group">
+<div class="w-1 h-24 bg-primary/10 rounded-full group-hover:bg-primary/30 transition-all"></div>
+<span class="text-[10px] font-bold mt-2 text-on-surface-variant">Tue</span>
+</div>
+<div class="h-full flex flex-col justify-end items-center group">
+<div class="w-1 h-40 bg-primary/10 rounded-full group-hover:bg-primary/30 transition-all"></div>
+<span class="text-[10px] font-bold mt-2 text-on-surface-variant">Wed</span>
+</div>
+<div class="h-full flex flex-col justify-end items-center group">
+<div class="w-1 h-56 bg-primary/10 rounded-full group-hover:bg-primary/30 transition-all"></div>
+<span class="text-[10px] font-bold mt-2 text-on-surface-variant text-primary">Thu</span>
+</div>
+<div class="h-full flex flex-col justify-end items-center group">
+<div class="w-1 h-20 bg-primary/10 rounded-full group-hover:bg-primary/30 transition-all"></div>
+<span class="text-[10px] font-bold mt-2 text-on-surface-variant">Fri</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Quick Action / Status -->
+<section class="bg-surface-container-low p-8 rounded-lg flex flex-col justify-center items-center text-center">
+<div class="w-20 h-20 bg-secondary/10 text-secondary rounded-full flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-4xl">person_add</span>
+</div>
+<h4 class="text-xl font-manrope font-bold text-on-background mb-2">New Walk-in?</h4>
+<p class="text-on-surface-variant text-sm mb-6 max-w-[200px]">Add customers directly to the queue without a pre-booking.</p>
+<button class="w-full bg-on-surface text-surface px-6 py-4 rounded-full font-bold text-sm hover:opacity-90 active:scale-95 transition-all">
+                    Manual Entry
+                </button>
+</section>
+</div>
+<!-- Active Queue List -->
+<section class="bg-surface-container-lowest rounded-lg shadow-[0px_12px_32px_rgba(79,55,138,0.04)] overflow-hidden">
+<div class="p-8 border-b border-surface-container">
+<div class="flex justify-between items-center">
+<h4 class="text-xl font-manrope font-bold text-on-background">Live Queue Status</h4>
+<button class="text-primary text-sm font-bold flex items-center gap-2">
+                        View All <span class="material-symbols-outlined text-sm">arrow_forward</span>
+</button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead class="bg-surface-container-low">
+<tr>
+<th class="px-8 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Customer</th>
+<th class="px-8 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Stylist</th>
+<th class="px-8 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Service</th>
+<th class="px-8 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Wait Time</th>
+<th class="px-8 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Status</th>
+<th class="px-8 py-4"></th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container">
+<!-- Customer Row 1 -->
+<tr class="hover:bg-slate-50 transition-colors">
+<td class="px-8 py-6">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center text-violet-700 font-bold text-xs">JA</div>
+<span class="text-sm font-semibold text-on-surface">James Alexander</span>
+</div>
+</td>
+<td class="px-8 py-6 text-sm text-on-surface-variant">Marcus S.</td>
+<td class="px-8 py-6 text-sm text-on-surface-variant">Faded Cut + Beard</td>
+<td class="px-8 py-6 text-sm font-mono font-bold text-secondary">00:00</td>
+<td class="px-8 py-6">
+<span class="px-3 py-1 rounded-full bg-primary-container text-on-primary-container text-[10px] font-bold">In-Progress</span>
+</td>
+<td class="px-8 py-6 text-right">
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Customer Row 2 -->
+<tr class="hover:bg-slate-50 transition-colors">
+<td class="px-8 py-6">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold text-xs">SK</div>
+<span class="text-sm font-semibold text-on-surface">Sarah K.</span>
+</div>
+</td>
+<td class="px-8 py-6 text-sm text-on-surface-variant">Elena R.</td>
+<td class="px-8 py-6 text-sm text-on-surface-variant">Balayage Touchup</td>
+<td class="px-8 py-6 text-sm font-mono text-on-surface-variant">12:45</td>
+<td class="px-8 py-6">
+<span class="px-3 py-1 rounded-full bg-surface-container-highest text-on-surface-variant text-[10px] font-bold">Waiting</span>
+</td>
+<td class="px-8 py-6 text-right">
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Customer Row 3 -->
+<tr class="hover:bg-slate-50 transition-colors">
+<td class="px-8 py-6">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-700 font-bold text-xs">DM</div>
+<span class="text-sm font-semibold text-on-surface">Daniel Miller</span>
+</div>
+</td>
+<td class="px-8 py-6 text-sm text-on-surface-variant">Marcus S.</td>
+<td class="px-8 py-6 text-sm text-on-surface-variant">Classic Cut</td>
+<td class="px-8 py-6 text-sm font-mono text-on-surface-variant">24:20</td>
+<td class="px-8 py-6">
+<span class="px-3 py-1 rounded-full bg-surface-container-highest text-on-surface-variant text-[10px] font-bold">Waiting</span>
+</td>
+<td class="px-8 py-6 text-right">
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Empty State Illustration (Hidden by data) -->
+<div class="hidden p-20 flex flex-col items-center justify-center text-center">
+<div class="w-24 h-24 mb-6 opacity-20 grayscale bg-gradient-to-t from-slate-200 to-transparent rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-6xl">cloud_off</span>
+</div>
+<h5 class="text-lg font-bold text-on-surface mb-2">No data available for today</h5>
+<p class="text-on-surface-variant text-sm">Once customers start checking in, they will appear here.</p>
+</div>
+</section>
+</main>
+<!-- Mobile Bottom Navigation -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-3 bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl shadow-[0_-8px_30px_rgb(0,0,0,0.04)] rounded-t-3xl">
+<a class="flex flex-col items-center justify-center bg-violet-100 dark:bg-violet-900/40 text-violet-800 dark:text-violet-200 rounded-2xl px-6 py-2 scale-90 duration-150" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-plus-jakarta text-[10px] uppercase tracking-widest font-bold mt-1">Explore</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-6 py-2 hover:bg-slate-100" href="#">
+<span class="material-symbols-outlined">event_note</span>
+<span class="font-plus-jakarta text-[10px] uppercase tracking-widest font-bold mt-1">Bookings</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-6 py-2 hover:bg-slate-100" href="#">
+<span class="material-symbols-outlined">hourglass_empty</span>
+<span class="font-plus-jakarta text-[10px] uppercase tracking-widest font-bold mt-1">Live Queue</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-6 py-2 hover:bg-slate-100" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-plus-jakarta text-[10px] uppercase tracking-widest font-bold mt-1">Profile</span>
+</a>
+</nav>
+<!-- Footer -->
+<footer class="md:ml-64 w-full py-12 px-8 bg-slate-50 dark:bg-slate-950 border-t-0">
+<div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+<div class="flex flex-col items-center md:items-start">
+<span class="font-manrope font-black text-slate-900 dark:text-white text-lg">QueueCut AI</span>
+<p class="font-plus-jakarta text-xs text-slate-500 mt-1">© 2024 QueueCut AI. Precision in every second.</p>
+</div>
+<div class="flex gap-6">
+<a class="font-plus-jakarta text-xs text-slate-500 hover:text-slate-900 underline decoration-orange-500/30 underline-offset-4 transition-all" href="#">Privacy</a>
+<a class="font-plus-jakarta text-xs text-slate-500 hover:text-slate-900 underline decoration-orange-500/30 underline-offset-4 transition-all" href="#">Terms</a>
+<a class="font-plus-jakarta text-xs text-slate-500 hover:text-slate-900 underline decoration-orange-500/30 underline-offset-4 transition-all" href="#">Salon Partner Portal</a>
+<a class="font-plus-jakarta text-xs text-slate-500 hover:text-slate-900 underline decoration-orange-500/30 underline-offset-4 transition-all" href="#">Careers</a>
+</div>
+</div>
+</footer>
+</body></html>
