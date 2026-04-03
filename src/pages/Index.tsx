@@ -169,7 +169,7 @@ export default function Index() {
                 <ArrowRight className="h-5 w-5" />
               </button>
               <button
-                onClick={() => navigate("/owner-register")}
+                onClick={() => navigate("/how-it-works")}
                 className="rounded-2xl bg-[#e8e8eb] px-8 py-4 text-lg font-bold text-[#1a1c1e] transition-all hover:bg-[#e3e2e5]"
               >
                 How it works
@@ -328,14 +328,14 @@ export default function Index() {
                 <ul className="space-y-3 text-xs text-slate-500">
                   <li><button className="transition-colors hover:text-orange-600" onClick={() => navigate("/careers")}>Careers</button></li>
                   <li><button className="transition-colors hover:text-orange-600" onClick={() => navigate("/owner-dashboard")}>Salon Partner Portal</button></li>
-                  <li><button className="transition-colors hover:text-orange-600">Support</button></li>
+                  <li><button className="transition-colors hover:text-orange-600" onClick={() => navigate("/support")}>Support</button></li>
                 </ul>
               </div>
 
               <div>
                 <h5 className="mb-4 text-sm font-bold text-slate-900">Legal</h5>
                 <ul className="space-y-3 text-xs text-slate-500">
-                  <li><button className="transition-colors hover:text-orange-600">Privacy</button></li>
+                  <li><button className="transition-colors hover:text-orange-600" onClick={() => navigate("/privacy")}>Privacy</button></li>
                   <li><button className="transition-colors hover:text-orange-600">Terms</button></li>
                 </ul>
               </div>
