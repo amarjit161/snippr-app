@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Mail, Phone, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import TurnstileCaptcha from "@/components/TurnstileCaptcha";
+import { verifyTurnstileToken } from "@/lib/turnstile";
 
 interface OTPLoginProps {
   initialError?: string | null;
@@ -19,6 +21,8 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
 
   useEffect(() => {
     if (initialError) setAuthError(initialError);
@@ -32,11 +36,36 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
     window.history.replaceState(null, "", window.location.pathname);
   };
 
+  const resetCaptcha = useCallback(() => {
+    setCaptchaToken(null);
+    setCaptchaResetKey((current) => current + 1);
+  }, []);
+
+  const ensureCaptcha = useCallback(async () => {
+    if (!captchaToken) {
+      toast.error("Please complete the captcha");
+      return false;
+    }
+
+    const captchaResult = await verifyTurnstileToken(captchaToken);
+    if (!captchaResult.success) {
+      toast.error(captchaResult.message || "Captcha verification failed");
+      resetCaptcha();
+      return false;
+    }
+
+    resetCaptcha();
+    return true;
+  }, [captchaToken, resetCaptcha]);
+
   const handleEmailOTP = async () => {
     if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
       toast.error("Please enter a valid email address");
       return;
     }
+
+    if (!(await ensureCaptcha())) return;
+
     setLoading(true);
     const { error } = await supabase.auth.signInWithOtp({
       email,
@@ -57,6 +86,9 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
       toast.error("Please enter a valid phone number");
       return;
     }
+
+    if (!(await ensureCaptcha())) return;
+
     setLoading(true);
     const { error } = await supabase.auth.signInWithOtp({ phone });
     setLoading(false);
@@ -71,13 +103,21 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
   };
 
   const handleGoogleLogin = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth`
-      }
-    });
-    if (error) toast.error(error.message);
+    if (!(await ensureCaptcha())) return;
+
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth`
+        }
+      });
+
+      if (error) toast.error(error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -139,11 +179,13 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
                 <span className="font-medium text-zinc-900 dark:text-zinc-200">{email}</span>
               </p>
             </div>
+
+            <TurnstileCaptcha key={captchaResetKey} onTokenChange={setCaptchaToken} className="min-h-[78px]" />
             
             <div className="w-full flex flex-col gap-3 pt-2">
               <Button
                 onClick={handleEmailOTP}
-                disabled={loading}
+                disabled={loading || !captchaToken}
                 variant="outline"
                 className="h-11 w-full rounded-xl border-zinc-200 font-medium text-zinc-700 hover:bg-zinc-50"
               >
@@ -200,9 +242,10 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
                     type="email"
                     onKeyDown={(e) => e.key === "Enter" && handleEmailOTP()}
                   />
+                  <TurnstileCaptcha key={captchaResetKey} onTokenChange={setCaptchaToken} className="min-h-[78px]" />
                   <Button
                     onClick={handleEmailOTP}
-                    disabled={loading || !email}
+                    disabled={loading || !email || !captchaToken}
                     className="h-11 w-full rounded-xl bg-gradient-to-r from-primary to-indigo-500 text-sm font-medium text-primary-foreground shadow-sm hover:brightness-110 disabled:opacity-50"
                   >
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Continue"}
@@ -225,9 +268,10 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
                     type="tel"
                     onKeyDown={(e) => e.key === "Enter" && handlePhoneOTP()}
                   />
+                  <TurnstileCaptcha key={captchaResetKey} onTokenChange={setCaptchaToken} className="min-h-[78px]" />
                   <Button
                     onClick={handlePhoneOTP}
-                    disabled={loading || phone.length < 5}
+                    disabled={loading || phone.length < 5 || !captchaToken}
                     className="h-11 w-full rounded-xl bg-gradient-to-r from-primary to-indigo-500 text-sm font-medium text-primary-foreground shadow-sm hover:brightness-110 disabled:opacity-50"
                   >
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Get Started"}
@@ -272,7 +316,8 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
 
               <button
                 onClick={handleGoogleLogin}
-                className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm font-medium text-foreground transition-all hover:bg-muted"
+                disabled={loading || !captchaToken}
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm font-medium text-foreground transition-all hover:bg-muted disabled:opacity-50"
               >
                 <svg className="h-4 w-4" aria-hidden="true" viewBox="0 0 24 24">
                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />

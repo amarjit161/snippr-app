@@ -7,6 +7,8 @@ import Header from "@/components/Header";
 import { toast } from "sonner";
 import { Camera, Loader2, Plus, Trash2 } from "lucide-react";
 import imageCompression from "browser-image-compression";
+import TurnstileCaptcha from "@/components/TurnstileCaptcha";
+import { verifyTurnstileToken } from "@/lib/turnstile";
 
 type ServiceForm = {
   name: string;
@@ -45,6 +47,8 @@ export default function OwnerRegister() {
 
   const [submitting, setSubmitting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
 
   const [ownerName, setOwnerName] = useState("");
   const [email, setEmail] = useState("");
@@ -117,6 +121,11 @@ export default function OwnerRegister() {
     setBarbers((prev) => [...prev, { name: "", chair: "1", specialization: "Haircut" }]);
   };
 
+  const resetCaptcha = () => {
+    setCaptchaToken(null);
+    setCaptchaResetKey((current) => current + 1);
+  };
+
   const removeService = (index: number) => {
     setServices((prev) => prev.filter((_, i) => i !== index));
   };
@@ -163,6 +172,20 @@ export default function OwnerRegister() {
     event.preventDefault();
     if (submitting || uploadingImage) return;
     if (!validateForm()) return;
+
+    if (!captchaToken) {
+      toast.error("Please complete the captcha");
+      return;
+    }
+
+    const captchaResult = await verifyTurnstileToken(captchaToken);
+    if (!captchaResult.success) {
+      toast.error(captchaResult.message || "Captcha verification failed");
+      resetCaptcha();
+      return;
+    }
+
+    resetCaptcha();
 
     setSubmitting(true);
 
@@ -475,9 +498,14 @@ export default function OwnerRegister() {
             </div>
           </section>
 
+          <section className="rounded-2xl bg-white p-6 shadow-md space-y-4">
+            <h2 className="text-lg font-semibold">Verification</h2>
+            <TurnstileCaptcha key={captchaResetKey} onTokenChange={setCaptchaToken} className="min-h-[78px]" />
+          </section>
+
           <Button
             type="submit"
-            disabled={submitting || uploadingImage}
+            disabled={submitting || uploadingImage || !captchaToken}
             className="h-12 w-full rounded-xl bg-primary transition-transform duration-200 hover:scale-105"
           >
             {submitting || uploadingImage ? (

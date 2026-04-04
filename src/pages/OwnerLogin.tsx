@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Loader2, Lock, Mail, Store } from "lucide-react";
+import TurnstileCaptcha from "@/components/TurnstileCaptcha";
+import { verifyTurnstileToken } from "@/lib/turnstile";
 
 type OwnerRecord = {
   id: string;
@@ -21,10 +23,31 @@ export default function OwnerLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
+
+  const resetCaptcha = () => {
+    setCaptchaToken(null);
+    setCaptchaResetKey((current) => current + 1);
+  };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (loading) return;
+
+    if (!captchaToken) {
+      toast.error("Please complete the captcha");
+      return;
+    }
+
+    const captchaResult = await verifyTurnstileToken(captchaToken);
+    if (!captchaResult.success) {
+      toast.error(captchaResult.message || "Captcha verification failed");
+      resetCaptcha();
+      return;
+    }
+
+    resetCaptcha();
     setLoading(true);
 
     try {
@@ -107,7 +130,9 @@ export default function OwnerLogin() {
             />
           </div>
 
-          <Button type="submit" disabled={loading} className="h-11 w-full rounded-xl">
+          <TurnstileCaptcha key={captchaResetKey} onTokenChange={setCaptchaToken} className="min-h-[78px]" />
+
+          <Button type="submit" disabled={loading || !captchaToken} className="h-11 w-full rounded-xl">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Login"}
           </Button>
         </form>

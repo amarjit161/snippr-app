@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/verify-turnstile",
+      "destination": "/api/verify-turnstile"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

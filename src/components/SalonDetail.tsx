@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useGeolocation, estimateTravelMinutes } from "@/hooks/useGeolocation";
 import type { Tables } from "@/integrations/supabase/types";
+import TurnstileCaptcha from "@/components/TurnstileCaptcha";
+import { verifyTurnstileToken } from "@/lib/turnstile";
 
 import salon1 from "@/assets/salon-1.jpg";
 import salon2 from "@/assets/salon-2.jpg";
@@ -91,6 +93,8 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
   const [nextQueuePosition, setNextQueuePosition] = useState<number | null>(null);
   const [myQueuePosition, setMyQueuePosition] = useState<number | null>(null);
   const [booking, setBooking] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
   const firstNameInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -231,6 +235,11 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
     toast.success("Profile saved");
   };
 
+  const resetCaptcha = () => {
+    setCaptchaToken(null);
+    setCaptchaResetKey((current) => current + 1);
+  };
+
   const handleBook = async () => {
     setTouched({ firstName: true, lastName: true, phone: true });
 
@@ -251,6 +260,20 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       toast.error("Please select a barber");
       return;
     }
+
+    if (!captchaToken) {
+      toast.error("Please complete the captcha");
+      return;
+    }
+
+    const captchaResult = await verifyTurnstileToken(captchaToken);
+    if (!captchaResult.success) {
+      toast.error(captchaResult.message || "Captcha verification failed");
+      resetCaptcha();
+      return;
+    }
+
+    resetCaptcha();
 
     setBooking(true);
 
@@ -622,11 +645,18 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
                   <p className="text-sm text-white/70">Price</p>
                   <p className="mt-1 text-2xl font-bold">INR {selectedService?.price || 0}</p>
                 </div>
+
+                <div className="rounded-lg bg-white/10 p-3 backdrop-blur-sm">
+                  <p className="text-sm text-white/70">Verification</p>
+                  <div className="mt-2 min-h-[78px] rounded-md bg-white/10 p-2">
+                    <TurnstileCaptcha key={captchaResetKey} onTokenChange={setCaptchaToken} className="min-h-[78px]" />
+                  </div>
+                </div>
               </div>
 
               <button
                 onClick={handleBook}
-                disabled={!date || !selectedService || booking}
+                disabled={!date || !selectedService || booking || !captchaToken}
                 className="mt-6 w-full rounded-lg bg-orange-500 py-3 font-semibold text-white hover:bg-orange-600 disabled:opacity-50"
               >
                 {booking ? <Loader2 className="inline mr-2 h-5 w-5 animate-spin" /> : "Join Queue"}
