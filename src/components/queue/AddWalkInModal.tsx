@@ -28,19 +28,21 @@ type AddWalkInModalProps = {
   onOpenChange: (open: boolean) => void;
   services: ServiceRow[];
   barbers: BarberRow[];
-  onSubmit: (payload: { customerName: string; phoneNumber: string; serviceId: string; barberId: string }) => Promise<void>;
+  onSubmit: (payload: { customerFirstName: string; customerLastName: string; phoneNumber: string; serviceId: string; barberId: string }) => Promise<void>;
 };
 
 export function AddWalkInModal({ open, onOpenChange, services, barbers, onSubmit }: AddWalkInModalProps) {
   const [submitting, setSubmitting] = useState(false);
-  const [customerName, setCustomerName] = useState("");
+  const [customerFirstName, setCustomerFirstName] = useState("");
+  const [customerLastName, setCustomerLastName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [serviceId, setServiceId] = useState("");
   const [barberId, setBarberId] = useState("");
 
   useEffect(() => {
     if (!open) {
-      setCustomerName("");
+      setCustomerFirstName("");
+      setCustomerLastName("");
       setPhoneNumber("");
       setServiceId("");
       setBarberId("");
@@ -53,14 +55,15 @@ export function AddWalkInModal({ open, onOpenChange, services, barbers, onSubmit
   }, [open, services, barbers]);
 
   const isValid = useMemo(() => {
-    return customerName.trim().length > 1 && phoneNumber.trim().length >= 8 && !!serviceId && !!barberId;
-  }, [customerName, phoneNumber, serviceId, barberId]);
+    return customerFirstName.trim().length > 1 && customerLastName.trim().length > 1 && phoneNumber.trim().length >= 8 && !!serviceId && !!barberId;
+  }, [customerFirstName, customerLastName, phoneNumber, serviceId, barberId]);
 
   const handleSubmit = async () => {
     if (!isValid || submitting) return;
     setSubmitting(true);
     await onSubmit({
-      customerName: customerName.trim(),
+      customerFirstName: customerFirstName.trim(),
+      customerLastName: customerLastName.trim(),
       phoneNumber: phoneNumber.trim(),
       serviceId,
       barberId,
@@ -78,7 +81,8 @@ export function AddWalkInModal({ open, onOpenChange, services, barbers, onSubmit
         </DialogHeader>
 
         <div className="grid gap-4 py-2">
-          <Input placeholder="Customer Name" value={customerName} onChange={(event) => setCustomerName(event.target.value)} />
+          <Input placeholder="First Name" value={customerFirstName} onChange={(event) => setCustomerFirstName(event.target.value)} />
+          <Input placeholder="Last Name" value={customerLastName} onChange={(event) => setCustomerLastName(event.target.value)} />
           <Input placeholder="Phone Number" value={phoneNumber} onChange={(event) => setPhoneNumber(event.target.value)} />
 
           <select

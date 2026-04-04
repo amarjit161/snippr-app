@@ -37,14 +37,16 @@ type QueueItem = {
   position: number | null;
   started_at: string | null;
   completed_at: string | null;
-  customer_name?: string | null;
+  customer_first_name?: string | null;
+  customer_last_name?: string | null;
   customer_phone?: string | null;
   services?: ServiceRow | null;
   barbers?: BarberRow | null;
 };
 
 type WalkInPayload = {
-  customerName: string;
+  customerFirstName: string;
+  customerLastName: string;
   phoneNumber: string;
   serviceId: string;
   barberId: string;
@@ -73,7 +75,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
   const fetchQueue = useCallback(async (salonId: string) => {
     const { data, error } = await supabaseAny
       .from("queue")
-      .select("id, created_at, status, user_id, service_id, barber_id, position, started_at, completed_at, services(id, name, price, duration), barbers(id, name, chair_number, specialization)")
+      .select("id, created_at, status, user_id, service_id, barber_id, position, started_at, completed_at, customer_first_name, customer_last_name, customer_phone, services(id, name, price, duration), barbers(id, name, chair_number, specialization)")
       .eq("salon_id", salonId)
       .order("position", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: true });
@@ -216,7 +218,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
       return;
     }
 
-    if (!payload.customerName.trim() || !payload.phoneNumber.trim() || !payload.serviceId || !payload.barberId) {
+    if (!payload.customerFirstName.trim() || !payload.customerLastName.trim() || !payload.phoneNumber.trim() || !payload.serviceId || !payload.barberId) {
       toast.error("Please fill all fields");
       return;
     }
@@ -250,7 +252,8 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
       position: nextPosition,
       started_at: null,
       completed_at: null,
-      customer_name: payload.customerName.trim(),
+      customer_first_name: payload.customerFirstName.trim(),
+      customer_last_name: payload.customerLastName.trim(),
       customer_phone: payload.phoneNumber.trim(),
       services: selectedService,
       barbers: selectedBarber,
@@ -273,7 +276,8 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
 
     const withCustomerMeta = {
       ...insertBase,
-      customer_name: payload.customerName.trim(),
+      customer_first_name: payload.customerFirstName.trim(),
+      customer_last_name: payload.customerLastName.trim(),
       customer_phone: payload.phoneNumber.trim(),
     };
 

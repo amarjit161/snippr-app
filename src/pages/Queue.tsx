@@ -61,7 +61,9 @@ export default function Queue() {
                       <div className="rounded-xl border border-dashed border-[#e3e2e5] p-5 text-center text-sm text-[#494551]">No data yet.</div>
                     ) : (
                       section.items.map((item) => {
-                        const customerLabel = item.customer_name || (item.user_id ? `User ${item.user_id.slice(0, 6)}` : "Walk-in Customer");
+                        const customerLabel = item.customer_first_name && item.customer_last_name 
+                          ? `${item.customer_first_name} ${item.customer_last_name}` 
+                          : (item.user_id ? `User ${item.user_id.slice(0, 6)}` : "Walk-in Customer");
                         return (
                           <div key={item.id} className="rounded-xl border border-[#e3e2e5] p-4">
                             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -137,7 +139,7 @@ export default function Queue() {
                     </div>
                     {grouped.cancelled.map((item) => (
                       <div key={item.id} className="rounded-xl border border-[#e3e2e5] p-4">
-                        <p className="font-semibold">{item.customer_name || (item.user_id ? `User ${item.user_id.slice(0, 6)}` : "Walk-in Customer")}</p>
+                        <p className="font-semibold">{item.customer_first_name && item.customer_last_name ? `${item.customer_first_name} ${item.customer_last_name}` : (item.user_id ? `User ${item.user_id.slice(0, 6)}` : "Walk-in Customer")}</p>
                         <p className="text-sm text-[#494551]">{item.services?.name || "Service"}</p>
                       </div>
                     ))}
