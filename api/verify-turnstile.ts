@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { verifyTurnstileWithCloudflare } from "../src/lib/turnstile-server";
+import { verifyTurnstileWithCloudflare } from "../src/lib/turnstile-server.js";
 
 const readJsonBody = async (req: any): Promise<any> => {
   if (req.body && typeof req.body === "object") {
