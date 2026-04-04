@@ -12,13 +12,14 @@ export const verifyTurnstileWithCloudflare = async (
   secret: string,
   remoteIp?: string
 ): Promise<TurnstileCloudflareResponse> => {
-  const body = new URLSearchParams();
-  body.set("secret", secret);
-  body.set("response", token);
+  const payload: Record<string, string> = {
+    secret,
+    response: token,
+  };
 
-  if (remoteIp) {
-    body.set("remoteip", remoteIp);
-  }
+  if (remoteIp) payload.remoteip = remoteIp;
+
+  const body = new URLSearchParams(payload);
 
   const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
     method: "POST",

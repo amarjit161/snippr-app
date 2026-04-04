@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Mail, Phone, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import TurnstileCaptcha from "@/components/TurnstileCaptcha";
+import TurnstileCaptcha, { type TurnstileCaptchaHandle } from "@/components/TurnstileCaptcha";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 
 interface OTPLoginProps {
@@ -22,7 +22,7 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
-  const [captchaResetKey, setCaptchaResetKey] = useState(0);
+  const turnstileRef = useRef<TurnstileCaptchaHandle | null>(null);
 
   useEffect(() => {
     if (initialError) setAuthError(initialError);
@@ -38,16 +38,19 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
 
   const resetCaptcha = useCallback(() => {
     setCaptchaToken(null);
-    setCaptchaResetKey((current) => current + 1);
+    turnstileRef.current?.reset();
   }, []);
 
   const ensureCaptcha = useCallback(async () => {
-    if (!captchaToken) {
-      toast.error("Please complete the captcha");
+    const token = turnstileRef.current?.getResponse() || "";
+
+    if (!token) {
+      toast.error("Invalid or expired captcha");
+      resetCaptcha();
       return false;
     }
 
-    const captchaResult = await verifyTurnstileToken(captchaToken);
+    const captchaResult = await verifyTurnstileToken(token);
     if (!captchaResult.success) {
       toast.error(captchaResult.message || "Captcha verification failed");
       resetCaptcha();
@@ -56,7 +59,7 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
 
     resetCaptcha();
     return true;
-  }, [captchaToken, resetCaptcha]);
+  }, [resetCaptcha]);
 
   const handleEmailOTP = async () => {
     if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
@@ -180,7 +183,7 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
               </p>
             </div>
 
-            <TurnstileCaptcha key={captchaResetKey} onTokenChange={setCaptchaToken} className="min-h-[78px]" />
+            <TurnstileCaptcha ref={turnstileRef} onTokenChange={setCaptchaToken} className="min-h-[78px]" />
             
             <div className="w-full flex flex-col gap-3 pt-2">
               <Button
@@ -242,7 +245,7 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
                     type="email"
                     onKeyDown={(e) => e.key === "Enter" && handleEmailOTP()}
                   />
-                  <TurnstileCaptcha key={captchaResetKey} onTokenChange={setCaptchaToken} className="min-h-[78px]" />
+                  <TurnstileCaptcha ref={turnstileRef} onTokenChange={setCaptchaToken} className="min-h-[78px]" />
                   <Button
                     onClick={handleEmailOTP}
                     disabled={loading || !email || !captchaToken}
@@ -268,7 +271,7 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
                     type="tel"
                     onKeyDown={(e) => e.key === "Enter" && handlePhoneOTP()}
                   />
-                  <TurnstileCaptcha key={captchaResetKey} onTokenChange={setCaptchaToken} className="min-h-[78px]" />
+                  <TurnstileCaptcha ref={turnstileRef} onTokenChange={setCaptchaToken} className="min-h-[78px]" />
                   <Button
                     onClick={handlePhoneOTP}
                     disabled={loading || phone.length < 5 || !captchaToken}

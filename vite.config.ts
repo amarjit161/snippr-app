@@ -49,18 +49,27 @@ export default defineConfig(({ mode }) => {
         if (!token) {
           res.statusCode = 400;
           res.setHeader("Content-Type", "application/json");
-          res.end(JSON.stringify({ success: false, message: "Captcha verification failed" }));
+          res.end(JSON.stringify({ success: false, message: "Invalid or expired captcha" }));
           return;
         }
 
         try {
+          console.log("Turnstile token received (dev)", `${token.slice(0, 12)}...`);
           const result = await verifyTurnstileWithCloudflare(token, turnstileSecret);
+          console.log("Cloudflare Turnstile response (dev)", result);
 
           if (!result.success) {
             console.error("Cloudflare Turnstile verification failed (dev)", result);
             res.statusCode = 400;
             res.setHeader("Content-Type", "application/json");
-            res.end(JSON.stringify({ success: false, message: "Captcha verification failed" }));
+            const isExpiredOrInvalid = (result["error-codes"] || []).some((code) =>
+              ["timeout-or-duplicate", "invalid-input-response", "missing-input-response"].includes(code)
+            );
+
+            res.end(JSON.stringify({
+              success: false,
+              message: isExpiredOrInvalid ? "Invalid or expired captcha" : "Captcha verification failed",
+            }));
             return;
           }
 

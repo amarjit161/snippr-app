@@ -5,7 +5,7 @@ export type TurnstileVerificationResponse = {
 
 export const verifyTurnstileToken = async (token: string) => {
   if (!token) {
-    return { success: false, message: "Please complete the captcha" };
+    return { success: false, message: "Invalid or expired captcha" };
   }
 
   try {

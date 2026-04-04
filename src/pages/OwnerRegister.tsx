@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import Header from "@/components/Header";
 import { toast } from "sonner";
 import { Camera, Loader2, Plus, Trash2 } from "lucide-react";
 import imageCompression from "browser-image-compression";
-import TurnstileCaptcha from "@/components/TurnstileCaptcha";
+import TurnstileCaptcha, { type TurnstileCaptchaHandle } from "@/components/TurnstileCaptcha";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 
 type ServiceForm = {
@@ -48,7 +48,7 @@ export default function OwnerRegister() {
   const [submitting, setSubmitting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
-  const [captchaResetKey, setCaptchaResetKey] = useState(0);
+  const turnstileRef = useRef<TurnstileCaptchaHandle | null>(null);
 
   const [ownerName, setOwnerName] = useState("");
   const [email, setEmail] = useState("");
@@ -123,7 +123,7 @@ export default function OwnerRegister() {
 
   const resetCaptcha = () => {
     setCaptchaToken(null);
-    setCaptchaResetKey((current) => current + 1);
+    turnstileRef.current?.reset();
   };
 
   const removeService = (index: number) => {
@@ -173,12 +173,14 @@ export default function OwnerRegister() {
     if (submitting || uploadingImage) return;
     if (!validateForm()) return;
 
-    if (!captchaToken) {
-      toast.error("Please complete the captcha");
+    const token = turnstileRef.current?.getResponse() || "";
+    if (!token) {
+      toast.error("Invalid or expired captcha");
+      resetCaptcha();
       return;
     }
 
-    const captchaResult = await verifyTurnstileToken(captchaToken);
+    const captchaResult = await verifyTurnstileToken(token);
     if (!captchaResult.success) {
       toast.error(captchaResult.message || "Captcha verification failed");
       resetCaptcha();
@@ -500,7 +502,7 @@ export default function OwnerRegister() {
 
           <section className="rounded-2xl bg-white p-6 shadow-md space-y-4">
             <h2 className="text-lg font-semibold">Verification</h2>
-            <TurnstileCaptcha key={captchaResetKey} onTokenChange={setCaptchaToken} className="min-h-[78px]" />
+            <TurnstileCaptcha ref={turnstileRef} onTokenChange={setCaptchaToken} className="min-h-[78px]" />
           </section>
 
           <Button

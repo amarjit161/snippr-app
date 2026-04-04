@@ -1,11 +1,11 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Loader2, Lock, Mail, Store } from "lucide-react";
-import TurnstileCaptcha from "@/components/TurnstileCaptcha";
+import TurnstileCaptcha, { type TurnstileCaptchaHandle } from "@/components/TurnstileCaptcha";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 
 type OwnerRecord = {
@@ -24,23 +24,25 @@ export default function OwnerLogin() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
-  const [captchaResetKey, setCaptchaResetKey] = useState(0);
+  const turnstileRef = useRef<TurnstileCaptchaHandle | null>(null);
 
   const resetCaptcha = () => {
     setCaptchaToken(null);
-    setCaptchaResetKey((current) => current + 1);
+    turnstileRef.current?.reset();
   };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (loading) return;
 
-    if (!captchaToken) {
-      toast.error("Please complete the captcha");
+    const token = turnstileRef.current?.getResponse() || "";
+    if (!token) {
+      toast.error("Invalid or expired captcha");
+      resetCaptcha();
       return;
     }
 
-    const captchaResult = await verifyTurnstileToken(captchaToken);
+    const captchaResult = await verifyTurnstileToken(token);
     if (!captchaResult.success) {
       toast.error(captchaResult.message || "Captcha verification failed");
       resetCaptcha();
@@ -130,7 +132,7 @@ export default function OwnerLogin() {
             />
           </div>
 
-          <TurnstileCaptcha key={captchaResetKey} onTokenChange={setCaptchaToken} className="min-h-[78px]" />
+          <TurnstileCaptcha ref={turnstileRef} onTokenChange={setCaptchaToken} className="min-h-[78px]" />
 
           <Button type="submit" disabled={loading || !captchaToken} className="h-11 w-full rounded-xl">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Login"}

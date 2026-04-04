@@ -10,6 +10,7 @@ declare global {
         "expired-callback"?: () => void;
         "error-callback"?: () => void;
       }) => string;
+      getResponse: (widgetId?: string) => string;
       reset: (widgetId?: string) => void;
       remove?: (widgetId: string) => void;
     };

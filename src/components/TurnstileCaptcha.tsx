@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 
 type TurnstileTheme = "light" | "dark" | "auto";
 
@@ -12,6 +12,7 @@ type TurnstileRenderOptions = {
 
 type TurnstileWidgetApi = {
   render: (container: HTMLElement, options: TurnstileRenderOptions) => string;
+  getResponse: (widgetId?: string) => string;
   reset: (widgetId?: string) => void;
   remove?: (widgetId: string) => void;
 };
@@ -70,7 +71,15 @@ interface TurnstileCaptchaProps {
   theme?: TurnstileTheme;
 }
 
-export default function TurnstileCaptcha({ onTokenChange, className, theme = "light" }: TurnstileCaptchaProps) {
+export interface TurnstileCaptchaHandle {
+  getResponse: () => string;
+  reset: () => void;
+}
+
+const TurnstileCaptcha = forwardRef<TurnstileCaptchaHandle, TurnstileCaptchaProps>(function TurnstileCaptcha(
+  { onTokenChange, className, theme = "light" },
+  ref
+) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | null>(null);
   const [isReady, setIsReady] = useState(false);
@@ -84,6 +93,18 @@ export default function TurnstileCaptcha({ onTokenChange, className, theme = "li
   useEffect(() => {
     onTokenChange(null);
   }, [onTokenChange]);
+
+  useImperativeHandle(ref, () => ({
+    getResponse: () => {
+      if (!widgetIdRef.current || !window.turnstile) return "";
+      return window.turnstile.getResponse(widgetIdRef.current) || "";
+    },
+    reset: () => {
+      if (!widgetIdRef.current || !window.turnstile) return;
+      window.turnstile.reset(widgetIdRef.current);
+      onTokenChange(null);
+    },
+  }), [onTokenChange]);
 
   useEffect(() => {
     let cancelled = false;
@@ -145,4 +166,6 @@ export default function TurnstileCaptcha({ onTokenChange, className, theme = "li
       {!isReady ? <p className="mt-2 text-xs text-muted-foreground">Loading verification...</p> : null}
     </div>
   );
-}
+});
+
+export default TurnstileCaptcha;

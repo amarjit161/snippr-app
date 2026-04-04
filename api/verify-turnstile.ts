@@ -52,20 +52,31 @@ export default async function handler(req: any, res: any) {
   if (!token) {
     res.statusCode = 400;
     res.setHeader("Content-Type", "application/json");
-    res.end(JSON.stringify({ success: false, message: "Captcha verification failed" }));
+    res.end(JSON.stringify({ success: false, message: "Invalid or expired captcha" }));
     return;
   }
 
   try {
+    console.log("Turnstile token received", `${token.slice(0, 12)}...`);
+
     const remoteIpHeader = req.headers["x-forwarded-for"];
     const remoteIp = typeof remoteIpHeader === "string" ? remoteIpHeader.split(",")[0].trim() : undefined;
     const result = await verifyTurnstileWithCloudflare(token, secret, remoteIp);
+    console.log("Cloudflare Turnstile response", result);
 
     if (!result.success) {
       console.error("Cloudflare Turnstile verification failed", result);
       res.statusCode = 400;
       res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ success: false, message: "Captcha verification failed", "error-codes": result["error-codes"] || [] }));
+      const isExpiredOrInvalid = (result["error-codes"] || []).some((code) =>
+        ["timeout-or-duplicate", "invalid-input-response", "missing-input-response"].includes(code)
+      );
+
+      res.end(JSON.stringify({
+        success: false,
+        message: isExpiredOrInvalid ? "Invalid or expired captcha" : "Captcha verification failed",
+        "error-codes": result["error-codes"] || [],
+      }));
       return;
     }
 
