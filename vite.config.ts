@@ -54,9 +54,9 @@ export default defineConfig(({ mode }) => {
         }
 
         try {
-          console.log("Turnstile token received (dev)", `${token.slice(0, 12)}...`);
+          console.log(token);
           const result = await verifyTurnstileWithCloudflare(token, turnstileSecret);
-          console.log("Cloudflare Turnstile response (dev)", result);
+          console.log(result);
 
           if (!result.success) {
             console.error("Cloudflare Turnstile verification failed (dev)", result);

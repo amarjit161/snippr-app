@@ -21,6 +21,7 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
+  const [verifyingCaptcha, setVerifyingCaptcha] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileCaptchaHandle | null>(null);
 
@@ -42,11 +43,15 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
   }, []);
 
   const ensureCaptcha = useCallback(async () => {
+    if (verifyingCaptcha) return false;
+    setVerifyingCaptcha(true);
+
     const token = turnstileRef.current?.getResponse() || "";
 
     if (!token) {
       toast.error("Invalid or expired captcha");
       resetCaptcha();
+      setVerifyingCaptcha(false);
       return false;
     }
 
@@ -54,12 +59,14 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
     if (!captchaResult.success) {
       toast.error(captchaResult.message || "Captcha verification failed");
       resetCaptcha();
+      setVerifyingCaptcha(false);
       return false;
     }
 
     resetCaptcha();
+    setVerifyingCaptcha(false);
     return true;
-  }, [resetCaptcha]);
+  }, [resetCaptcha, verifyingCaptcha]);
 
   const handleEmailOTP = async () => {
     if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
@@ -248,7 +255,7 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
                   <TurnstileCaptcha ref={turnstileRef} onTokenChange={setCaptchaToken} className="min-h-[78px]" />
                   <Button
                     onClick={handleEmailOTP}
-                    disabled={loading || !email || !captchaToken}
+                    disabled={loading || verifyingCaptcha || !email || !captchaToken}
                     className="h-11 w-full rounded-xl bg-gradient-to-r from-primary to-indigo-500 text-sm font-medium text-primary-foreground shadow-sm hover:brightness-110 disabled:opacity-50"
                   >
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Continue"}
@@ -274,7 +281,7 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
                   <TurnstileCaptcha ref={turnstileRef} onTokenChange={setCaptchaToken} className="min-h-[78px]" />
                   <Button
                     onClick={handlePhoneOTP}
-                    disabled={loading || phone.length < 5 || !captchaToken}
+                    disabled={loading || verifyingCaptcha || phone.length < 5 || !captchaToken}
                     className="h-11 w-full rounded-xl bg-gradient-to-r from-primary to-indigo-500 text-sm font-medium text-primary-foreground shadow-sm hover:brightness-110 disabled:opacity-50"
                   >
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Get Started"}
@@ -319,7 +326,7 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
 
               <button
                 onClick={handleGoogleLogin}
-                disabled={loading || !captchaToken}
+                disabled={loading || verifyingCaptcha || !captchaToken}
                 className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm font-medium text-foreground transition-all hover:bg-muted disabled:opacity-50"
               >
                 <svg className="h-4 w-4" aria-hidden="true" viewBox="0 0 24 24">

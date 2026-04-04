@@ -23,6 +23,7 @@ export default function OwnerLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [verifyingCaptcha, setVerifyingCaptcha] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileCaptchaHandle | null>(null);
 
@@ -33,12 +34,15 @@ export default function OwnerLogin() {
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (loading) return;
+    if (loading || verifyingCaptcha) return;
+
+    setVerifyingCaptcha(true);
 
     const token = turnstileRef.current?.getResponse() || "";
     if (!token) {
       toast.error("Invalid or expired captcha");
       resetCaptcha();
+      setVerifyingCaptcha(false);
       return;
     }
 
@@ -46,10 +50,12 @@ export default function OwnerLogin() {
     if (!captchaResult.success) {
       toast.error(captchaResult.message || "Captcha verification failed");
       resetCaptcha();
+      setVerifyingCaptcha(false);
       return;
     }
 
     resetCaptcha();
+    setVerifyingCaptcha(false);
     setLoading(true);
 
     try {
@@ -134,7 +140,7 @@ export default function OwnerLogin() {
 
           <TurnstileCaptcha ref={turnstileRef} onTokenChange={setCaptchaToken} className="min-h-[78px]" />
 
-          <Button type="submit" disabled={loading || !captchaToken} className="h-11 w-full rounded-xl">
+          <Button type="submit" disabled={loading || verifyingCaptcha || !captchaToken} className="h-11 w-full rounded-xl">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Login"}
           </Button>
         </form>

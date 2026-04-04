@@ -47,6 +47,7 @@ export default function OwnerRegister() {
 
   const [submitting, setSubmitting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [verifyingCaptcha, setVerifyingCaptcha] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileCaptchaHandle | null>(null);
 
@@ -170,13 +171,16 @@ export default function OwnerRegister() {
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (submitting || uploadingImage) return;
+    if (submitting || uploadingImage || verifyingCaptcha) return;
     if (!validateForm()) return;
+
+    setVerifyingCaptcha(true);
 
     const token = turnstileRef.current?.getResponse() || "";
     if (!token) {
       toast.error("Invalid or expired captcha");
       resetCaptcha();
+      setVerifyingCaptcha(false);
       return;
     }
 
@@ -184,10 +188,12 @@ export default function OwnerRegister() {
     if (!captchaResult.success) {
       toast.error(captchaResult.message || "Captcha verification failed");
       resetCaptcha();
+      setVerifyingCaptcha(false);
       return;
     }
 
     resetCaptcha();
+    setVerifyingCaptcha(false);
 
     setSubmitting(true);
 
@@ -507,7 +513,7 @@ export default function OwnerRegister() {
 
           <Button
             type="submit"
-            disabled={submitting || uploadingImage || !captchaToken}
+            disabled={submitting || uploadingImage || verifyingCaptcha || !captchaToken}
             className="h-12 w-full rounded-xl bg-primary transition-transform duration-200 hover:scale-105"
           >
             {submitting || uploadingImage ? (

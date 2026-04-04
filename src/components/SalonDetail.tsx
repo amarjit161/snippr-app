@@ -93,6 +93,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
   const [nextQueuePosition, setNextQueuePosition] = useState<number | null>(null);
   const [myQueuePosition, setMyQueuePosition] = useState<number | null>(null);
   const [booking, setBooking] = useState(false);
+  const [verifyingCaptcha, setVerifyingCaptcha] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileCaptchaHandle | null>(null);
   const firstNameInputRef = useRef<HTMLInputElement | null>(null);
@@ -241,6 +242,8 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
   };
 
   const handleBook = async () => {
+    if (booking || verifyingCaptcha) return;
+
     setTouched({ firstName: true, lastName: true, phone: true });
 
     if (!selectedService || !date || !time || !activeCustomer.firstName.trim() || !activeCustomer.lastName.trim() || !activeCustomer.phone.trim()) {
@@ -261,10 +264,13 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       return;
     }
 
+    setVerifyingCaptcha(true);
+
     const token = turnstileRef.current?.getResponse() || "";
     if (!token) {
       toast.error("Invalid or expired captcha");
       resetCaptcha();
+      setVerifyingCaptcha(false);
       return;
     }
 
@@ -272,10 +278,12 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
     if (!captchaResult.success) {
       toast.error(captchaResult.message || "Captcha verification failed");
       resetCaptcha();
+      setVerifyingCaptcha(false);
       return;
     }
 
     resetCaptcha();
+    setVerifyingCaptcha(false);
 
     setBooking(true);
 
@@ -658,7 +666,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
               <button
                 onClick={handleBook}
-                disabled={!date || !selectedService || booking || !captchaToken}
+                disabled={!date || !selectedService || booking || verifyingCaptcha || !captchaToken}
                 className="mt-6 w-full rounded-lg bg-orange-500 py-3 font-semibold text-white hover:bg-orange-600 disabled:opacity-50"
               >
                 {booking ? <Loader2 className="inline mr-2 h-5 w-5 animate-spin" /> : "Join Queue"}

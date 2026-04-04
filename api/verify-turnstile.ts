@@ -57,12 +57,12 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    console.log("Turnstile token received", `${token.slice(0, 12)}...`);
+    console.log(token);
 
     const remoteIpHeader = req.headers["x-forwarded-for"];
     const remoteIp = typeof remoteIpHeader === "string" ? remoteIpHeader.split(",")[0].trim() : undefined;
     const result = await verifyTurnstileWithCloudflare(token, secret, remoteIp);
-    console.log("Cloudflare Turnstile response", result);
+    console.log(result);
 
     if (!result.success) {
       console.error("Cloudflare Turnstile verification failed", result);
