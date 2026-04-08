@@ -22,7 +22,7 @@ type BarberForm = {
   specialization: string;
 };
 
-const triggerOwnerVerificationEmail = async (ownerEmail: string, ownerName: string) => {
+const triggerOwnerVerificationEmail = async (ownerEmail: string, name: string) => {
   const verificationEndpoint = import.meta.env.VITE_OWNER_VERIFICATION_ENDPOINT as string | undefined;
 
   if (!verificationEndpoint) {
@@ -33,7 +33,7 @@ const triggerOwnerVerificationEmail = async (ownerEmail: string, ownerName: stri
     await fetch(verificationEndpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: ownerEmail, ownerName }),
+      body: JSON.stringify({ email: ownerEmail, name }),
     });
     return { sent: true, reason: null };
   } catch {
@@ -43,7 +43,7 @@ const triggerOwnerVerificationEmail = async (ownerEmail: string, ownerName: stri
 
 export default function OwnerRegister() {
   const navigate = useNavigate();
-  const supabaseAny = supabase as any;
+
 
   const [submitting, setSubmitting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -51,7 +51,7 @@ export default function OwnerRegister() {
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileCaptchaHandle | null>(null);
 
-  const [ownerName, setOwnerName] = useState("");
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -136,7 +136,7 @@ export default function OwnerRegister() {
   };
 
   const validateForm = () => {
-    if (!ownerName.trim() || !email.trim() || !password.trim()) {
+    if (!name.trim() || !email.trim() || !password.trim()) {
       toast.error("Please complete owner info");
       return false;
     }
@@ -198,68 +198,44 @@ export default function OwnerRegister() {
     setSubmitting(true);
 
     try {
-      const { data: existingOwner, error: existingOwnerError } = await supabaseAny
-        .from("owners")
-        .select("id")
-        .eq("email", email.trim())
-        .maybeSingle();
+      // 1. SIGNUP
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: password,
+      });
 
-      if (existingOwnerError) {
-        throw new Error(existingOwnerError.message || "Failed to validate owner account");
-      }
+      console.log("Signup:", data);
+      if (error) throw error;
 
-      if (existingOwner) {
-        toast.error("Owner with this email already exists");
+      // 2. WAIT FOR AUTH PROPAGATION
+      await new Promise(res => setTimeout(res, 1500));
+
+      // 3. GET USER FROM SIGNUP DATA
+      const user = data.user;
+      console.log("User:", user);
+
+      if (!user) {
+        toast.info("Please check your email and verify account");
+        setSubmitting(false);
         return;
       }
 
-      let owner: any = null;
-      let ownerError: any = null;
+      console.log("Upserting owner profile for UID:", user.id);
+      const { data: ownerData, error: upsertError } = await supabase.from("owners").upsert({
+        id: user.id,
+        email: user.email!,
+        name: name.trim(),
+        phone: phone.trim(),
+        is_verified: true,
+        is_active: true,
+      }, { onConflict: "id" }).select("*").single();
 
-      const primaryInsert = await supabaseAny
-        .from("owners")
-        .insert([
-          {
-            name: ownerName.trim(),
-            email: email.trim(),
-            password,
-            is_verified: false,
-          },
-        ])
-        .select("*")
-        .single();
+      console.log("Owner insert:", ownerData);
 
-      owner = primaryInsert.data;
-      ownerError = primaryInsert.error;
+      if (upsertError) throw upsertError;
+      if (!ownerData) throw new Error("Could not retrieve owner profile");
 
-      // Backward-compatibility fallback for legacy owner_name schema variants.
-      if (ownerError && !owner) {
-        const fallbackInsert = await supabaseAny
-          .from("owners")
-          .insert([
-            {
-              owner_name: ownerName.trim(),
-              email: email.trim(),
-              password,
-              phone: phone.trim(),
-              is_verified: false,
-            },
-          ])
-          .select("*")
-          .single();
-
-        owner = fallbackInsert.data;
-        ownerError = fallbackInsert.error;
-      }
-
-      if (ownerError || !owner) {
-        throw new Error(ownerError?.message || "Failed to create owner");
-      }
-
-      const normalizedOwner = {
-        ...owner,
-        owner_name: owner.owner_name || owner.name || ownerName.trim(),
-      };
+      const normalizedOwner = ownerData;
 
       let imagePath: string | null = null;
 
@@ -288,7 +264,7 @@ export default function OwnerRegister() {
         }
       }
 
-      const payload: Record<string, unknown> = {
+      const payload = {
         name: salonName.trim(),
         owner_id: normalizedOwner.id,
         phone: phone.trim() || null,
@@ -298,70 +274,54 @@ export default function OwnerRegister() {
         open_time: openTime || null,
         close_time: closeTime || null,
         image_url: imagePath || null,
+        location: address.trim() || null,
       };
 
-      Object.keys(payload).forEach((key) => {
-        if (payload[key] === undefined) {
-          payload[key] = null;
-        }
-      });
-
-      const { data: salon, error: salonError } = await supabaseAny
+      const { data: salonData, error: salonError } = await supabase
         .from("salons")
         .insert([payload])
         .select("id")
         .single();
-
-      if (salonError || !salon) {
-        throw new Error(salonError?.message || "Failed to create salon");
-      }
-
-      const { error: servicesError } = await supabaseAny.from("services").insert(
+ 
+      console.log("Salon:", salonData);
+      if (salonError) throw salonError;
+      if (!salonData) throw new Error("Salon creation failed");
+ 
+      const { error: servicesError } = await supabase.from("services").insert(
         services.map((service) => ({
-          salon_id: salon.id,
+          salon_id: salonData.id,
           name: service.name.trim(),
           price: Number(service.price),
           duration: Number(service.duration),
         }))
       );
 
-      if (servicesError) {
-        throw new Error(servicesError.message || "Failed to save services");
-      }
+      console.log("Services:", servicesError === null ? "Success" : servicesError);
+      if (servicesError) throw servicesError;
 
-      const barberPayloads = barbers.map((barber) => {
-        const payload: Record<string, unknown> = {
-          salon_id: salon.id,
-          name: barber.name.trim(),
-          chair_number: Number(barber.chair) || 1,
-          specialization: barber.specialization.trim(),
-        };
-        Object.keys(payload).forEach((key) => {
-          if (payload[key] === undefined) payload[key] = null;
-        });
-        return payload;
-      });
+      const barberPayloads = barbers.map((barber) => ({
+        salon_id: salonData.id,
+        name: barber.name.trim(),
+        chair_number: Number(barber.chair) || 1,
+        specialization: barber.specialization.trim(),
+      }));
 
-      const { error: barbersError } = await supabaseAny.from("barbers").insert(barberPayloads);
+      const { error: barbersError } = await supabase.from("barbers").insert(barberPayloads);
 
-      if (barbersError) {
-        throw new Error(barbersError.message || "Failed to save barbers");
-      }
+      console.log("Barbers:", barbersError === null ? "Success" : barbersError);
+      if (barbersError) throw barbersError;
 
-      const verificationResult = await triggerOwnerVerificationEmail(normalizedOwner.email, normalizedOwner.owner_name);
+      const verificationResult = await triggerOwnerVerificationEmail(normalizedOwner.email, normalizedOwner.name);
 
       localStorage.setItem("owner", JSON.stringify(normalizedOwner));
       toast.success("Account created and salon registered");
       if (!verificationResult.sent) {
-        toast.info("Verification email endpoint not configured. Mark owner as verified manually or configure endpoint.");
+        toast.info("Verification email disabled for local development.");
       }
       navigate("/owner-dashboard", { replace: true });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Owner signup failed";
-      console.error("Owner register error:", error);
-      if (message.includes("public.owners") || message.includes("PGRST205")) {
-        toast.error("Owners table missing in Supabase public schema. Apply migration 0009_fix_owners_schema_cache.sql.");
-      }
+    } catch (error: any) {
+      console.error("DEBUG ERROR:", error);
+      const message = error?.message || "Something went wrong during registration";
       toast.error(message);
     } finally {
       setSubmitting(false);
@@ -382,7 +342,7 @@ export default function OwnerRegister() {
           <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
             <h2 className="text-lg font-semibold">Owner Info</h2>
             <div className="grid gap-4 md:grid-cols-2">
-              <Input placeholder="Owner name" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} required />
+              <Input placeholder="Owner name" value={name} onChange={(e) => setName(e.target.value)} required />
               <Input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
               <Input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} className="md:col-span-2" required />
             </div>
