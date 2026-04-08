@@ -68,7 +68,12 @@ const Salons = () => {
         (salonData ?? []).map(async (salon) => {
            const { data: queueData, error: queueError } = await supabase
             .from("queue")
-            .select("service_id, services(duration)")
+            .select(`
+              *,
+              services (*),
+              salons (*),
+              barbers (*)
+            `)
             .eq("salon_id", salon.id)
             .eq("status", "waiting");
 

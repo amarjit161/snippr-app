@@ -6,7 +6,7 @@ import type { Tables } from "@/integrations/supabase/types";
 interface AuthContextType {
   session: Session | null;
   user: User | null;
-  profile: Tables<"profiles"> | null;
+  profile: Tables<"owners"> | null;
   loading: boolean;
   signOut: () => Promise<void>;
 }
@@ -23,7 +23,7 @@ export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Tables<"profiles"> | null>(null);
+  const [profile, setProfile] = useState<Tables<"owners"> | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -31,9 +31,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(true);
       if (s?.user) {
         const { data, error } = await supabase
-          .from("profiles")
+          .from("owners")
           .select("*")
-          .eq("user_id", s.user.id)
+          .eq("id", s.user.id)
           .maybeSingle();
 
         if (error) {

@@ -10,14 +10,15 @@ import { toast } from "sonner";
 
 type OwnerRecord = {
   id: string;
-  owner_name: string;
+  name: string;
   email: string;
-  password?: string;
+  is_verified?: boolean;
+  is_active?: boolean;
 };
 
 export default function Settings() {
   const navigate = useNavigate();
-  const supabaseAny = supabase as any;
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [owner, setOwner] = useState<OwnerRecord | null>(null);
@@ -35,7 +36,7 @@ export default function Settings() {
     try {
       const parsed = JSON.parse(raw) as OwnerRecord;
       setOwner(parsed);
-      setName(parsed.owner_name || "");
+      setName(parsed.name || "");
       setEmail(parsed.email || "");
     } catch {
       localStorage.removeItem("owner");
@@ -56,14 +57,28 @@ export default function Settings() {
 
     setSaving(true);
     try {
-      const payload: Record<string, unknown> = { owner_name: name.trim(), email: email.trim() };
-      if (password.trim()) payload.password = password.trim();
+      const { error: profileError } = await supabase
+        .from("owners")
+        .update({ name: name.trim(), email: email.trim() })
+        .eq("id", owner.id);
+      
+      if (profileError) throw profileError;
 
-      const { error } = await supabaseAny.from("owners").update(payload).eq("id", owner.id);
-      if (error) throw error;
+      if (password.trim()) {
+        const { error: authError } = await supabase.auth.updateUser({
+          password: password.trim(),
+        });
+        if (authError) throw authError;
+      }
 
-      const updatedOwner = { ...owner, owner_name: name.trim(), email: email.trim(), password: password.trim() || owner.password };
+      const updatedOwner: OwnerRecord = { 
+        ...owner, 
+        name: name.trim(), 
+        email: email.trim() 
+      };
+      
       localStorage.setItem("owner", JSON.stringify(updatedOwner));
+      setOwner(updatedOwner);
       toast.success("Settings saved");
       setPassword("");
     } catch (error) {

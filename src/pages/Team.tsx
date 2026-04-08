@@ -11,7 +11,7 @@ import { toast } from "sonner";
 
 type SalonRow = { id: string };
 type BarberRow = { id: string; name: string; chair_number: number | null; specialization: string | null };
-type OwnerRecord = { id: string; owner_name: string; email: string };
+type OwnerRecord = { id: string; name: string; email: string };
 
 export default function Team() {
   const navigate = useNavigate();

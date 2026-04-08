@@ -35,7 +35,12 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
     if (!selectedSalonId) return;
     const { data } = await supabase
       .from("queue")
-      .select("*, services(*)")
+      .select(`
+        *,
+        services (*),
+        salons (*),
+        barbers (*)
+      `)
       .eq("salon_id", selectedSalonId)
       .in("status", ["waiting", "in_progress"])
       .order("created_at", { ascending: true });
@@ -47,7 +52,12 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
     // All completed entries for this salon
     const { data: completed } = await supabase
       .from("queue")
-      .select("*, services(duration, price)")
+      .select(`
+        *,
+        services (*),
+        salons (*),
+        barbers (*)
+      `)
       .eq("salon_id", selectedSalonId)
       .eq("status", "completed");
 
@@ -62,7 +72,12 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
     const hourCounts: Record<number, number> = {};
     const { data: allEntries } = await supabase
       .from("queue")
-      .select("created_at")
+      .select(`
+        *,
+        services (*),
+        salons (*),
+        barbers (*)
+      `)
       .eq("salon_id", selectedSalonId);
     (allEntries ?? []).forEach((e) => {
       const h = new Date(e.created_at).getHours();

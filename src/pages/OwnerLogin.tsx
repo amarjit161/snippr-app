@@ -11,11 +11,10 @@ import { verifyTurnstileToken } from "@/lib/turnstile";
 type OwnerRecord = {
   id: string;
   email: string;
-  password: string;
-  owner_name: string;
-  name?: string | null;
+  name: string;
   phone: string | null;
-  is_verified?: boolean;
+  is_verified: boolean;
+  is_active: boolean;
 };
 
 export default function OwnerLogin() {
@@ -59,26 +58,37 @@ export default function OwnerLogin() {
     setLoading(true);
 
     try {
-      const { data, error } = (await supabase
-        .from("owners" as any)
-        .select("*")
-        .eq("email", email.trim())
-        .eq("password", password)
-        .maybeSingle()) as any;
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password,
+      });
 
-      if (error) {
-        throw error;
-      }
-
-      if (!data) {
-        toast.error("Invalid credentials");
+      if (authError) {
+        toast.error(authError.message || "Invalid credentials");
         return;
       }
 
-      const normalizedOwner: OwnerRecord = {
-        ...(data as OwnerRecord),
-        owner_name: (data?.owner_name || data?.name || "Owner") as string,
-      };
+      if (!authData.user) {
+        throw new Error("Login failed to retrieve user");
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("owners")
+        .select("*")
+        .eq("id", authData.user.id)
+        .maybeSingle();
+ 
+      if (profileError) {
+        throw profileError;
+      }
+
+      if (!profile) {
+        // This case shouldn't happen if registration is successful, but handle it
+        toast.error("Owner profile not found. Please contact support.");
+        return;
+      }
+
+      const normalizedOwner: OwnerRecord = profile as any;
 
       localStorage.setItem("owner", JSON.stringify(normalizedOwner));
 

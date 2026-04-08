@@ -25,7 +25,12 @@ const QueueTracker = () => {
   const fetchQueue = async (salonId: string) => {
     const { data } = await supabase
       .from("queue")
-      .select("*")
+      .select(`
+        *,
+        services (*),
+        salons (*),
+        barbers (*)
+      `)
       .eq("salon_id", salonId)
       .eq("status", "waiting")
       .order("created_at", { ascending: true });
@@ -40,7 +45,12 @@ const QueueTracker = () => {
     // Check for in_progress status too (service started)
     const { data } = await supabase
       .from("queue")
-      .select("*, salons(*), services(*)")
+      .select(`
+        *,
+        services (*),
+        salons (*),
+        barbers (*)
+      `)
       .eq("user_id", user.id)
       .in("status", ["waiting", "in_progress"])
       .order("created_at", { ascending: false })
@@ -124,7 +134,7 @@ const QueueTracker = () => {
     await supabase.from("queue").delete().eq("id", entry.id);
     toast.info("Queue entry cancelled");
     setEntry(null);
-    prevAhead.current = null;
+    prevPosition.current = null;
   };
 
   if (!entry) return null;

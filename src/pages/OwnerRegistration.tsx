@@ -215,9 +215,9 @@ export default function OwnerRegistration() {
       if (barbersError) throw new Error(`Barber creation failed: ${barbersError.message}`);
 
       const { error: profileError } = await supabase
-        .from("profiles")
-        .update({ role: "salon_owner", salon_id: salonId, name: ownerName.trim(), phone: phone.trim() } as any)
-        .eq("user_id", user.id);
+        .from("owners")
+        .update({ name: ownerName.trim(), phone: phone.trim() } as any)
+        .eq("id", user.id);
 
       if (profileError) {
         console.warn("Profile update warning:", profileError.message);

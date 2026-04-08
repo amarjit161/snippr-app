@@ -11,7 +11,7 @@ import { toast } from "sonner";
 
 type OwnerRecord = {
   id: string;
-  owner_name: string;
+  name: string;
   email: string;
 };
 
@@ -102,7 +102,12 @@ export default function OwnerDashboard() {
     setQueueLoading(true);
     const { data, error } = await supabaseAny
       .from("queue")
-      .select("id, created_at, status, user_id, services(name, price, duration)")
+      .select(`
+        *,
+        services (*),
+        salons (*),
+        barbers (*)
+      `)
       .eq("salon_id", salonId)
       .order("created_at", { ascending: true });
 
@@ -117,9 +122,9 @@ export default function OwnerDashboard() {
 
     const userIds = Array.from(new Set(rows.map((row) => row.user_id).filter(Boolean)));
     if (userIds.length > 0) {
-      const { data: profileRows } = await supabaseAny.from("profiles").select("user_id, name").in("user_id", userIds);
-      const lookup = ((profileRows || []) as ProfileLookup[]).reduce<Record<string, string>>((acc, row) => {
-        acc[row.user_id] = row.name || "Guest";
+      const { data: profileRows } = await supabaseAny.from("owners").select("id, name").in("id", userIds);
+      const lookup = ((profileRows || []) as any[]).reduce<Record<string, string>>((acc, row) => {
+        acc[row.id] = row.name || "Guest";
         return acc;
       }, {});
       setProfileMap(lookup);
@@ -182,7 +187,7 @@ export default function OwnerDashboard() {
               <img src={profileImage} alt="Owner" className="h-full w-full object-cover" />
             </div>
             <div className="text-right">
-              <p className="text-sm font-bold">{owner.owner_name}</p>
+              <p className="text-sm font-bold">{owner.name}</p>
               <p className="text-xs text-[#494551]">{owner.email}</p>
             </div>
             <Button variant="outline" className="h-9 rounded-xl" onClick={() => navigate("/settings")}>Settings</Button>

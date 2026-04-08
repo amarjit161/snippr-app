@@ -10,7 +10,7 @@ import { toast } from "sonner";
 
 type SalonRow = { id: string };
 type ServiceRow = { id: string; name: string; price: number; duration: number };
-type OwnerRecord = { id: string; owner_name: string; email: string };
+type OwnerRecord = { id: string; name: string; email: string };
 
 export default function Services() {
   const navigate = useNavigate();

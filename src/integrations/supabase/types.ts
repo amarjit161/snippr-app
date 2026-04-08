@@ -55,69 +55,90 @@ export type Database = {
           }
         ]
       }
-      profiles: {
+      owners: {
         Row: {
-          created_at: string
           id: string
-          name: string | null
+          name: string
+          email: string
           phone: string | null
-          user_id: string
-          role: string | null
-          salon_id: string | null
+          is_verified: boolean
+          is_active: boolean
+          created_at: string
         }
         Insert: {
-          created_at?: string
           id?: string
-          name?: string | null
+          name: string
+          email: string
           phone?: string | null
-          user_id: string
-          role?: string | null
-          salon_id?: string | null
+          is_verified?: boolean
+          is_active?: boolean
+          created_at?: string
         }
         Update: {
-          created_at?: string
           id?: string
-          name?: string | null
+          name?: string
+          email?: string
           phone?: string | null
-          user_id?: string
-          role?: string | null
-          salon_id?: string | null
+          is_verified?: boolean
+          is_active?: boolean
+          created_at?: string
         }
         Relationships: []
       }
       queue: {
         Row: {
+          barber_id: string | null
+          booking_date: string | null
+          booking_time: string | null
           completed_at: string | null
           created_at: string
+          customer_first_name: string | null
+          customer_last_name: string | null
+          customer_phone: string | null
           id: string
+          notes: string | null
           position: number | null
           salon_id: string
           service_id: string
           started_at: string | null
           status: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
+          barber_id?: string | null
+          booking_date?: string | null
+          booking_time?: string | null
           completed_at?: string | null
           created_at?: string
+          customer_first_name?: string | null
+          customer_last_name?: string | null
+          customer_phone?: string | null
           id?: string
+          notes?: string | null
           position?: number | null
           salon_id: string
           service_id: string
           started_at?: string | null
           status?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
+          barber_id?: string | null
+          booking_date?: string | null
+          booking_time?: string | null
           completed_at?: string | null
           created_at?: string
+          customer_first_name?: string | null
+          customer_last_name?: string | null
+          customer_phone?: string | null
           id?: string
+          notes?: string | null
           position?: number | null
           salon_id?: string
           service_id?: string
           started_at?: string | null
           status?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -143,11 +164,21 @@ export type Database = {
           image_url: string | null
           lat: number | null
           lng: number | null
-          location: string
+          location: string | null
           name: string
           rating: number | null
           status: string
           owner_id: string | null
+          owner_record_id: string | null
+          owner_name: string | null
+          owner_email: string | null
+          owner_phone: string | null
+          address: string | null
+          city: string | null
+          pincode: string | null
+          open_time: string | null
+          close_time: string | null
+          auto_close: boolean
         }
         Insert: {
           created_at?: string
@@ -155,11 +186,21 @@ export type Database = {
           image_url?: string | null
           lat?: number | null
           lng?: number | null
-          location: string
+          location?: string | null
           name: string
           rating?: number | null
           status?: string
           owner_id?: string | null
+          owner_record_id?: string | null
+          owner_name?: string | null
+          owner_email?: string | null
+          owner_phone?: string | null
+          address?: string | null
+          city?: string | null
+          pincode?: string | null
+          open_time?: string | null
+          close_time?: string | null
+          auto_close?: boolean
         }
         Update: {
           created_at?: string
@@ -167,13 +208,31 @@ export type Database = {
           image_url?: string | null
           lat?: number | null
           lng?: number | null
-          location?: string
+          location?: string | null
           name?: string
           rating?: number | null
           status?: string
           owner_id?: string | null
+          owner_record_id?: string | null
+          owner_name?: string | null
+          owner_email?: string | null
+          owner_phone?: string | null
+          address?: string | null
+          city?: string | null
+          pincode?: string | null
+          open_time?: string | null
+          close_time?: string | null
+          auto_close?: boolean
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "salons_owner_record_id_fkey"
+            columns: ["owner_record_id"]
+            isOneToOne: false
+            referencedRelation: "owners"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       services: {
         Row: {
@@ -205,6 +264,47 @@ export type Database = {
             referencedRelation: "salons"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      barbers: {
+        Row: {
+          id: string
+          salon_id: string
+          name: string
+          chair_number: number
+          specialization: string | null
+          is_available: boolean
+          created_at: string
+          experience: number
+        }
+        Insert: {
+          id?: string
+          salon_id: string
+          name: string
+          chair_number?: number
+          specialization?: string | null
+          is_available?: boolean
+          created_at?: string
+          experience?: number
+        }
+        Update: {
+          id?: string
+          salon_id?: string
+          name?: string
+          chair_number?: number
+          specialization?: string | null
+          is_available?: boolean
+          created_at?: string
+          experience?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "barbers_salon_id_fkey"
+            columns: ["salon_id"]
+            isOneToOne: false
+            referencedRelation: "salons"
+            referencedColumns: ["id"]
+          }
         ]
       }
     }

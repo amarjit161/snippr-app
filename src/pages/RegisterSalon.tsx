@@ -12,8 +12,10 @@ import imageCompression from "browser-image-compression";
 type OwnerRecord = {
   id: string;
   email: string;
-  owner_name: string;
+  name: string;
   phone: string | null;
+  is_verified: boolean;
+  is_active: boolean;
 };
 
 type ServiceForm = {
@@ -62,7 +64,7 @@ export default function RegisterSalon() {
     try {
       const parsed = JSON.parse(raw) as OwnerRecord;
       setOwner(parsed);
-      setOwnerName(parsed.owner_name || "");
+      setOwnerName(parsed.name || "");
       setEmail(parsed.email || "");
       setPhone(parsed.phone || "");
     } catch {
@@ -234,7 +236,7 @@ export default function RegisterSalon() {
 
       console.log("OWNER ID:", ownerId);
 
-      const payload: Record<string, unknown> = {
+      const payload = {
         name: salonName.trim(),
         owner_id: ownerId,
         phone: phone.trim() || null,
@@ -244,20 +246,16 @@ export default function RegisterSalon() {
         open_time: openTime || null,
         close_time: closeTime || null,
         image_url: imageUrl || null,
+        location: address.trim() || null, // Standardizing location to address
       };
 
-      Object.keys(payload).forEach((key) => {
-        if (payload[key] === undefined) {
-          payload[key] = null;
-        }
-      });
 
       const { data: salon, error: salonError } = await supabase
         .from("salons")
-        .insert([payload] as any)
+        .insert([payload])
         .select("id")
         .single();
-
+ 
       if (salonError || !salon) {
         throw new Error(salonError?.message || "Failed to create salon");
       }
@@ -268,27 +266,21 @@ export default function RegisterSalon() {
           name: service.name.trim(),
           price: Number(service.price),
           duration: Number(service.duration),
-        })) as any
+        }))
       );
 
       if (servicesError) {
         throw new Error(servicesError.message);
       }
 
-      const barberPayloads = barbers.map((barber) => {
-        const payload: Record<string, unknown> = {
-          salon_id: salon.id,
-          name: barber.name.trim(),
-          chair_number: Number(barber.chair) || 1,
-          specialization: barber.specialization.trim(),
-        };
-        Object.keys(payload).forEach((key) => {
-          if (payload[key] === undefined) payload[key] = null;
-        });
-        return payload;
-      });
+      const barberPayloads = barbers.map((barber) => ({
+        salon_id: salon.id,
+        name: barber.name.trim(),
+        chair_number: Number(barber.chair) || 1,
+        specialization: barber.specialization.trim(),
+      }));
 
-      const { error: barbersError } = await supabase.from("barbers" as any).insert(barberPayloads as any);
+      const { error: barbersError } = await supabase.from("barbers").insert(barberPayloads);
 
       if (barbersError) {
         throw new Error(barbersError.message);
@@ -319,7 +311,7 @@ export default function RegisterSalon() {
 
   return (
     <div className="min-h-screen bg-background pb-28">
-      <Header userName={owner.owner_name || owner.email} isAdmin={false} />
+      <Header userName={owner.name || owner.email} isAdmin={false} />
 
       <main className="mx-auto max-w-7xl space-y-6 px-4 py-8 md:px-6">
         <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">

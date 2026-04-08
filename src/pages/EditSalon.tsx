@@ -9,7 +9,7 @@ import { toast } from "sonner";
 
 type OwnerRecord = {
   id: string;
-  owner_name: string;
+  name: string;
   email: string;
 };
 
@@ -146,7 +146,7 @@ export default function EditSalon() {
 
   return (
     <div className="min-h-screen bg-background pb-20">
-      <Header userName={owner.owner_name || owner.email} isAdmin={false} />
+      <Header userName={owner.name || owner.email} isAdmin={false} />
 
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-8 md:px-6">
         <section className="rounded-2xl bg-white p-6 shadow-md">

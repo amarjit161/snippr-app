@@ -4,7 +4,7 @@ import { toast } from "sonner";
 
 type OwnerRecord = {
   id: string;
-  owner_name: string;
+  name: string;
   email: string;
 };
 
@@ -40,6 +40,9 @@ type QueueItem = {
   customer_first_name?: string | null;
   customer_last_name?: string | null;
   customer_phone?: string | null;
+  booking_date?: string | null;
+  booking_time?: string | null;
+  notes?: string | null;
   services?: ServiceRow | null;
   barbers?: BarberRow | null;
 };
@@ -75,7 +78,12 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
   const fetchQueue = useCallback(async (salonId: string) => {
     const { data, error } = await supabaseAny
       .from("queue")
-      .select("id, created_at, status, user_id, service_id, barber_id, position, started_at, completed_at, customer_first_name, customer_last_name, customer_phone, services(id, name, price, duration), barbers(id, name, chair_number, specialization)")
+      .select(`
+        *,
+        services (*),
+        salons (*),
+        barbers (*)
+      `)
       .eq("salon_id", salonId)
       .order("position", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: true });
@@ -225,7 +233,12 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
 
     const { data: positionRows, error: positionError } = await supabaseAny
       .from("queue")
-      .select("position")
+      .select(`
+        *,
+        services (*),
+        salons (*),
+        barbers (*)
+      `)
       .eq("salon_id", salon.id)
       .order("position", { ascending: false })
       .limit(1);

@@ -329,7 +329,6 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       notes: customer.notes.trim() || null,
       booking_date: date,
       booking_time: time,
-      email: user?.email || null,
     } as any);
 
     if (error) {
