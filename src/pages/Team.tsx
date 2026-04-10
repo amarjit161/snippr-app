@@ -19,10 +19,45 @@ export default function Team() {
   const [loading, setLoading] = useState(true);
   const [owner, setOwner] = useState<OwnerRecord | null>(null);
   const [salon, setSalon] = useState<SalonRow | null>(null);
-  const [members, setMembers] = useState<BarberRow[]>([]);
+  const [barbers, setBarbers] = useState<BarberRow[]>([]);
   const [newMember, setNewMember] = useState({ name: "", chair: "1", specialization: "" });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState({ name: "", chair: "1", specialization: "" });
+
+  const salonId = salon?.id;
+
+  const fetchBarbers = async (id: string) => {
+    console.log("🔥 FETCHING BARBERS for salon:", id);
+
+    try {
+      const { data, error } = await supabaseAny
+        .from("barbers")
+        .select("*")
+        .eq("salon_id", id)
+        .order("name");
+
+      if (error) {
+        console.error("❌ FETCH ERROR:", error);
+        return;
+      }
+
+      console.log("✅ FETCH_BARBERS_RESULT:", data);
+      setBarbers((data as BarberRow[]) || []);
+    } catch (error: any) {
+      console.error("❌ FETCH ERROR:", error);
+      toast.error(error.message || "Failed to load team members");
+    }
+  };
+
+  useEffect(() => {
+    if (!salonId) {
+      console.log("❌ salonId not ready yet");
+      return;
+    }
+
+    console.log("✅ salonId ready:", salonId);
+    fetchBarbers(salonId);
+  }, [salonId]);
 
   useEffect(() => {
     const init = async () => {
@@ -31,53 +66,100 @@ export default function Team() {
         navigate("/owner-login", { replace: true });
         return;
       }
-      const parsed = JSON.parse(raw) as OwnerRecord;
-      setOwner(parsed);
-      const { data: salonData } = await supabaseAny.from("salons").select("id").eq("owner_id", parsed.id).maybeSingle();
-      setSalon(salonData as SalonRow | null);
-      if (salonData?.id) {
-        const { data } = await supabaseAny.from("barbers").select("*").eq("salon_id", salonData.id).order("name");
-        setMembers((data as BarberRow[]) || []);
+      try {
+        const parsed = JSON.parse(raw) as OwnerRecord;
+        setOwner(parsed);
+        const { data: salonData, error: salonError } = await supabaseAny
+          .from("salons")
+          .select("id")
+          .eq("owner_id", parsed.id)
+          .maybeSingle();
+
+        if (salonError) throw salonError;
+        setSalon(salonData as SalonRow | null);
+      } catch (error: any) {
+        console.error("❌ INIT_ERROR:", error);
+        toast.error("Failed to initialize team settings");
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     init();
-  }, [navigate, supabaseAny]);
-
-  const refresh = async () => {
-    if (!salon) return;
-    const { data } = await supabaseAny.from("barbers").select("*").eq("salon_id", salon.id).order("name");
-    setMembers((data as BarberRow[]) || []);
-  };
+  }, [navigate]);
 
   const addMember = async (event: FormEvent) => {
     event.preventDefault();
-    if (!salon) return;
+    if (!salonId) {
+      console.error("❌ salonId missing during insert");
+      toast.error("Salon identification missing. Please refresh.");
+      return;
+    }
+
     if (!newMember.name.trim() || !newMember.chair) {
       toast.error("Please enter valid barber details");
       return;
     }
-    const { error } = await supabaseAny.from("barbers").insert({ salon_id: salon.id, name: newMember.name.trim(), chair_number: Number(newMember.chair) || 1, specialization: newMember.specialization.trim() || null });
-    if (error) return toast.error(error.message);
-    setNewMember({ name: "", chair: "1", specialization: "" });
-    toast.success("Team member added");
-    refresh();
+
+    try {
+      console.log("INSERT SALON ID:", salonId);
+
+      const { error } = await supabaseAny.from("barbers").insert({
+        salon_id: salonId,
+        name: newMember.name.trim(),
+        chair_number: Number(newMember.chair) || 1,
+        specialization: newMember.specialization.trim() || null
+      });
+
+      if (error) throw error;
+
+      console.log("✅ INSERT SUCCESS");
+      setNewMember({ name: "", chair: "1", specialization: "" });
+      toast.success("Team member added");
+      await fetchBarbers(salonId);
+    } catch (error: any) {
+      console.error("❌ INSERT ERROR", error);
+      toast.error(error.message || "Failed to add member");
+    }
   };
 
   const saveMember = async () => {
-    if (!editingId) return;
-    const { error } = await supabaseAny.from("barbers").update({ name: draft.name.trim(), chair_number: Number(draft.chair) || 1, specialization: draft.specialization.trim() || null }).eq("id", editingId);
-    if (error) return toast.error(error.message);
-    setEditingId(null);
-    toast.success("Team member updated");
-    refresh();
+    if (!editingId || !salonId) return;
+    
+    try {
+      const { error } = await supabaseAny
+        .from("barbers")
+        .update({
+          name: draft.name.trim(),
+          chair_number: Number(draft.chair) || 1,
+          specialization: draft.specialization.trim() || null
+        })
+        .eq("id", editingId);
+
+      if (error) throw error;
+
+      console.log("✅ UPDATE SUCCESS");
+      setEditingId(null);
+      toast.success("Team member updated");
+      await fetchBarbers(salonId);
+    } catch (error: any) {
+      console.error("❌ UPDATE_ERROR:", error);
+      toast.error(error.message || "Failed to update member");
+    }
   };
 
   const deleteMember = async (id: string) => {
-    const { error } = await supabaseAny.from("barbers").delete().eq("id", id);
-    if (error) return toast.error(error.message);
-    toast.success("Team member deleted");
-    setMembers((prev) => prev.filter((item) => item.id !== id));
+    if (!salonId) return;
+    try {
+      const { error } = await supabaseAny.from("barbers").delete().eq("id", id);
+      if (error) throw error;
+      
+      console.log("✅ DELETE SUCCESS");
+      toast.success("Team member deleted");
+      await fetchBarbers(salonId);
+    } catch (error: any) {
+      console.error("❌ DELETE_ERROR:", error);
+      toast.error(error.message || "Failed to delete member");
+    }
   };
 
   if (loading) return <div className="mx-auto h-72 max-w-4xl rounded-xl bg-gray-200/70 animate-pulse" />;
@@ -103,41 +185,52 @@ export default function Team() {
         </Card>
 
         <div className="grid gap-4 md:grid-cols-2">
-          {members.length === 0 ? (
-            <Card className="rounded-xl border border-dashed border-[#e3e2e5] bg-white shadow-sm md:col-span-2"><CardContent className="p-8 text-center text-sm text-[#494551]">No data yet.</CardContent></Card>
-          ) : members.map((member) => (
-            <Card key={member.id} className="rounded-xl border border-[#e3e2e5] bg-white shadow-sm">
-              <CardContent className="p-5 space-y-3">
-                {editingId === member.id ? (
-                  <>
-                    <Input value={draft.name} onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))} />
-                    <div className="grid grid-cols-2 gap-3">
-                      <Input type="number" value={draft.chair} onChange={(e) => setDraft((prev) => ({ ...prev, chair: e.target.value }))} />
-                      <Input value={draft.specialization} onChange={(e) => setDraft((prev) => ({ ...prev, specialization: e.target.value }))} />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button type="button" onClick={saveMember} className="rounded-xl"><Loader2 className="mr-2 h-4 w-4 opacity-0" />Save</Button>
-                      <Button type="button" variant="outline" className="rounded-xl" onClick={() => setEditingId(null)}>Cancel</Button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold">{member.name}</p>
-                        <p className="text-sm text-[#494551]">Chair {member.chair_number ?? 1} • {member.specialization || "General"}</p>
-                      </div>
-                      <Badge variant="outline" className="rounded-full border-emerald-200 bg-emerald-50 text-emerald-700">Active</Badge>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button type="button" variant="outline" className="rounded-xl" onClick={() => { setEditingId(member.id); setDraft({ name: member.name, chair: String(member.chair_number ?? 1), specialization: member.specialization || "" }); }}><Pencil className="h-4 w-4" /></Button>
-                      <Button type="button" variant="outline" className="rounded-xl" onClick={() => deleteMember(member.id)}><Trash2 className="h-4 w-4" /></Button>
-                    </div>
-                  </>
-                )}
-              </CardContent>
+          {barbers.length === 0 ? (
+            <Card className="rounded-xl border border-dashed border-[#e3e2e5] bg-white shadow-sm md:col-span-2">
+              <CardContent className="p-8 text-center text-sm text-[#494551]">No data yet.</CardContent>
             </Card>
-          ))}
+          ) : (
+            barbers.map((member) => (
+              <Card key={member.id} className="rounded-xl border border-[#e3e2e5] bg-white shadow-sm">
+                <CardContent className="p-5 space-y-3">
+                  {editingId === member.id ? (
+                    <>
+                      <Input value={draft.name} onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))} />
+                      <div className="grid grid-cols-2 gap-3">
+                        <Input type="number" value={draft.chair} onChange={(e) => setDraft((prev) => ({ ...prev, chair: e.target.value }))} />
+                        <Input value={draft.specialization} onChange={(e) => setDraft((prev) => ({ ...prev, specialization: e.target.value }))} />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button type="button" onClick={saveMember} className="rounded-xl">Save</Button>
+                        <Button type="button" variant="outline" className="rounded-xl" onClick={() => setEditingId(null)}>Cancel</Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold">{member.name}</p>
+                          <p className="text-sm text-[#494551]">Chair {member.chair_number ?? 1} • {member.specialization || "General"}</p>
+                        </div>
+                        <Badge variant="outline" className="rounded-full border-emerald-200 bg-emerald-50 text-emerald-700">Active</Badge>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button type="button" variant="outline" className="rounded-xl" onClick={() => { 
+                          setEditingId(member.id); 
+                          setDraft({ 
+                            name: member.name, 
+                            chair: String(member.chair_number ?? 1), 
+                            specialization: member.specialization || "" 
+                          }); 
+                        }}><Pencil className="h-4 w-4" /></Button>
+                        <Button type="button" variant="outline" className="rounded-xl" onClick={() => deleteMember(member.id)}><Trash2 className="h-4 w-4" /></Button>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       </div>
     </OwnerShell>

@@ -30,53 +30,108 @@ export default function Services() {
         navigate("/owner-login", { replace: true });
         return;
       }
-      const parsed = JSON.parse(raw) as OwnerRecord;
-      setOwner(parsed);
-      const { data: salonData } = await supabaseAny.from("salons").select("id").eq("owner_id", parsed.id).maybeSingle();
-      setSalon(salonData as SalonRow | null);
-      if (salonData?.id) {
-        const { data } = await supabaseAny.from("services").select("*").eq("salon_id", salonData.id).order("name");
-        setServices((data as ServiceRow[]) || []);
+      try {
+        const parsed = JSON.parse(raw) as OwnerRecord;
+        setOwner(parsed);
+        const { data: salonData, error: salonError } = await supabaseAny
+          .from("salons")
+          .select("id")
+          .eq("owner_id", parsed.id)
+          .maybeSingle();
+
+        if (salonError) throw salonError;
+        
+        const validatedSalon = salonData as SalonRow | null;
+        setSalon(validatedSalon);
+
+        if (validatedSalon?.id) {
+          console.log("SALON_ID_READY:", validatedSalon.id);
+          const { data, error: fetchError } = await supabaseAny
+            .from("services")
+            .select("*")
+            .eq("salon_id", validatedSalon.id)
+            .order("name");
+          
+          if (fetchError) throw fetchError;
+          setServices((data as ServiceRow[]) || []);
+        }
+      } catch (error: any) {
+        console.error("❌ SERVICES_INIT_ERROR:", error);
+        toast.error("Failed to initialize services");
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     init();
   }, [navigate, supabaseAny]);
 
   const refresh = async () => {
-    if (!salon) return;
-    const { data } = await supabaseAny.from("services").select("*").eq("salon_id", salon.id).order("name");
-    setServices((data as ServiceRow[]) || []);
+    if (!salon?.id) return;
+    try {
+      const { data, error } = await supabaseAny.from("services").select("*").eq("salon_id", salon.id).order("name");
+      if (error) throw error;
+      setServices((data as ServiceRow[]) || []);
+    } catch (error: any) {
+      console.error("❌ REFRESH_ERROR:", error);
+    }
   };
 
   const handleAdd = async (event: FormEvent) => {
     event.preventDefault();
-    if (!salon) return;
+    if (!salon?.id) {
+      toast.error("Salon identification missing");
+      return;
+    }
     if (!newService.name.trim() || !newService.price || !newService.duration) {
       toast.error("Please enter valid service details");
       return;
     }
-    const { error } = await supabaseAny.from("services").insert({ salon_id: salon.id, name: newService.name.trim(), price: Number(newService.price), duration: Number(newService.duration) });
-    if (error) return toast.error(error.message);
-    setNewService({ name: "", price: "", duration: "" });
-    toast.success("Service added");
-    refresh();
+    try {
+      const { error } = await supabaseAny.from("services").insert({ 
+        salon_id: salon.id, 
+        name: newService.name.trim(), 
+        price: Number(newService.price), 
+        duration: Number(newService.duration) 
+      });
+      if (error) throw error;
+      setNewService({ name: "", price: "", duration: "" });
+      toast.success("Service added");
+      await refresh();
+    } catch (error: any) {
+      console.error("❌ ADD_ERROR:", error);
+      toast.error(error.message || "Failed to add service");
+    }
   };
 
   const handleSave = async () => {
     if (!editingServiceId) return;
-    const { error } = await supabaseAny.from("services").update({ name: serviceDraft.name.trim(), price: Number(serviceDraft.price), duration: Number(serviceDraft.duration) }).eq("id", editingServiceId);
-    if (error) return toast.error(error.message);
-    setEditingServiceId(null);
-    toast.success("Service updated");
-    refresh();
+    try {
+      const { error } = await supabaseAny.from("services").update({ 
+        name: serviceDraft.name.trim(), 
+        price: Number(serviceDraft.price), 
+        duration: Number(serviceDraft.duration) 
+      }).eq("id", editingServiceId);
+      
+      if (error) throw error;
+      setEditingServiceId(null);
+      toast.success("Service updated");
+      await refresh();
+    } catch (error: any) {
+      console.error("❌ SAVE_ERROR:", error);
+      toast.error(error.message || "Failed to update service");
+    }
   };
 
   const handleDelete = async (id: string) => {
-    const { error } = await supabaseAny.from("services").delete().eq("id", id);
-    if (error) return toast.error(error.message);
-    toast.success("Service deleted");
-    setServices((prev) => prev.filter((item) => item.id !== id));
+    try {
+      const { error } = await supabaseAny.from("services").delete().eq("id", id);
+      if (error) throw error;
+      toast.success("Service deleted");
+      setServices((prev) => prev.filter((item) => item.id !== id));
+    } catch (error: any) {
+      console.error("❌ DELETE_ERROR:", error);
+      toast.error(error.message || "Failed to delete service");
+    }
   };
 
   if (loading) return <div className="mx-auto h-72 max-w-4xl rounded-xl bg-gray-200/70 animate-pulse" />;

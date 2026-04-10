@@ -29,51 +29,77 @@ import Support from "./pages/Support.tsx";
 import Privacy from "./pages/Privacy.tsx";
 import { OwnerProtectedRoute } from "./components/OwnerProtectedRoute.tsx";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/login" element={<Auth />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/verify" element={<Verify />} />
-            <Route path="/owner-login" element={<OwnerLogin />} />
-            <Route path="/owner-register" element={<OwnerRegister />} />
-            <Route path="/careers" element={<Careers />} />
-            <Route path="/how-it-works" element={<HowItWorks />} />
-            <Route path="/support" element={<Support />} />
-            <Route path="/privacy" element={<Privacy />} />
+const RootLoadingGuard = ({ children }: { children: React.ReactNode }) => {
+  const { loading } = useAuth();
 
-            <Route path="/register-salon" element={<OwnerProtectedRoute><RegisterSalon /></OwnerProtectedRoute>} />
-            <Route path="/owner-dashboard" element={<OwnerProtectedRoute><OwnerDashboard /></OwnerProtectedRoute>} />
-            <Route path="/dashboard" element={<OwnerProtectedRoute><OwnerDashboard /></OwnerProtectedRoute>} />
-            <Route path="/queue" element={<OwnerProtectedRoute><Queue /></OwnerProtectedRoute>} />
-            <Route path="/services" element={<OwnerProtectedRoute><Services /></OwnerProtectedRoute>} />
-            <Route path="/team" element={<OwnerProtectedRoute><Team /></OwnerProtectedRoute>} />
-            <Route path="/salon-profile" element={<OwnerProtectedRoute><SalonProfile /></OwnerProtectedRoute>} />
-            <Route path="/settings" element={<OwnerProtectedRoute><Settings /></OwnerProtectedRoute>} />
-            <Route path="/edit-salon" element={<OwnerProtectedRoute><SalonProfile /></OwnerProtectedRoute>} />
-            
-            <Route element={<ProtectedRoute />}>
-              <Route path="/register" element={<OwnerRegistration />} />
-              <Route path="/salons" element={<Salons />} />
-              <Route path="/salon/:id" element={<SalonPage />} />
-              <Route path="/admin" element={<Admin />} />
-              <Route path="/bookings" element={<Dashboard />} />
-            </Route>
-            
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
-  </QueryClientProvider>
+  if (loading) {
+    console.log("APP_LOADING");
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="relative flex flex-col items-center gap-4">
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-zinc-200 border-t-primary" />
+          <p className="animate-pulse text-xs font-medium text-zinc-500">Initializing Experience...</p>
+        </div>
+      </div>
+    );
+  }
+
+  console.log("APP_READY");
+  return <>{children}</>;
+};
+
+const App = () => (
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <RootLoadingGuard>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/login" element={<Auth />} />
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/verify" element={<Verify />} />
+                <Route path="/owner-login" element={<OwnerLogin />} />
+                <Route path="/owner-register" element={<OwnerRegister />} />
+                <Route path="/careers" element={<Careers />} />
+                <Route path="/how-it-works" element={<HowItWorks />} />
+                <Route path="/support" element={<Support />} />
+                <Route path="/privacy" element={<Privacy />} />
+
+                <Route path="/register-salon" element={<OwnerProtectedRoute><RegisterSalon /></OwnerProtectedRoute>} />
+                <Route path="/owner-dashboard" element={<OwnerProtectedRoute><OwnerDashboard /></OwnerProtectedRoute>} />
+                <Route path="/dashboard" element={<OwnerProtectedRoute><OwnerDashboard /></OwnerProtectedRoute>} />
+                <Route path="/queue" element={<OwnerProtectedRoute><Queue /></OwnerProtectedRoute>} />
+                <Route path="/services" element={<OwnerProtectedRoute><Services /></OwnerProtectedRoute>} />
+                <Route path="/team" element={<OwnerProtectedRoute><Team /></OwnerProtectedRoute>} />
+                <Route path="/salon-profile" element={<OwnerProtectedRoute><SalonProfile /></OwnerProtectedRoute>} />
+                <Route path="/settings" element={<OwnerProtectedRoute><Settings /></OwnerProtectedRoute>} />
+                <Route path="/edit-salon" element={<OwnerProtectedRoute><SalonProfile /></OwnerProtectedRoute>} />
+                
+                <Route element={<ProtectedRoute />}>
+                  <Route path="/register" element={<OwnerRegistration />} />
+                  <Route path="/salons" element={<Salons />} />
+                  <Route path="/salon/:id" element={<SalonPage />} />
+                  <Route path="/admin" element={<Admin />} />
+                  <Route path="/bookings" element={<Dashboard />} />
+                </Route>
+                
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </TooltipProvider>
+        </RootLoadingGuard>
+      </AuthProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

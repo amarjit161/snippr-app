@@ -35,6 +35,15 @@ export default function OwnerLogin() {
     event.preventDefault();
     if (loading || verifyingCaptcha) return;
 
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+
+    if (!trimmedEmail || !trimmedPassword) {
+      toast.error("Please enter email and password");
+      return;
+    }
+
+    console.log("LOGIN_ATTEMPT");
     setVerifyingCaptcha(true);
 
     const token = turnstileRef.current?.getResponse() || "";
@@ -59,11 +68,13 @@ export default function OwnerLogin() {
 
     try {
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password: password,
+        email: trimmedEmail,
+        password: trimmedPassword,
       });
 
       if (authError) {
+        console.error("LOGIN_ERROR:", authError.message);
+        console.log("LOGIN_FAILED");
         toast.error(authError.message || "Invalid credentials");
         return;
       }
@@ -71,6 +82,8 @@ export default function OwnerLogin() {
       if (!authData.user) {
         throw new Error("Login failed to retrieve user");
       }
+
+      console.log("LOGIN_SUCCESS");
 
       const { data: profile, error: profileError } = await supabase
         .from("owners")
@@ -83,13 +96,11 @@ export default function OwnerLogin() {
       }
 
       if (!profile) {
-        // This case shouldn't happen if registration is successful, but handle it
         toast.error("Owner profile not found. Please contact support.");
         return;
       }
 
       const normalizedOwner: OwnerRecord = profile as any;
-
       localStorage.setItem("owner", JSON.stringify(normalizedOwner));
 
       const { data: existingSalon } = await supabase
@@ -100,13 +111,10 @@ export default function OwnerLogin() {
 
       toast.success("Welcome back");
       navigate(existingSalon ? "/owner-dashboard" : "/register-salon", { replace: true });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Login failed";
-      console.error("Owner login error:", error);
-      if (message.includes("public.owners") || message.includes("PGRST205")) {
-        toast.error("Owners table missing in Supabase public schema. Apply migration 0009_fix_owners_schema_cache.sql.");
-      }
-      toast.error(message);
+    } catch (error: any) {
+      console.error("LOGIN_ERROR:", error.message || error);
+      console.log("LOGIN_FAILED");
+      toast.error(error.message || "Login failed");
     } finally {
       setLoading(false);
     }

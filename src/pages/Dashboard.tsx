@@ -13,8 +13,8 @@ export default function Dashboard() {
   const fetchBookings = async () => {
     if (!user) return;
     const { data, error } = await supabase
-      .from("bookings")
-      .select("*")
+      .from("queue")
+      .select("*, services (*), salons (*)")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
       
@@ -23,11 +23,17 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
+    if (!user) return;
     fetchBookings();
     
     const channel = supabase
-      .channel("user-bookings")
-      .on("postgres_changes", { event: "*", schema: "public", table: "bookings", filter: `user_id=eq.${user?.id}` }, fetchBookings)
+      .channel(`user-queue-${user.id}`)
+      .on("postgres_changes", { 
+        event: "*", 
+        schema: "public", 
+        table: "queue", 
+        filter: `user_id=eq.${user.id}` 
+      }, fetchBookings)
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -65,8 +71,8 @@ export default function Dashboard() {
                       <Scissors className="h-4 w-4 text-zinc-500 dark:text-zinc-400" />
                     </div>
                     <div>
-                      <p className="font-medium text-sm text-zinc-900 dark:text-zinc-50">{b.service}</p>
-                      <p className="text-xs text-zinc-500 mt-0.5">{b.booking_date} • {b.booking_time}</p>
+                      <p className="font-medium text-sm text-zinc-900 dark:text-zinc-50">{b.services?.name || "Service"}</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">{b.salons?.name || "Salon"} • {b.booking_date} • {b.booking_time}</p>
                     </div>
                   </div>
                   <span className={`px-2.5 py-1 text-xs font-semibold uppercase tracking-wider rounded-full ${

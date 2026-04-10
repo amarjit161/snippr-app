@@ -315,8 +315,16 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
     const nextPosition = Number(latestQueueEntry?.position || 0) + 1;
     const createdAt = new Date().toISOString();
 
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    
+    if (!authUser) {
+      setBooking(false);
+      toast.error("You must be logged in to join the queue.");
+      return;
+    }
+
     const { error } = await supabase.from("queue" as any).insert({
-      user_id: null,
+      user_id: authUser.id,
       salon_id: salon.id,
       service_id: selectedService.id,
       barber_id: selectedBarberId,
@@ -330,6 +338,8 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       booking_date: date,
       booking_time: time,
     } as any);
+
+    console.log("BOOKING_INSERT", authUser.id);
 
     if (error) {
       setBooking(false);

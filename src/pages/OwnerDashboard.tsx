@@ -55,7 +55,9 @@ export default function OwnerDashboard() {
   const [salon, setSalon] = useState<SalonRow | null>(null);
   const [queueItems, setQueueItems] = useState<QueueRow[]>([]);
   const [profileMap, setProfileMap] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
+  
+  const [loadingSalon, setLoadingSalon] = useState(true);
+  const [loadingData, setLoadingData] = useState(true);
   const [queueLoading, setQueueLoading] = useState(false);
   const [updatingQueueId, setUpdatingQueueId] = useState<string | null>(null);
 
@@ -65,10 +67,22 @@ export default function OwnerDashboard() {
       gsap.from(".dashboard-animate", { y: 18, opacity: 0, duration: 0.45, stagger: 0.06, ease: "power2.out" });
     }, pageRef);
     return () => ctx.revert();
-  }, [loading, queueItems.length]);
+  }, [loadingSalon, loadingData, queueItems.length]);
 
+  // Phase 1: Identity & Salon Resolution
   useEffect(() => {
-    const init = async () => {
+    // Failsafe timer for salon loading phase
+    const failsafe = setTimeout(() => {
+      setLoadingSalon((current) => {
+        if (current) {
+          console.warn("FORCE_UNBLOCK_SALON_LOADING: Identity resolution took too long.");
+          return false;
+        }
+        return false;
+      });
+    }, 5000);
+
+    const resolveIdentity = async () => {
       const raw = localStorage.getItem("owner");
       if (!raw) {
         navigate("/owner-login", { replace: true });
@@ -76,93 +90,168 @@ export default function OwnerDashboard() {
       }
 
       try {
+        console.log("LOAD_SALON_START");
         const parsed = JSON.parse(raw) as OwnerRecord;
         setOwner(parsed);
 
-        const { data: salonData, error: salonError } = await supabaseAny.from("salons").select("*").eq("owner_id", parsed.id).maybeSingle();
-        if (salonError) throw salonError;
-        setSalon((salonData as SalonRow) || null);
+        const { data, error } = await supabaseAny
+          .from("salons")
+          .select("*")
+          .eq("owner_id", parsed.id);
 
-        if (salonData?.id) {
-          await fetchQueue(salonData.id);
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          console.log("SALON_FOUND", data[0]);
+          setSalon(data[0] as SalonRow);
+        } else {
+          console.warn("NO_SALON_FOUND_FOR_OWNER", parsed.id);
+          setSalon(null);
         }
-      } catch (error) {
-        console.error(error);
+      } catch (error: any) {
+        console.error("SALON_LOAD_ERROR:", error.message || error);
+        toast.error("Identity check failed. Please re-login.");
         localStorage.removeItem("owner");
         navigate("/owner-login", { replace: true });
       } finally {
-        setLoading(false);
+        setLoadingSalon(false);
       }
     };
 
-    init();
+    resolveIdentity();
+
+    return () => clearTimeout(failsafe);
   }, [navigate]);
 
-  const fetchQueue = async (salonId: string) => {
-    setQueueLoading(true);
-    const { data, error } = await supabaseAny
-      .from("queue")
-      .select(`
-        *,
-        services (*),
-        salons (*),
-        barbers (*)
-      `)
-      .eq("salon_id", salonId)
-      .order("created_at", { ascending: true });
-
-    if (error) {
-      setQueueLoading(false);
-      toast.error(error.message || "Failed to load queue");
+  // Phase 2: Data Orchestration
+  useEffect(() => {
+    if (!salon?.id) {
+      setLoadingData(false);
       return;
     }
 
-    const rows = (data as QueueRow[]) || [];
-    setQueueItems(rows);
+    const fetchDashboardData = async (id: string) => {
+      console.log("FETCH_DASHBOARD_START", id);
+      setQueueLoading(true);
+      
+      try {
+        const { data, error } = await supabaseAny
+          .from("queue")
+          .select("*, services (*), barbers (*), salons (*)")
+          .eq("salon_id", id)
+          .order("created_at", { ascending: true });
 
-    const userIds = Array.from(new Set(rows.map((row) => row.user_id).filter(Boolean)));
-    if (userIds.length > 0) {
-      const { data: profileRows } = await supabaseAny.from("owners").select("id, name").in("id", userIds);
-      const lookup = ((profileRows || []) as any[]).reduce<Record<string, string>>((acc, row) => {
-        acc[row.id] = row.name || "Guest";
-        return acc;
-      }, {});
-      setProfileMap(lookup);
-    } else {
-      setProfileMap({});
-    }
+        if (error) throw error;
 
-    setQueueLoading(false);
-  };
+        const rows = (data as QueueRow[]) || [];
+        setQueueItems(rows);
+
+        const userIds = Array.from(new Set(rows.map((row) => row.user_id).filter(Boolean)));
+        if (userIds.length > 0) {
+          const { data: profileRows } = await supabaseAny.from("owners").select("id, name").in("id", userIds);
+          const lookup = ((profileRows || []) as any[]).reduce<Record<string, string>>((acc, row) => {
+            acc[row.id] = row.name || "Guest";
+            return acc;
+          }, {});
+          setProfileMap(lookup);
+        } else {
+          setProfileMap({});
+        }
+        
+        console.log("FETCH_DASHBOARD_SUCCESS");
+      } catch (error: any) {
+        console.error("FETCH_DASHBOARD_ERROR:", error.message || error);
+        toast.error("Failed to load real-time data.");
+      } finally {
+        setQueueLoading(false);
+        setLoadingData(false);
+      }
+    };
+
+    fetchDashboardData(salon.id);
+  }, [salon?.id]);
 
   const summaryCards = useMemo(() => {
     const today = todayISO();
-    const bookingsToday = queueItems.filter((item) => item.created_at.startsWith(today)).length;
-    const activeQueue = queueItems.filter((item) => ["waiting", "accepted", "in_service"].includes(item.status)).length;
-    const waiting = queueItems.filter((item) => item.status === "waiting");
+    const items = queueItems || [];
+    const bookingsToday = items.filter((item) => item.created_at?.startsWith(today)).length;
+    const activeQueue = items.filter((item) => ["waiting", "accepted", "in_service"].includes(item.status)).length;
+    const waiting = items.filter((item) => item.status === "waiting");
     const avgDuration = waiting.length === 0 ? 0 : Math.round(waiting.reduce((sum, item) => sum + (item.services?.duration || 0), 0) / waiting.length);
-    const revenueToday = queueItems.filter((item) => item.status === "done").reduce((sum, item) => sum + (item.services?.price || 0), 0);
+    const revenueToday = items.filter((item) => item.status === "done").reduce((sum, item) => sum + (item.services?.price || 0), 0);
 
     return { bookingsToday, activeQueue, avgDuration, revenueToday };
   }, [queueItems]);
 
   const updateQueueStatus = async (item: QueueRow, nextStatus: "accepted" | "rejected" | "in_service" | "done") => {
+    if (!salon?.id) return;
     setUpdatingQueueId(item.id);
-    const payload: Record<string, unknown> = { status: nextStatus };
-    const { error } = await supabaseAny.from("queue").update(payload).eq("id", item.id);
-    setUpdatingQueueId(null);
+    try {
+      const payload: Record<string, unknown> = { status: nextStatus };
+      const { error } = await supabaseAny.from("queue").update(payload).eq("id", item.id);
+      
+      if (error) throw error;
 
-    if (error) {
+      toast.success(`Queue moved to ${formatStatus(nextStatus)}`);
+      
+      // Local refresh
+      const { data } = await supabaseAny
+        .from("queue")
+        .select("*, services (*), barbers (*), salons (*)")
+        .eq("salon_id", salon.id)
+        .order("created_at", { ascending: true });
+      if (data) setQueueItems(data as QueueRow[]);
+      
+    } catch (error: any) {
+      console.error("QUEUE_UPDATE_ERROR:", error.message || error);
       toast.error(error.message || "Failed to update queue status");
-      return;
+    } finally {
+      setUpdatingQueueId(null);
     }
-
-    toast.success(`Queue moved to ${formatStatus(nextStatus)}`);
-    if (salon) await fetchQueue(salon.id);
   };
 
-  if (loading) {
-    return <div className="mx-auto h-80 max-w-6xl rounded-xl bg-gray-200/70 animate-pulse" />;
+  console.log("OWNER_DASHBOARD_RENDER", {
+    salon,
+    loadingSalon,
+    loadingData
+  });
+
+  if (loadingSalon) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#f4f3f6]">
+        <div className="text-center">
+          <Loader2 className="mx-auto h-10 w-10 animate-spin text-primary" />
+          <p className="mt-4 text-sm font-medium text-[#494551]">Resolving your salon identity...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!salon) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#f4f3f6]">
+        <div className="max-w-md rounded-2xl border border-[#e3e2e5] bg-white p-8 text-center shadow-sm">
+          <Sparkles className="mx-auto h-12 w-12 text-amber-500" />
+          <h2 className="mt-6 text-2xl font-bold">Salon Not Found</h2>
+          <p className="mt-2 text-[#494551]">We couldn't find a salon associated with your account. Please register your salon to continue.</p>
+          <Button className="mt-8 w-full rounded-xl" onClick={() => navigate("/register-salon")}>Register Salon</Button>
+          <Button variant="outline" className="mt-3 w-full rounded-xl" onClick={() => { localStorage.removeItem("owner"); navigate("/owner-login"); }}>Logout</Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadingData) {
+    return (
+      <OwnerShell onLogout={() => { localStorage.removeItem("owner"); navigate("/owner-login", { replace: true }); }}>
+        <div className="flex h-[60vh] items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="mx-auto h-10 w-10 animate-spin text-primary" />
+            <p className="mt-4 text-sm font-medium text-[#494551]">Orchestrating real-time dashboard...</p>
+          </div>
+        </div>
+      </OwnerShell>
+    );
   }
 
   if (!owner) return null;

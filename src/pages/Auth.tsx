@@ -1,14 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import OTPLogin from "@/components/OTPLogin";
 
 const Auth = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const role = searchParams.get("role");
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const { user, loading: authLoading } = useAuth();
   const location = useLocation();
+  const role = searchParams.get("role");
 
   // Parse errors from URL hash (Supabase usually appends OAuth/Magic Link errors here)
   const hashParams = new URLSearchParams(location.hash.substring(1));
@@ -25,42 +25,10 @@ const Auth = () => {
   }, [role]);
 
   useEffect(() => {
-    let mounted = true;
-
-    const checkSession = async () => {
-      try {
-        if (authError) {
-           // Skip automatic check if there's an explicit error passed back from Supabase
-           setIsCheckingAuth(false);
-           return;
-        }
-
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) throw error;
-        
-        if (session && mounted) {
-           handleSuccessRedirect();
-        }
-      } catch (err) {
-        console.error("Auth session check error:", err);
-      } finally {
-        if (mounted) setIsCheckingAuth(false);
-      }
-    };
-
-    checkSession();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" && session) {
-        handleSuccessRedirect();
-      }
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, [authError]);
+    if (user && !authError) {
+      handleSuccessRedirect();
+    }
+  }, [user, authError]);
 
   const handleSuccessRedirect = () => {
     const redirectPath = localStorage.getItem("redirectAfterLogin");
@@ -81,7 +49,7 @@ const Auth = () => {
     }
   };
 
-  if (isCheckingAuth) {
+  if (authLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="h-6 w-6 animate-spin rounded-full border-[2.5px] border-zinc-200 border-t-zinc-900 dark:border-zinc-800 dark:border-t-zinc-50" />

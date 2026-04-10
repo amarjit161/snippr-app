@@ -28,7 +28,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const fetchProfile = async (s: Session | null) => {
-      setLoading(true);
       if (s?.user) {
         const { data, error } = await supabase
           .from("owners")
@@ -37,7 +36,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           .maybeSingle();
 
         if (error) {
-          // Avoid blank UI when profile table is missing or inaccessible.
           console.warn("Profile fetch failed:", error.message);
           setProfile(null);
         } else {
@@ -46,27 +44,65 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else {
         setProfile(null);
       }
-      setLoading(false);
     };
 
+    const initAuth = async () => {
+      try {
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        console.log("SESSION_ON_LOAD:", initialSession ? "Active" : "None");
+        setSession(initialSession);
+        if (initialSession) {
+          await fetchProfile(initialSession);
+        }
+      } catch (err) {
+        console.error("SESSION_INITIALIZATION_ERROR:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initAuth();
+
+    // Failsafe timer: Ensure app unblocks after 5 seconds regardless of auth response
+    const failsafe = setTimeout(() => {
+      setLoading((currentLoading) => {
+        if (currentLoading) {
+          console.warn("FORCE_UNBLOCK_LOADING: Auth initialization took too long.");
+          return false;
+        }
+        return false;
+      });
+    }, 5000);
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        fetchProfile(session);
+      async (event, currentSession) => {
+        console.log("AUTH_STATE_CHANGED:", event, currentSession?.user?.email || "No session");
+        setSession(currentSession);
+        setLoading(false); // Resolve loading on any state change
+        
+        if (event === "SIGNED_IN") {
+          await fetchProfile(currentSession);
+        } else if (event === "SIGNED_OUT") {
+          setProfile(null);
+          localStorage.removeItem("snippr_role");
+          localStorage.removeItem("owner");
+        }
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      fetchProfile(session);
-    });
-
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(failsafe);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signOut = async () => {
+    console.log("LOGOUT_INITIATED");
     await supabase.auth.signOut();
+    setSession(null);
+    setProfile(null);
     localStorage.removeItem("snippr_role");
+    localStorage.removeItem("owner");
   };
 
   return (

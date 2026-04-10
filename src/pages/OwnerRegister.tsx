@@ -199,29 +199,28 @@ export default function OwnerRegister() {
 
     try {
       // 1. SIGNUP
-      const { data, error } = await supabase.auth.signUp({
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: email.trim(),
         password: password,
       });
 
-      console.log("Signup:", data);
-      if (error) throw error;
+      console.log("SIGNUP_FLOW:", signUpData);
+      if (signUpError) {
+        console.error("SIGNUP_ERROR:", signUpError);
+        throw signUpError;
+      }
 
-      // 2. WAIT FOR AUTH PROPAGATION
-      await new Promise(res => setTimeout(res, 1500));
-
-      // 3. GET USER FROM SIGNUP DATA
-      const user = data.user;
-      console.log("User:", user);
+      const user = signUpData.user;
+      console.log("USER_OBJECT:", user);
 
       if (!user) {
-        toast.info("Please check your email and verify account");
+        toast.info("Please verify your email before continuing");
         setSubmitting(false);
         return;
       }
 
-      console.log("Upserting owner profile for UID:", user.id);
-      const { data: ownerData, error: upsertError } = await supabase.from("owners").upsert({
+      // 2. OWNER UPSERT (Safe & Retry-able)
+      const { data: ownerData, error: ownerError } = await supabase.from("owners").upsert({
         id: user.id,
         email: user.email!,
         name: name.trim(),
@@ -230,15 +229,18 @@ export default function OwnerRegister() {
         is_active: true,
       }, { onConflict: "id" }).select("*").single();
 
-      console.log("Owner insert:", ownerData);
+      console.log("OWNER_INSERT:", ownerData);
+      if (ownerError) {
+        console.error("OWNER_INSERT_ERROR:", ownerError);
+        throw ownerError;
+      }
 
-      if (upsertError) throw upsertError;
-      if (!ownerData) throw new Error("Could not retrieve owner profile");
+      if (!ownerData) {
+        throw new Error("Could not retrieve owner profile after creation");
+      }
 
-      const normalizedOwner = ownerData;
-
+      // 3. STORAGE UPLOAD (Optional)
       let imagePath: string | null = null;
-
       if (imageFile) {
         setUploadingImage(true);
         try {
@@ -256,7 +258,7 @@ export default function OwnerRegister() {
           if (!uploadError && imageData) {
             imagePath = imageData.path;
           } else {
-            console.warn("Image upload skipped:", uploadError?.message);
+            console.warn("IMAGE_UPLOAD_SKIPPED:", uploadError?.message);
             toast.warning("Image upload failed. Using default image.");
           }
         } finally {
@@ -264,9 +266,10 @@ export default function OwnerRegister() {
         }
       }
 
-      const payload = {
+      // 4. SALON INSERT
+      const salonPayload = {
         name: salonName.trim(),
-        owner_id: normalizedOwner.id,
+        owner_id: user.id,
         phone: phone.trim() || null,
         address: address.trim() || null,
         city: city.trim() || null,
@@ -279,14 +282,19 @@ export default function OwnerRegister() {
 
       const { data: salonData, error: salonError } = await supabase
         .from("salons")
-        .insert([payload])
+        .insert([salonPayload])
         .select("id")
         .single();
- 
-      console.log("Salon:", salonData);
-      if (salonError) throw salonError;
-      if (!salonData) throw new Error("Salon creation failed");
- 
+
+      console.log("SALON_INSERT:", salonData);
+      if (salonError) {
+        console.error("SALON_INSERT_ERROR:", salonError);
+        throw salonError;
+      }
+
+      if (!salonData) throw new Error("Salon creation failed to return an ID");
+
+      // 5. SERVICES INSERT
       const { error: servicesError } = await supabase.from("services").insert(
         services.map((service) => ({
           salon_id: salonData.id,
@@ -296,33 +304,36 @@ export default function OwnerRegister() {
         }))
       );
 
-      console.log("Services:", servicesError === null ? "Success" : servicesError);
-      if (servicesError) throw servicesError;
-
-      const barberPayloads = barbers.map((barber) => ({
-        salon_id: salonData.id,
-        name: barber.name.trim(),
-        chair_number: Number(barber.chair) || 1,
-        specialization: barber.specialization.trim(),
-      }));
-
-      const { error: barbersError } = await supabase.from("barbers").insert(barberPayloads);
-
-      console.log("Barbers:", barbersError === null ? "Success" : barbersError);
-      if (barbersError) throw barbersError;
-
-      const verificationResult = await triggerOwnerVerificationEmail(normalizedOwner.email, normalizedOwner.name);
-
-      localStorage.setItem("owner", JSON.stringify(normalizedOwner));
-      toast.success("Account created and salon registered");
-      if (!verificationResult.sent) {
-        toast.info("Verification email disabled for local development.");
+      console.log("SERVICES_INSERT:", servicesError === null ? "SUCCESS" : "FAILED");
+      if (servicesError) {
+        console.error("SERVICES_INSERT_ERROR:", servicesError);
+        throw servicesError;
       }
+
+      // 6. BARBERS INSERT
+      const { error: barbersError } = await supabase.from("barbers").insert(
+        barbers.map((barber) => ({
+          salon_id: salonData.id,
+          name: barber.name.trim(),
+          chair_number: Number(barber.chair) || 1,
+          specialization: barber.specialization.trim(),
+        }))
+      );
+
+      console.log("BARBERS_INSERT:", barbersError === null ? "SUCCESS" : "FAILED");
+      if (barbersError) {
+        console.error("BARBERS_INSERT_ERROR:", barbersError);
+        throw barbersError;
+      }
+
+      // 7. FINALIZATION
+      await triggerOwnerVerificationEmail(ownerData.email, ownerData.name);
+      localStorage.setItem("owner", JSON.stringify(ownerData));
+      toast.success("Account created and salon registered");
       navigate("/owner-dashboard", { replace: true });
     } catch (error: any) {
-      console.error("DEBUG ERROR:", error);
-      const message = error?.message || "Something went wrong during registration";
-      toast.error(message);
+      console.error("REGISTRATION_FLOW_CRITICAL_ERROR:", error);
+      toast.error(error?.message || "Something went wrong during registration");
     } finally {
       setSubmitting(false);
     }
