@@ -101,16 +101,22 @@ export default function Team() {
     }
 
     try {
-      console.log("INSERT SALON ID:", salonId);
+      console.log("INSERT_TEAM_MEMBER_START", salonId);
 
-      const { error } = await supabaseAny.from("barbers").insert({
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) throw new Error("Owner session expired. Please re-login.");
+
+      const { error } = await (supabase.from("barbers") as any).insert({
         salon_id: salonId,
         name: newMember.name.trim(),
         chair_number: Number(newMember.chair) || 1,
         specialization: newMember.specialization.trim() || null
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("TEAM_INSERT_ERROR:", error);
+        throw error;
+      }
 
       console.log("✅ INSERT SUCCESS");
       setNewMember({ name: "", chair: "1", specialization: "" });

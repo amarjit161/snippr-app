@@ -114,7 +114,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         .eq("salon_id", salon.id)
         .order("name");
 
-      const nextBarbers = (data || []) as BarberRow[];
+      const nextBarbers = (data || []) as any as BarberRow[];
       setBarbers(nextBarbers);
       setSelectedBarberId((current) => current || nextBarbers[0]?.id || "");
     };
@@ -159,8 +159,8 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
   useEffect(() => {
     const fetchNextPosition = async () => {
-      const { data } = await supabase
-        .from("queue" as any)
+      const { data } = await (supabase
+        .from("queue" as any) as any)
         .select("position")
         .eq("salon_id", salon.id)
         .order("position", { ascending: false })
@@ -316,17 +316,20 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       const nextPosition = Number(latestQueueEntry?.position || 0) + 1;
       const createdAt = new Date().toISOString();
 
-      const { data: { user } } = await supabase.auth.getUser();
+      // ──────────────────────────────────────────────────────────
+      // ✅ CORRECT — always fetch user and pass user_id for RLS
+      // ──────────────────────────────────────────────────────────
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
       
-      if (!user) {
+      if (!currentUser) {
         setBooking(false);
-        throw new Error("User not authenticated");
+        throw new Error("You must be logged in to join the queue.");
       }
 
-      console.log("BOOKING_USER_ID", user.id);
+      console.log("RLS_AUTH_VERIFIED", currentUser.id);
 
-      const { error } = await supabase.from("queue" as any).insert({
-        user_id: user.id,
+      const { error } = await (supabase.from("queue") as any).insert({
+        user_id: currentUser.id,
         salon_id: salon.id,
         service_id: selectedService.id,
         barber_id: selectedBarberId,
@@ -339,7 +342,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         notes: customer.notes.trim() || null,
         booking_date: date,
         booking_time: time,
-      } as any);
+      });
 
       if (error) {
         setBooking(false);

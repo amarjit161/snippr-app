@@ -421,7 +421,11 @@ export default function OwnerRegistration() {
 
       // 5. SERVICES INSERT
       console.log("STEP 5: SERVICES INSERT START");
-      const { error: servicesError } = await supabase.from("services").insert(
+      
+      const { data: { user: svcUser } } = await supabase.auth.getUser();
+      if (!svcUser) throw new Error("Owner session lost during service population.");
+
+      const { error: servicesError } = await (supabase.from("services") as any).insert(
         services.map((service) => ({
           salon_id: salonData.id,
           name: service.name.trim(),
@@ -438,7 +442,11 @@ export default function OwnerRegistration() {
 
       // 6. BARBERS INSERT
       console.log("STEP 6: BARBERS INSERT START");
-      const { error: barbersError } = await supabase.from("barbers").insert(
+      
+      const { data: { user: brbUser } } = await supabase.auth.getUser();
+      if (!brbUser) throw new Error("Owner session lost during team population.");
+
+      const { error: barbersError } = await (supabase.from("barbers") as any).insert(
         barbers.map((barber) => ({
           salon_id: salonData.id,
           name: barber.name.trim(),

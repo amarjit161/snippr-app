@@ -87,13 +87,23 @@ export default function Services() {
       return;
     }
     try {
-      const { error } = await supabaseAny.from("services").insert({ 
+      console.log("ADD_SERVICE_START", salon.id);
+
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) throw new Error("Owner session expired. Please re-login.");
+
+      const { error } = await (supabase.from("services") as any).insert({ 
         salon_id: salon.id, 
         name: newService.name.trim(), 
         price: Number(newService.price), 
         duration: Number(newService.duration) 
       });
-      if (error) throw error;
+
+      if (error) {
+        console.error("SERVICE_INSERT_ERROR:", error);
+        throw error;
+      }
+
       setNewService({ name: "", price: "", duration: "" });
       toast.success("Service added");
       await refresh();
