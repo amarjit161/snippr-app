@@ -245,7 +245,7 @@ export default function RegisterSalon() {
           location: address.trim() || null,
         })
         .select()
-        .single();
+        .maybeSingle();
  
       if (salonError) throw salonError;
       if (!salon) throw new Error("Failed to create salon record or permissions denied.");

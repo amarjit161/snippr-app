@@ -410,7 +410,7 @@ export default function OwnerRegistration() {
           location: address.trim() || null,
         })
         .select("id")
-        .single();
+        .maybeSingle();
 
       if (salonError) {
         console.error("STEP 4: SALON_INSERT_ERROR:", salonError);
