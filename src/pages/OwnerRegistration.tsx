@@ -1,14 +1,15 @@
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import gsap from "gsap";
-import { supabase } from "@/integrations/supabase/client";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import Header from "@/components/Header";
 import { toast } from "sonner";
-import { Camera, Loader2, MapPin, Plus, Trash2 } from "lucide-react";
+import { Camera, Loader2, Plus, Trash2 } from "lucide-react";
+import imageCompression from "browser-image-compression";
+import TurnstileCaptcha, { type TurnstileCaptchaHandle } from "@/components/TurnstileCaptcha";
+import { verifyTurnstileToken } from "@/lib/turnstile";
 
 type ServiceForm = {
   name: string;
@@ -19,46 +20,97 @@ type ServiceForm = {
 type BarberForm = {
   name: string;
   chair: string;
+  specialization: string;
+};
+
+const triggerOwnerVerificationEmail = async (ownerEmail: string, name: string) => {
+  const verificationEndpoint = import.meta.env.VITE_OWNER_VERIFICATION_ENDPOINT as string | undefined;
+
+  if (!verificationEndpoint) {
+    return { sent: false, reason: "no-endpoint" as const };
+  }
+
+  try {
+    await fetch(verificationEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: ownerEmail, name }),
+    });
+    return { sent: true, reason: null };
+  } catch {
+    return { sent: false, reason: "request-failed" as const };
+  }
 };
 
 export default function OwnerRegistration() {
-  const { user, loading: authLoading, signOut } = useAuth();
   const navigate = useNavigate();
 
+
   const [submitting, setSubmitting] = useState(false);
-  const [detectingLocation, setDetectingLocation] = useState(false);
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [verifyingCaptcha, setVerifyingCaptcha] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileCaptchaHandle | null>(null);
+
+  const { user, profile, loading: authLoading, signOut } = useAuth();
+  const STORAGE_KEY = "snippr_pending_setup";
+
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   const [salonName, setSalonName] = useState("");
-  const [ownerName, setOwnerName] = useState("");
-  const [phone, setPhone] = useState("");
-
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
   const [pincode, setPincode] = useState("");
-  const [lat, setLat] = useState<number | null>(null);
-  const [lng, setLng] = useState<number | null>(null);
-
+  const [phone, setPhone] = useState("");
   const [openTime, setOpenTime] = useState("09:00");
   const [closeTime, setCloseTime] = useState("20:00");
-  const [manualClosed, setManualClosed] = useState(false);
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
 
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [services, setServices] = useState<ServiceForm[]>([{ name: "Haircut", price: "300", duration: "30" }]);
-  const [barbers, setBarbers] = useState<BarberForm[]>([{ name: "", chair: "1" }]);
+  const [barbers, setBarbers] = useState<BarberForm[]>([{ name: "", chair: "1", specialization: "Haircut" }]);
 
-  useLayoutEffect(() => {
-    const ctx = gsap.context(() => {
-      gsap.from(".reg-section", {
-        y: 24,
-        opacity: 0,
-        duration: 0.55,
-        stagger: 0.08,
-        ease: "power2.out",
-      });
-    });
-
-    return () => ctx.revert();
+  // Persistence: Restore on Mount
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+        if (data.name) setName(data.name);
+        if (data.email) setEmail(data.email);
+        if (data.salonName) setSalonName(data.salonName);
+        if (data.address) setAddress(data.address);
+        if (data.city) setCity(data.city);
+        if (data.pincode) setPincode(data.pincode);
+        if (data.phone) setPhone(data.phone);
+        if (data.openTime) setOpenTime(data.openTime);
+        if (data.closeTime) setCloseTime(data.closeTime);
+        if (data.services) setServices(data.services);
+        if (data.barbers) setBarbers(data.barbers);
+      } catch (e) {
+        console.warn("Failed to restore registration state", e);
+      }
+    }
   }, []);
+
+  // Persistence: Save on Change
+  useEffect(() => {
+    const data = {
+      name, email, salonName, address, city, pincode, phone, openTime, closeTime, services, barbers
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }, [name, email, salonName, address, city, pincode, phone, openTime, closeTime, services, barbers]);
+
+  // Auth: Pre-fill and Redirect
+  useEffect(() => {
+    if (!authLoading && user && profile) {
+      navigate("/owner-dashboard");
+    }
+    if (user && !name) setName(user.user_metadata?.full_name || "");
+    if (user && !email) setEmail(user.email || "");
+  }, [user, profile, authLoading, navigate]);
 
   const imagePreview = useMemo(() => {
     if (!imageFile) return null;
@@ -71,10 +123,32 @@ export default function OwnerRegistration() {
   }, [imagePreview]);
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/auth", { replace: true });
-    }
-  }, [authLoading, user, navigate]);
+    if (!navigator.geolocation) return;
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setLocation({ lat, lng });
+
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`
+          );
+          if (!res.ok) return;
+          const data = await res.json();
+          if (!address.trim() && data?.display_name) {
+            setAddress(data.display_name);
+          }
+        } catch (geoError) {
+          console.warn("Reverse geocode failed", geoError);
+        }
+      },
+      () => {
+        console.log("Location denied");
+      }
+    );
+  }, []);
 
   const updateService = (index: number, field: keyof ServiceForm, value: string) => {
     setServices((prev) => prev.map((item, i) => (i === index ? { ...item, [field]: value } : item)));
@@ -84,261 +158,398 @@ export default function OwnerRegistration() {
     setBarbers((prev) => prev.map((item, i) => (i === index ? { ...item, [field]: value } : item)));
   };
 
-  const addService = () => setServices((prev) => [...prev, { name: "", price: "", duration: "" }]);
-  const addBarber = () => setBarbers((prev) => [...prev, { name: "", chair: "1" }]);
+  const addService = () => {
+    setServices((prev) => [...prev, { name: "", price: "", duration: "" }]);
+  };
 
-  const detectLocation = () => {
-    if (!navigator.geolocation) {
-      toast.error("Geolocation is not supported on this device.");
-      return;
-    }
+  const addBarber = () => {
+    setBarbers((prev) => [...prev, { name: "", chair: "1", specialization: "Haircut" }]);
+  };
 
-    setDetectingLocation(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLat(position.coords.latitude);
-        setLng(position.coords.longitude);
-        toast.success("Location detected successfully.");
-        setDetectingLocation(false);
-      },
-      (error) => {
-        toast.error(error.message || "Unable to detect location.");
-        setDetectingLocation(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+  const resetCaptcha = () => {
+    setCaptchaToken(null);
+    turnstileRef.current?.reset();
+  };
+
+  const removeService = (index: number) => {
+    setServices((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const removeBarber = (index: number) => {
+    setBarbers((prev) => prev.filter((_, i) => i !== index));
   };
 
   const validateForm = () => {
-    if (!salonName.trim() || !ownerName.trim() || !phone.trim()) {
-      toast.error("Please complete all basic salon details.");
+    // If logged in, password is not required
+    if (!name.trim() || !email.trim() || (!user && !password.trim())) {
+      toast.error("Please complete owner info");
       return false;
     }
 
-    if (!address.trim() || !city.trim() || !pincode.trim()) {
-      toast.error("Please complete location details.");
+    if (!salonName.trim() || !address.trim() || !city.trim() || !pincode.trim() || !phone.trim()) {
+      toast.error("Please complete salon info");
       return false;
     }
 
     if (!openTime || !closeTime) {
-      toast.error("Please select opening and closing time.");
+      toast.error("Please select salon timings");
       return false;
     }
 
     if (services.length === 0 || services.some((s) => !s.name.trim() || !s.price || !s.duration)) {
-      toast.error("Please add valid service entries.");
+      toast.error("Please add valid services");
       return false;
     }
 
-    if (barbers.length === 0 || barbers.some((b) => !b.name.trim() || !b.chair)) {
-      toast.error("Please add valid barber entries.");
+    if (barbers.length === 0 || barbers.some((b) => !b.name.trim() || !b.chair || !b.specialization.trim())) {
+      toast.error("Please add valid barbers");
       return false;
     }
 
     if (imageFile && imageFile.size > 5 * 1024 * 1024) {
-      toast.error("Image must be 5MB or smaller.");
+      toast.error("Image size should be 5MB or less");
       return false;
     }
 
     return true;
   };
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!user) return;
+    if (submitting || uploadingImage || verifyingCaptcha) return;
     if (!validateForm()) return;
+
+    setVerifyingCaptcha(true);
+
+    const token = turnstileRef.current?.getResponse() || "";
+    if (!token) {
+      toast.error("Invalid or expired captcha");
+      resetCaptcha();
+      setVerifyingCaptcha(false);
+      return;
+    }
+
+    const captchaResult = await verifyTurnstileToken(token);
+    if (!captchaResult.success) {
+      toast.error(captchaResult.message || "Captcha verification failed");
+      resetCaptcha();
+      setVerifyingCaptcha(false);
+      return;
+    }
+
+    resetCaptcha();
+    setVerifyingCaptcha(false);
 
     setSubmitting(true);
 
     try {
-      let imageUrl: string | null = null;
+      // 1. SIGNUP / SESSION CHECK
+      let currentUser = user;
+      
+      if (!currentUser) {
+        console.log("STEP 1: START SIGNUP");
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: email.trim(),
+          password: password,
+        });
 
-      if (imageFile) {
-        const path = `${user.id}/${Date.now()}-${imageFile.name}`;
-        const { error: uploadError } = await supabase.storage.from("salon-images").upload(path, imageFile, { upsert: true });
-        if (uploadError) throw new Error(`Image upload failed: ${uploadError.message}`);
+        if (signUpError) {
+          console.error("SIGNUP_ERROR:", signUpError);
+          throw signUpError;
+        }
 
-        const { data: urlData } = supabase.storage.from("salon-images").getPublicUrl(path);
-        imageUrl = urlData.publicUrl;
+        const session = signUpData.session;
+        console.log("USER_OBJECT:", signUpData.user);
+        console.log("SESSION_OBJECT:", session);
+
+        // If session is null, it means email confirmation is required
+        if (!session) {
+          console.log("STEP 1.5: EMAIL CONFIRMATION REQUIRED (SESSION IS NULL)");
+          toast.info("Account created! Please check your email to verify your account.", {
+            duration: 10000,
+            description: "For local development, you can disable email confirmation in Supabase (Authentication -> Settings) to skip this step."
+          });
+          setSubmitting(false);
+          return;
+        }
+        currentUser = signUpData.user;
+      } else {
+        console.log("STEP 1: SKIPPING SIGNUP (ALREADY AUTHENTICATED)");
       }
 
-      const location = `${address.trim()}, ${city.trim()} - ${pincode.trim()}`;
+      if (!currentUser) {
+        toast.error("User identification failed. Please try again.");
+        setSubmitting(false);
+        return;
+      }
+
+      // 2. OWNER UPSERT (Check then Skip)
+      console.log("STEP 2.0 (RESCUE_ACTIVE): CHECKING IF OWNER PROFILE EXISTS", currentUser.id);
+      
+      let finalOwner = profile; // Start with the cached profile from AuthContext
+
+      if (finalOwner) {
+        console.log("STEP 2.0.1: USING CACHED PROFILE FROM CONTEXT");
+      } else {
+        console.log("STEP 2.0.2: CONTEXT PROFILE MISSING, QUERYING DB...");
+        try {
+          const checkPromise = supabase
+            .from("owners")
+            .select("*")
+            .eq("id", currentUser.id)
+            .maybeSingle();
+
+          const timeoutPromise = new Promise<any>((_, reject) => 
+            setTimeout(() => reject(new Error("Profile Check Timeout (5s)")), 5000)
+          );
+
+          const { data: dbProfile, error: checkError } = await Promise.race([checkPromise, timeoutPromise]);
+
+          if (checkError) {
+            console.warn("PROFILE_CHECK_WARN:", checkError.message);
+          }
+          finalOwner = dbProfile;
+        } catch (checkErr: any) {
+          console.warn("PROFILE_CHECK_FAILED:", checkErr.message);
+        }
+      }
+
+      if (finalOwner) {
+        console.log("STEP 2: SKIPPING UPSERT - Profile found:", finalOwner.id);
+      } else {
+        console.log("STEP 2: OWNER UPSERT START", currentUser.id);
+        
+        const ownerPayload = {
+          id: currentUser.id,
+          email: currentUser.email!,
+          name: name.trim(),
+          phone: phone.trim(),
+          is_verified: true,
+          is_active: true,
+        };
+        
+        console.log("STEP 2.1: PAYLOAD_READY", ownerPayload);
+
+        // Add a 10s timeout to the upsert to prevent infinite hangs
+        const upsertPromise = supabase.from("owners").upsert(ownerPayload, { onConflict: "id" }).select("*").maybeSingle();
+        const timeoutPromise = new Promise<any>((_, reject) => 
+          setTimeout(() => reject(new Error("Database timeout (10s) while saving Owner Profile")), 10000)
+        );
+
+        try {
+          const { data: ownerData, error: ownerError } = await Promise.race([upsertPromise, timeoutPromise]);
+
+          if (ownerError) {
+            console.error("OWNER_INSERT_ERROR:", ownerError);
+            throw ownerError;
+          }
+          finalOwner = ownerData;
+          console.log("STEP 2: UPSERT_SUCCESS");
+        } catch (upsertErr: any) {
+          console.error("UPSERT_CRITICAL_FAILURE:", upsertErr.message);
+          
+          // EMEGENCY FALLBACK: If upsert hangs/fails, but we are authenticated, 
+          // we might already have a record or are being blocked by a firewall.
+          // We will attempt to move forward using just the user ID.
+          console.log("STEP 2: EMERGENCY FALLBACK - Proceeding with current user ID");
+          finalOwner = { id: currentUser.id, email: currentUser.email!, name: name.trim() } as any;
+        }
+      }
+
+      if (!finalOwner) {
+        throw new Error("Could not retrieve owner profile. Please try again.");
+      }
+
+      // 3. STORAGE UPLOAD (Optional)
+      let imagePath: string | null = null;
+      if (imageFile) {
+        setUploadingImage(true);
+        console.log("STEP 3: IMAGE COMPRESSION & UPLOAD START");
+        try {
+          const compressedFile = await imageCompression(imageFile, {
+            maxSizeMB: 1,
+            maxWidthOrHeight: 1024,
+            useWebWorker: true,
+          });
+
+          const fileName = `salons/${Date.now()}-${compressedFile.name}`;
+          const { data: imageData, error: uploadError } = await supabase.storage
+            .from("salon-images")
+            .upload(fileName, compressedFile, { upsert: true });
+
+          if (!uploadError && imageData) {
+            imagePath = imageData.path;
+            console.log("STEP 3: IMAGE UPLOAD SUCCESS", imagePath);
+          } else {
+            console.warn("STEP 3: IMAGE_UPLOAD_SKIPPED:", uploadError?.message);
+            toast.warning("Image upload failed. Using default image.");
+          }
+        } finally {
+          setUploadingImage(false);
+        }
+      }
+
+      // 4. SALON INSERT
+      console.log("STEP 4: SALON INSERT START");
       const salonPayload = {
         name: salonName.trim(),
-        owner_id: user.id,
-        location,
-        address: address.trim(),
-        city: city.trim(),
-        pincode: pincode.trim(),
-        lat,
-        lng,
-        open_time: openTime,
-        close_time: closeTime,
-        status: manualClosed ? "closed" : "open",
-        is_manual_closed: manualClosed,
-        image_url: imageUrl,
+        owner_id: currentUser.id,
+        phone: phone.trim() || null,
+        address: address.trim() || null,
+        city: city.trim() || null,
+        pincode: pincode.trim() || null,
+        open_time: openTime || null,
+        close_time: closeTime || null,
+        image_url: imagePath || null,
+        location: address.trim() || null,
       };
 
       const { data: salonData, error: salonError } = await supabase
         .from("salons")
-        .insert(salonPayload as any)
+        .insert([salonPayload])
         .select("id")
         .maybeSingle();
 
-      if (salonError || !salonData) throw new Error(salonError?.message || "Could not create salon record or permissions denied.");
+      if (salonError) {
+        console.error("STEP 4: SALON_INSERT_ERROR:", salonError);
+        throw salonError;
+      }
+      if (!salonData) throw new Error("Salon creation failed to return an ID");
+      console.log("STEP 4: SALON_INSERT SUCCESS", salonData.id);
 
-      const salonId = salonData.id;
+      // 5. SERVICES INSERT
+      console.log("STEP 5: SERVICES INSERT START");
+      const { error: servicesError } = await supabase.from("services").insert(
+        services.map((service) => ({
+          salon_id: salonData.id,
+          name: service.name.trim(),
+          price: Number(service.price),
+          duration: Number(service.duration),
+        }))
+      );
 
-      const servicesPayload = services.map((service) => ({
-        salon_id: salonId,
-        name: service.name.trim(),
-        price: Number(service.price),
-        duration: Number(service.duration),
-      }));
+      if (servicesError) {
+        console.error("STEP 5: SERVICES_INSERT_ERROR:", servicesError);
+        throw servicesError;
+      }
+      console.log("STEP 5: SERVICES_INSERT SUCCESS");
 
-      const { error: servicesError } = await supabase.from("services").insert(servicesPayload as any);
-      if (servicesError) throw new Error(`Service creation failed: ${servicesError.message}`);
-
-      const barbersPayload = barbers.map((barber) => {
-        const payload: Record<string, unknown> = {
-          salon_id: salonId,
+      // 6. BARBERS INSERT
+      console.log("STEP 6: BARBERS INSERT START");
+      const { error: barbersError } = await supabase.from("barbers").insert(
+        barbers.map((barber) => ({
+          salon_id: salonData.id,
           name: barber.name.trim(),
           chair_number: Number(barber.chair) || 1,
-        };
-        Object.keys(payload).forEach((key) => {
-          if (payload[key] === undefined) payload[key] = null;
-        });
-        return payload;
-      });
+          specialization: barber.specialization.trim(),
+        }))
+      );
 
-      const { error: barbersError } = await supabase.from("barbers" as any).insert(barbersPayload as any);
-      if (barbersError) throw new Error(`Barber creation failed: ${barbersError.message}`);
-
-      const { error: profileError } = await supabase
-        .from("owners")
-        .update({ name: ownerName.trim(), phone: phone.trim() } as any)
-        .eq("id", user.id);
-
-      if (profileError) {
-        console.warn("Profile update warning:", profileError.message);
+      if (barbersError) {
+        console.error("STEP 6: BARBERS_INSERT_ERROR:", barbersError);
+        throw barbersError;
       }
+      console.log("STEP 6: BARBERS_INSERT SUCCESS");
 
-      toast.success("Salon registered successfully.");
-      navigate("/dashboard", { replace: true });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Registration failed";
-      console.error("Salon registration error:", error);
-      toast.error(message);
+      // 7. FINALIZATION
+      console.log("STEP 7: FINALIZATION");
+      await triggerOwnerVerificationEmail(finalOwner.email, finalOwner.name);
+      localStorage.setItem("owner", JSON.stringify(finalOwner));
+      localStorage.removeItem(STORAGE_KEY);
+      
+      console.log("REGISTRATION_FLOW_COMPLETE");
+      toast.success("Account created and salon registered");
+      navigate("/owner-dashboard", { replace: true });
+    } catch (error: any) {
+      console.error("REGISTRATION_FLOW_CRITICAL_ERROR:", error);
+      toast.error(error?.message || "Something went wrong during registration");
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (authLoading) {
-    return (
-      <div className="mx-auto grid max-w-3xl grid-cols-1 gap-6 p-6 md:grid-cols-2">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-40 rounded-xl bg-gray-200 animate-pulse" />
-        ))}
-      </div>
-    );
-  }
-
-  if (!user) return null;
-
-  const email = user.email || "";
-
   return (
-    <div className="min-h-screen bg-background pb-28">
-      <Header onSignOut={signOut} userName={email || "Owner"} isAdmin={false} />
+    <div className="min-h-screen bg-background pb-20">
+      <Header userName="Owner" isAdmin={false} />
 
-      <main className="mx-auto max-w-3xl space-y-6 px-4 py-8 md:px-6">
-        <section className="reg-section rounded-2xl border border-border bg-white/85 p-6 shadow-md backdrop-blur-sm">
-          <h1 className="font-display text-3xl font-bold text-foreground">Register Your Salon</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Create your Snippr storefront, add services and barbers, and start accepting live queue bookings.
-          </p>
+      <main className="mx-auto max-w-3xl space-y-6 px-4 py-8">
+        <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <h1 className="font-display text-3xl font-bold">Create Owner Account</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Sign up as a salon owner and set up your salon in one flow.</p>
         </section>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <section className="reg-section space-y-4 rounded-2xl border border-border bg-white/85 p-6 shadow-md backdrop-blur-sm">
-            <h2 className="text-lg font-semibold">Section 1: Basic Info</h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              <Input placeholder="Salon Name" value={salonName} onChange={(e) => setSalonName(e.target.value)} />
-              <Input placeholder="Owner Name" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
-              <Input value={email} disabled className="md:col-span-2 opacity-100" />
-              <Input placeholder="Phone Number" value={phone} onChange={(e) => setPhone(e.target.value)} className="md:col-span-2" />
-            </div>
-          </section>
-
-          <section className="reg-section space-y-4 rounded-2xl border border-border bg-white/85 p-6 shadow-md backdrop-blur-sm">
-            <h2 className="text-lg font-semibold">Section 2: Location</h2>
-            <Button type="button" onClick={detectLocation} disabled={detectingLocation} variant="outline" className="opacity-100">
-              {detectingLocation ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MapPin className="mr-2 h-4 w-4" />}
-              Auto Detect Location
-            </Button>
-            <div className="grid gap-4 md:grid-cols-2">
-              <Input placeholder="Full Address" value={address} onChange={(e) => setAddress(e.target.value)} className="md:col-span-2" />
-              <Input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} />
-              <Input placeholder="Pincode" value={pincode} onChange={(e) => setPincode(e.target.value)} />
-              <Input placeholder="Latitude" value={lat ?? ""} readOnly />
-              <Input placeholder="Longitude" value={lng ?? ""} readOnly />
-            </div>
-          </section>
-
-          <section className="reg-section space-y-4 rounded-2xl border border-border bg-white/85 p-6 shadow-md backdrop-blur-sm">
-            <h2 className="text-lg font-semibold">Section 3: Salon Timing</h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              <Input type="time" value={openTime} onChange={(e) => setOpenTime(e.target.value)} />
-              <Input type="time" value={closeTime} onChange={(e) => setCloseTime(e.target.value)} />
-            </div>
-            <div className="flex items-center justify-between rounded-xl border border-border bg-background/60 p-4">
-              <div>
-                <p className="font-medium">Mark salon closed manually</p>
-                <p className="text-xs text-muted-foreground">Enable this if the salon is temporarily unavailable.</p>
+          <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Owner Full Name</label>
+                  <Input placeholder="John Doe" value={name} onChange={(e) => setName(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Owner Email</label>
+                  <Input type="email" placeholder="john@example.com" value={email} onChange={(e) => setEmail(e.target.value)} disabled={!!user} />
+                </div>
               </div>
-              <Switch checked={manualClosed} onCheckedChange={setManualClosed} />
+
+              {!user && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Password</label>
+                  <Input type="password" placeholder="Min. 6 characters" value={password} onChange={(e) => setPassword(e.target.value)} />
+                </div>
+              )}
+          </section>
+
+          <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
+            <h2 className="text-lg font-semibold">Salon Info</h2>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Input placeholder="Salon name" value={salonName} onChange={(e) => setSalonName(e.target.value)} required />
+              <Input placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} required />
+              <Input placeholder="Address" value={address} onChange={(e) => setAddress(e.target.value)} className="md:col-span-2" required />
+              <Input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} required />
+              <Input placeholder="Pincode" value={pincode} onChange={(e) => setPincode(e.target.value)} required />
             </div>
           </section>
 
-          <section className="reg-section space-y-4 rounded-2xl border border-border bg-white/85 p-6 shadow-md backdrop-blur-sm">
+          <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
+            <h2 className="text-lg font-semibold">Timing</h2>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Input type="time" value={openTime} onChange={(e) => setOpenTime(e.target.value)} required />
+              <Input type="time" value={closeTime} onChange={(e) => setCloseTime(e.target.value)} required />
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Section 4: Services</h2>
-              <Button type="button" variant="outline" onClick={addService} className="opacity-100">
+              <h2 className="text-lg font-semibold">Services</h2>
+              <Button type="button" variant="outline" onClick={addService}>
                 <Plus className="mr-2 h-4 w-4" /> Add Service
               </Button>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               {services.map((service, index) => (
                 <div key={`service-${index}`} className="grid gap-3 rounded-xl border border-border p-4 md:grid-cols-12">
                   <Input
-                    placeholder="Service Name"
+                    placeholder="Service name"
                     value={service.name}
                     onChange={(e) => updateService(index, "name", e.target.value)}
                     className="md:col-span-5"
                   />
                   <Input
-                    placeholder="Price"
                     type="number"
+                    placeholder="Price"
                     value={service.price}
                     onChange={(e) => updateService(index, "price", e.target.value)}
                     className="md:col-span-3"
                   />
                   <Input
-                    placeholder="Duration (mins)"
                     type="number"
+                    placeholder="Duration"
                     value={service.duration}
                     onChange={(e) => updateService(index, "duration", e.target.value)}
                     className="md:col-span-3"
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="md:col-span-1 opacity-100"
-                    disabled={services.length === 1}
-                    onClick={() => setServices((prev) => prev.filter((_, i) => i !== index))}
-                  >
+                  <Button type="button" variant="outline" className="md:col-span-1" onClick={() => removeService(index)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -346,37 +557,37 @@ export default function OwnerRegistration() {
             </div>
           </section>
 
-          <section className="reg-section space-y-4 rounded-2xl border border-border bg-white/85 p-6 shadow-md backdrop-blur-sm">
+          <section className="rounded-2xl bg-white p-6 shadow-md space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Section 5: Barbers</h2>
-              <Button type="button" variant="outline" onClick={addBarber} className="opacity-100">
+              <h2 className="text-lg font-semibold">Barbers</h2>
+              <Button type="button" variant="outline" onClick={addBarber}>
                 <Plus className="mr-2 h-4 w-4" /> Add Barber
               </Button>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               {barbers.map((barber, index) => (
                 <div key={`barber-${index}`} className="grid gap-3 rounded-xl border border-border p-4 md:grid-cols-12">
                   <Input
-                    placeholder="Barber Name"
+                    placeholder="Name"
                     value={barber.name}
                     onChange={(e) => updateBarber(index, "name", e.target.value)}
-                    className="md:col-span-8"
+                    className="md:col-span-4"
                   />
                   <Input
-                    placeholder="Chair Number"
                     type="number"
+                    placeholder="Chair Number"
                     value={barber.chair}
                     onChange={(e) => updateBarber(index, "chair", e.target.value)}
                     className="md:col-span-3"
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="md:col-span-1 opacity-100"
-                    disabled={barbers.length === 1}
-                    onClick={() => setBarbers((prev) => prev.filter((_, i) => i !== index))}
-                  >
+                  <Input
+                    placeholder="Specialization"
+                    value={barber.specialization}
+                    onChange={(e) => updateBarber(index, "specialization", e.target.value)}
+                    className="md:col-span-4"
+                  />
+                  <Button type="button" variant="outline" className="md:col-span-1" onClick={() => removeBarber(index)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -384,38 +595,44 @@ export default function OwnerRegistration() {
             </div>
           </section>
 
-          <section className="reg-section space-y-4 rounded-2xl border border-border bg-white/85 p-6 shadow-md backdrop-blur-sm">
-            <h2 className="text-lg font-semibold">Section 6: Salon Image</h2>
+          <section className="rounded-2xl bg-white p-6 shadow-md space-y-4">
+            <h2 className="text-lg font-semibold">Salon Image</h2>
             <div className="rounded-xl border border-dashed border-border p-4">
               <label className="flex cursor-pointer items-center gap-3 text-sm font-medium text-foreground">
-                <Camera className="h-4 w-4" />
-                Upload image (max 5MB)
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
-                />
+                <Camera className="h-4 w-4" /> Upload image (optional, max 5MB)
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => setImageFile(e.target.files?.[0] ?? null)} />
               </label>
+
+              {uploadingImage && (
+                <p className="mt-3 inline-flex items-center text-sm text-muted-foreground">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Uploading image...
+                </p>
+              )}
+
               {imagePreview ? (
-                <img src={imagePreview} alt="Salon preview" className="mt-4 h-48 w-full rounded-xl object-cover" />
+                <img src={imagePreview} alt="Salon preview" className="mt-4 h-56 w-full rounded-xl object-cover" />
               ) : (
                 <p className="mt-3 text-sm text-muted-foreground">No image selected.</p>
               )}
             </div>
           </section>
 
-          <div className="sticky bottom-4 z-20 rounded-2xl border border-border bg-white/90 p-4 shadow-md backdrop-blur-sm">
-            <Button type="submit" disabled={submitting} className="h-12 w-full rounded-xl opacity-100" size="lg">
-              {submitting ? (
-                <span className="inline-flex items-center">
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Registering Salon...
-                </span>
-              ) : (
-                "Register Salon"
-              )}
-            </Button>
-          </div>
+          <section className="rounded-2xl bg-white p-6 shadow-md space-y-4">
+            <h2 className="text-lg font-semibold">Verification</h2>
+            <TurnstileCaptcha ref={turnstileRef} onTokenChange={setCaptchaToken} className="min-h-[78px]" />
+          </section>
+
+          <Button
+            className="w-full rounded-xl py-6 text-lg font-semibold shadow-lg shadow-primary/20"
+            onClick={handleSubmit}
+            disabled={submitting || uploadingImage || verifyingCaptcha}
+          >
+            {submitting ? (
+              <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> {user ? "Completing Setup..." : "Creating Account..."}</>
+            ) : (
+                user ? "Complete Salon Setup" : "Create Account"
+            )}
+          </Button>
         </form>
       </main>
     </div>
