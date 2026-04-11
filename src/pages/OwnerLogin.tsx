@@ -1,4 +1,4 @@
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Loader2, Lock, Mail, Store } from "lucide-react";
 import TurnstileCaptcha, { type TurnstileCaptchaHandle } from "@/components/TurnstileCaptcha";
 import { verifyTurnstileToken } from "@/lib/turnstile";
+import { useAuth } from "@/contexts/AuthContext";
 
 type OwnerRecord = {
   id: string;
@@ -19,12 +20,21 @@ type OwnerRecord = {
 
 export default function OwnerLogin() {
   const navigate = useNavigate();
+  const { user, profile, loading: authLoading } = useAuth();
+  
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [verifyingCaptcha, setVerifyingCaptcha] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileCaptchaHandle | null>(null);
+
+  useEffect(() => {
+    if (!authLoading && user && profile) {
+      console.log("OWNER_LOGIN: User already authenticated with profile, redirecting...");
+      navigate("/owner-dashboard", { replace: true });
+    }
+  }, [user, profile, authLoading, navigate]);
 
   const resetCaptcha = () => {
     setCaptchaToken(null);
@@ -67,14 +77,14 @@ export default function OwnerLogin() {
     setLoading(true);
 
     try {
+      console.log("AUTH_SIGNIN_START", trimmedEmail);
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: trimmedEmail,
         password: trimmedPassword,
       });
 
       if (authError) {
-        console.error("LOGIN_ERROR:", authError.message);
-        console.log("LOGIN_FAILED");
+        console.error("AUTH_SIGNIN_ERROR:", authError.message);
         toast.error(authError.message || "Invalid credentials");
         return;
       }
@@ -83,8 +93,9 @@ export default function OwnerLogin() {
         throw new Error("Login failed to retrieve user");
       }
 
-      console.log("LOGIN_SUCCESS");
+      console.log("AUTH_SIGNIN_SUCCESS", authData.user.id);
 
+      console.log("PROFILE_FETCH_START");
       const { data: profile, error: profileError } = await supabase
         .from("owners")
         .select("*")
@@ -92,28 +103,33 @@ export default function OwnerLogin() {
         .maybeSingle();
  
       if (profileError) {
+        console.error("PROFILE_FETCH_ERROR:", profileError.message);
         throw profileError;
       }
 
       if (!profile) {
+        console.log("PROFILE_NOT_FOUND");
         toast.error("Owner profile not found. Please contact support.");
         return;
       }
 
+      console.log("PROFILE_FETCH_SUCCESS", profile.id);
+
       const normalizedOwner: OwnerRecord = profile as any;
       localStorage.setItem("owner", JSON.stringify(normalizedOwner));
 
+      console.log("SALON_FETCH_START");
       const { data: existingSalon } = await supabase
         .from("salons")
         .select("*")
         .eq("owner_id", normalizedOwner.id)
         .maybeSingle();
 
+      console.log("LOGIN_COMPLETE", { hasSalon: !!existingSalon });
       toast.success("Welcome back");
       navigate(existingSalon ? "/owner-dashboard" : "/register-salon", { replace: true });
     } catch (error: any) {
-      console.error("LOGIN_ERROR:", error.message || error);
-      console.log("LOGIN_FAILED");
+      console.error("LOGIN_PIPELINE_ERROR:", error.message || error);
       toast.error(error.message || "Login failed");
     } finally {
       setLoading(false);

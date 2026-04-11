@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,9 @@ export default function OwnerRegister() {
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileCaptchaHandle | null>(null);
 
+  const { user, profile, loading: authLoading, signOut } = useAuth();
+  const STORAGE_KEY = "snippr_pending_setup";
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -67,6 +71,46 @@ export default function OwnerRegister() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [services, setServices] = useState<ServiceForm[]>([{ name: "Haircut", price: "300", duration: "30" }]);
   const [barbers, setBarbers] = useState<BarberForm[]>([{ name: "", chair: "1", specialization: "Haircut" }]);
+
+  // Persistence: Restore on Mount
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+        if (data.name) setName(data.name);
+        if (data.email) setEmail(data.email);
+        if (data.salonName) setSalonName(data.salonName);
+        if (data.address) setAddress(data.address);
+        if (data.city) setCity(data.city);
+        if (data.pincode) setPincode(data.pincode);
+        if (data.phone) setPhone(data.phone);
+        if (data.openTime) setOpenTime(data.openTime);
+        if (data.closeTime) setCloseTime(data.closeTime);
+        if (data.services) setServices(data.services);
+        if (data.barbers) setBarbers(data.barbers);
+      } catch (e) {
+        console.warn("Failed to restore registration state", e);
+      }
+    }
+  }, []);
+
+  // Persistence: Save on Change
+  useEffect(() => {
+    const data = {
+      name, email, salonName, address, city, pincode, phone, openTime, closeTime, services, barbers
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }, [name, email, salonName, address, city, pincode, phone, openTime, closeTime, services, barbers]);
+
+  // Auth: Pre-fill and Redirect
+  useEffect(() => {
+    if (!authLoading && user && profile) {
+      navigate("/owner-dashboard");
+    }
+    if (user && !name) setName(user.user_metadata?.full_name || "");
+    if (user && !email) setEmail(user.email || "");
+  }, [user, profile, authLoading, navigate]);
 
   const imagePreview = useMemo(() => {
     if (!imageFile) return null;
@@ -136,7 +180,8 @@ export default function OwnerRegister() {
   };
 
   const validateForm = () => {
-    if (!name.trim() || !email.trim() || !password.trim()) {
+    // If logged in, password is not required
+    if (!name.trim() || !email.trim() || (!user && !password.trim())) {
       toast.error("Please complete owner info");
       return false;
     }
@@ -198,46 +243,52 @@ export default function OwnerRegister() {
     setSubmitting(true);
 
     try {
-      // 1. SIGNUP
-      console.log("STEP 1: START SIGNUP");
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: email.trim(),
-        password: password,
-      });
-
-      console.log("SIGNUP_FLOW:", signUpData);
-      if (signUpError) {
-        console.error("SIGNUP_ERROR:", signUpError);
-        throw signUpError;
-      }
-
-      const user = signUpData.user;
-      const session = signUpData.session;
-      console.log("USER_OBJECT:", user);
-      console.log("SESSION_OBJECT:", session);
-
-      // If session is null, it means email confirmation is required
-      if (!session) {
-        console.log("STEP 1.5: EMAIL CONFIRMATION REQUIRED (SESSION IS NULL)");
-        toast.info("Account created! Please check your email to verify your account.", {
-          duration: 10000,
-          description: "For local development, you can disable email confirmation in Supabase (Authentication -> Settings) to skip this step."
+      // 1. SIGNUP / SESSION CHECK
+      let currentUser = user;
+      
+      if (!currentUser) {
+        console.log("STEP 1: START SIGNUP");
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: email.trim(),
+          password: password,
         });
-        setSubmitting(false);
-        return;
+
+        console.log("SIGNUP_FLOW:", signUpData);
+        if (signUpError) {
+          console.error("SIGNUP_ERROR:", signUpError);
+          throw signUpError;
+        }
+
+        const session = signUpData.session;
+        console.log("USER_OBJECT:", signUpData.user);
+        console.log("SESSION_OBJECT:", session);
+
+        // If session is null, it means email confirmation is required
+        if (!session) {
+          console.log("STEP 1.5: EMAIL CONFIRMATION REQUIRED (SESSION IS NULL)");
+          toast.info("Account created! Please check your email to verify your account.", {
+            duration: 10000,
+            description: "For local development, you can disable email confirmation in Supabase (Authentication -> Settings) to skip this step."
+          });
+          setSubmitting(false);
+          return;
+        }
+        currentUser = signUpData.user;
+      } else {
+        console.log("STEP 1: SKIPPING SIGNUP (ALREADY AUTHENTICATED)");
       }
 
-      if (!user) {
-        toast.error("User creation failed. Please try again.");
+      if (!currentUser) {
+        toast.error("User identification failed. Please try again.");
         setSubmitting(false);
         return;
       }
 
       // 2. OWNER UPSERT (Safe & Retry-able)
-      console.log("STEP 2: OWNER UPSERT", user.id);
+      console.log("STEP 2: OWNER UPSERT", currentUser.id);
       const { data: ownerData, error: ownerError } = await supabase.from("owners").upsert({
-        id: user.id,
-        email: user.email!,
+        id: currentUser.id,
+        email: currentUser.email!,
         name: name.trim(),
         phone: phone.trim(),
         is_verified: true,
@@ -287,7 +338,7 @@ export default function OwnerRegister() {
       console.log("STEP 4: SALON INSERT START");
       const salonPayload = {
         name: salonName.trim(),
-        owner_id: user.id,
+        owner_id: currentUser.id,
         phone: phone.trim() || null,
         address: address.trim() || null,
         city: city.trim() || null,
@@ -349,6 +400,7 @@ export default function OwnerRegister() {
       console.log("STEP 7: FINALIZATION");
       await triggerOwnerVerificationEmail(ownerData.email, ownerData.name);
       localStorage.setItem("owner", JSON.stringify(ownerData));
+      localStorage.removeItem(STORAGE_KEY);
       
       console.log("REGISTRATION_FLOW_COMPLETE");
       toast.success("Account created and salon registered");
@@ -373,12 +425,23 @@ export default function OwnerRegister() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
-            <h2 className="text-lg font-semibold">Owner Info</h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              <Input placeholder="Owner name" value={name} onChange={(e) => setName(e.target.value)} required />
-              <Input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-              <Input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} className="md:col-span-2" required />
-            </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Owner Full Name</label>
+                  <Input placeholder="John Doe" value={name} onChange={(e) => setName(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Owner Email</label>
+                  <Input type="email" placeholder="john@example.com" value={email} onChange={(e) => setEmail(e.target.value)} disabled={!!user} />
+                </div>
+              </div>
+
+              {!user && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Password</label>
+                  <Input type="password" placeholder="Min. 6 characters" value={password} onChange={(e) => setPassword(e.target.value)} />
+                </div>
+              )}
           </section>
 
           <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
@@ -505,16 +568,14 @@ export default function OwnerRegister() {
           </section>
 
           <Button
-            type="submit"
-            disabled={submitting || uploadingImage || verifyingCaptcha || !captchaToken}
-            className="h-12 w-full rounded-xl bg-primary transition-transform duration-200 hover:scale-105"
+            className="w-full rounded-xl py-6 text-lg font-semibold shadow-lg shadow-primary/20"
+            onClick={handleSubmit}
+            disabled={submitting || uploadingImage || verifyingCaptcha}
           >
-            {submitting || uploadingImage ? (
-              <span className="inline-flex items-center">
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {uploadingImage ? "Uploading image..." : "Creating account..."}
-              </span>
+            {submitting ? (
+              <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> {user ? "Completing Setup..." : "Creating Account..."}</>
             ) : (
-              "Create Account"
+                user ? "Complete Salon Setup" : "Create Account"
             )}
           </Button>
         </form>
