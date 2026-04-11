@@ -20,7 +20,7 @@ type OwnerRecord = {
 
 export default function OwnerLogin() {
   const navigate = useNavigate();
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading, profileLoading } = useAuth();
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,12 +34,12 @@ export default function OwnerLogin() {
       if (profile) {
         console.log("OWNER_LOGIN: User already authenticated with profile, redirecting to Dashboard");
         navigate("/owner-dashboard", { replace: true });
-      } else {
+      } else if (!profileLoading && !profile) {
         console.log("OWNER_LOGIN: User authenticated but NO profile found, redirecting to Registration to resume setup");
         navigate("/owner-register", { replace: true });
       }
     }
-  }, [user, profile, authLoading, navigate]);
+  }, [user, profile, authLoading, profileLoading, navigate]);
 
   const resetCaptcha = () => {
     setCaptchaToken(null);
