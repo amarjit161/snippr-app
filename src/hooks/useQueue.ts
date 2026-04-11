@@ -152,11 +152,68 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
     bootstrap();
   }, [bootstrap]);
 
+  // Fetch full queue item with all relations
+  const fetchQueueItemFull = useCallback(async (queueId: string) => {
+    try {
+      const { data } = await supabaseAny
+        .from("queue")
+        .select("*, services (*), barbers (*), salons (*)")
+        .eq("id", queueId)
+        .maybeSingle();
+      return data;
+    } catch (err) {
+      console.error("FETCH_QUEUE_ITEM_ERROR", err);
+      return null;
+    }
+  }, [supabaseAny]);
+
+  // Intelligent merge for real-time updates (no flicker)
+  const mergeQueueItemUpdate = useCallback((payload: any) => {
+    const { eventType, new: newRow, old: oldRow } = payload;
+
+    setQueueItems((prev) => {
+      if (eventType === "DELETE" && oldRow) {
+        return prev.filter((item) => item.id !== oldRow.id);
+      }
+
+      if (eventType === "INSERT" && newRow) {
+        // Fetch full item asynchronously
+        fetchQueueItemFull(newRow.id).then((fullItem) => {
+          if (fullItem) {
+            setQueueItems((current) => {
+              const exists = current.some((item) => item.id === fullItem.id);
+              if (exists) return current;
+              return [fullItem, ...current];
+            });
+          }
+        });
+        // Add placeholder immediately
+        return [{ ...newRow, services: null, barbers: null } as QueueItem, ...prev];
+      }
+
+      if (eventType === "UPDATE" && newRow) {
+        // Fetch full item asynchronously to get latest data
+        fetchQueueItemFull(newRow.id).then((fullItem) => {
+          if (fullItem) {
+            setQueueItems((current) =>
+              current.map((item) => (item.id === fullItem.id ? fullItem : item))
+            );
+          }
+        });
+        // Update optimistically first
+        return prev.map((item) => (item.id === newRow.id ? { ...item, ...newRow } as QueueItem : item));
+      }
+
+      return prev;
+    });
+  }, [fetchQueueItemFull]);
+
   useEffect(() => {
     if (!salon?.id) return;
 
     console.log("QUEUE_REALTIME_SUBSCRIPTION_START", salon.id);
-    
+    let lastEventTime = Date.now();
+
     const channel = supabase
       .channel(`owner-queue-${salon.id}`)
       .on(
@@ -168,21 +225,50 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
           filter: `salon_id=eq.${salon.id}`,
         },
         async (payload: any) => {
+          lastEventTime = Date.now();
           console.log("QUEUE_REALTIME_EVENT", payload.eventType, payload.new?.id);
-          // Only refetch instead of doing bootstrap to avoid full page reload
-          // Add longer delay to ensure database is updated and optimistic updates have settled
-          setTimeout(() => {
-            fetchQueue(salon.id);
-          }, 400);
+          // Merge intelligently instead of refetch (no flicker!)
+          mergeQueueItemUpdate(payload);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log("QUEUE_REALTIME_STATUS", status);
+      });
+
+    // Smart fallback: check every 60s if missed any items
+    const interval = setInterval(async () => {
+      const now = Date.now();
+      if (now - lastEventTime > 60000) {
+        console.log("QUEUE_FALLBACK_SYNC: No events for 60s, checking for missed updates");
+        try {
+          const { data } = await supabaseAny
+            .from("queue")
+            .select("id")
+            .eq("salon_id", salon.id)
+            .order("created_at", { ascending: false })
+            .limit(1);
+
+          if (data && data.length > 0) {
+            const latestId = data[0].id;
+            const currentLatestId = queueItems?.[0]?.id;
+
+            if (latestId !== currentLatestId) {
+              console.log("QUEUE_FALLBACK_DETECTED_MISSING, refreshing");
+              fetchQueue(salon.id);
+            }
+          }
+        } catch (err) {
+          console.error("QUEUE_FALLBACK_ERROR", err);
+        }
+      }
+    }, 30000);
 
     return () => {
       console.log("QUEUE_REALTIME_SUBSCRIPTION_CLEANUP");
       supabase.removeChannel(channel);
+      clearInterval(interval);
     };
-  }, [fetchQueue, salon?.id]);
+  }, [fetchQueue, salon?.id, mergeQueueItemUpdate, queueItems, supabaseAny]);
 
   const updateBarber = useCallback(async (queueId: string, barberId: string | null) => {
     const previous = queueItems;
