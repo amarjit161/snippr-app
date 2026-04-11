@@ -178,6 +178,7 @@ export type Database = {
           open_time: string | null
           close_time: string | null
           auto_close: boolean
+          is_manual_closed: boolean
         }
         Insert: {
           created_at?: string
@@ -199,6 +200,7 @@ export type Database = {
           open_time?: string | null
           close_time?: string | null
           auto_close?: boolean
+          is_manual_closed?: boolean
         }
         Update: {
           created_at?: string
@@ -220,6 +222,7 @@ export type Database = {
           open_time?: string | null
           close_time?: string | null
           auto_close?: boolean
+          is_manual_closed?: boolean
         }
         Relationships: [
           {

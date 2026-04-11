@@ -26,7 +26,7 @@ type SalonRow = {
   open_time: string | null;
   close_time: string | null;
   location: string | null;
-  status: string;
+  is_manual_closed: boolean;
   image_url: string | null;
 };
 
@@ -47,7 +47,7 @@ export default function SalonProfile() {
   const [openTime, setOpenTime] = useState("09:00");
   const [closeTime, setCloseTime] = useState("20:00");
   const [phone, setPhone] = useState("");
-  const [status, setStatus] = useState("open");
+  const [isManualClosed, setIsManualClosed] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
 
   const imagePreview = useMemo(() => (imageFile ? URL.createObjectURL(imageFile) : null), [imageFile]);
@@ -86,7 +86,7 @@ export default function SalonProfile() {
         setOpenTime(row.open_time || "09:00");
         setCloseTime(row.close_time || "20:00");
         setPhone(parsed.phone || "");
-        setStatus(row.status || "open");
+        setIsManualClosed(row.is_manual_closed || false);
       } catch (error) {
         console.error(error);
         localStorage.removeItem("owner");
@@ -134,13 +134,14 @@ export default function SalonProfile() {
           open_time: openTime,
           close_time: closeTime,
           location,
-          status,
+          is_manual_closed: isManualClosed,
           image_url: imageUrl,
         })
         .eq("id", salon.id);
 
       if (error) throw error;
       toast.success("Salon profile saved");
+      console.log("SALON_PROFILE_SAVE_SUCCESS", { is_manual_closed: isManualClosed });
       navigate("/owner-dashboard", { replace: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to save salon profile";
@@ -178,9 +179,9 @@ export default function SalonProfile() {
                 <div className="flex items-center justify-between rounded-xl border border-[#e3e2e5] px-4 py-3">
                   <div>
                     <p className="text-sm font-semibold">Open / Close Toggle</p>
-                    <p className="text-xs text-[#494551]">Open now when salon is active.</p>
+                    <p className="text-xs text-[#494551]">Toggle on to manually close, off to keep open.</p>
                   </div>
-                  <Switch checked={status === "open"} onCheckedChange={(checked) => setStatus(checked ? "open" : "closed")} />
+                  <Switch checked={isManualClosed} onCheckedChange={(checked) => setIsManualClosed(checked)} />
                 </div>
               </div>
             </CardContent>

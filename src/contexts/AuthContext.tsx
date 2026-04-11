@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode, useRef } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -28,36 +28,69 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<Tables<"owners"> | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
+  const cachedProfileRef = useRef<Tables<"owners"> | null>(null); // Cache profile to avoid re-fetching
+  const visibilityChangeTimeRef = useRef(0); // Track when visibility changed
 
   useEffect(() => {
-    const fetchProfile = async (s: Session | null) => {
+    const fetchProfile = async (s: Session | null, forceRefresh = false) => {
       if (s?.user) {
+        // If we have a cached profile and not forcing refresh, use cache
+        if (cachedProfileRef.current && !forceRefresh) {
+          console.log("FETCH_PROFILE: Using cached profile");
+          setProfile(cachedProfileRef.current);
+          return;
+        }
+
         console.log("FETCH_PROFILE_START", s.user.id);
         setProfileLoading(true);
         
         try {
           console.log("FETCH_PROFILE: Requesting from database...");
-          const { data, error } = await supabase
-            .from("owners")
-            .select("*")
-            .eq("id", s.user.id)
-            .maybeSingle();
+          
+          // Create a promise that times out after 3 seconds
+          const fetchWithTimeout = async () => {
+            return Promise.race([
+              supabase
+                .from("owners")
+                .select("*")
+                .eq("id", s.user.id)
+                .maybeSingle(),
+              new Promise((_, reject) =>
+                setTimeout(() => reject(new Error("Query timeout after 3s")), 3000)
+              ),
+            ]);
+          };
+
+          const { data, error } = await fetchWithTimeout() as any;
 
           if (error) {
             console.error("FETCH_PROFILE_ERROR:", error.message);
-            throw error;
+            // Use cached profile if error, don't clear it
+            if (cachedProfileRef.current) {
+              setProfile(cachedProfileRef.current);
+            } else {
+              setProfile(null);
+            }
+          } else {
+            console.log("FETCH_PROFILE_COMPLETE:", data);
+            cachedProfileRef.current = data ?? null;
+            setProfile(data ?? null);
           }
-          
-          console.log("FETCH_PROFILE_COMPLETE:", data ? "Profile Found" : "No Profile Found");
-          setProfile(data ?? null);
         } catch (err: any) {
-          console.error("FETCH_PROFILE_FAILED:", err.message);
-          setProfile(null);
+          console.error("FETCH_PROFILE_EXCEPTION:", err.message || err);
+          // Use cached profile if error, don't clear it
+          if (cachedProfileRef.current) {
+            console.log("FETCH_PROFILE: Falling back to cached profile");
+            setProfile(cachedProfileRef.current);
+          } else {
+            setProfile(null);
+          }
         } finally {
           setProfileLoading(false);
         }
       } else {
         setProfile(null);
+        cachedProfileRef.current = null;
         setProfileLoading(false);
       }
     };
@@ -79,6 +112,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     initAuth();
 
+    // Track visibility changes to prevent profile refetch on tab switch
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        console.log("PAGE_HIDDEN: Recording timestamp");
+      } else {
+        console.log("PAGE_VISIBLE: Recording timestamp");
+        visibilityChangeTimeRef.current = Date.now();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     // Failsafe timer: Ensure app unblocks after 5 seconds regardless of auth response
     const failsafe = setTimeout(() => {
       setLoading((currentLoading) => {
@@ -96,19 +140,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setSession(currentSession);
         setLoading(false); // Resolve loading on any state change
         
-        if (event === "SIGNED_IN") {
-          await fetchProfile(currentSession);
+        // Check if this is likely a visibility change event (within 1 second of visibility becoming visible)
+        const isVisibilityChangeEvent = Date.now() - visibilityChangeTimeRef.current < 1000;
+        
+        // Only fetch/refetch profile on initial sign in, not on every token refresh
+        if (event === "SIGNED_IN" && currentSession) {
+          // Skip refetch if this was triggered by visibility change & we already have cached profile
+          if (isVisibilityChangeEvent && cachedProfileRef.current) {
+            console.log("AUTH_STATE: Skipping refetch due to visibility change, using cache");
+            setProfile(cachedProfileRef.current);
+          } else {
+            await fetchProfile(currentSession, true); // Force refresh on sign in
+          }
+        } else if (event === "INITIAL_SESSION" && currentSession) {
+          await fetchProfile(currentSession, false); // Use cache for initial session
         } else if (event === "SIGNED_OUT") {
           setProfile(null);
+          cachedProfileRef.current = null;
           localStorage.removeItem("snippr_role");
           localStorage.removeItem("owner");
         }
+        // Don't refetch on TOKEN_REFRESHED or other events - use cached profile
       }
     );
 
     return () => {
       clearTimeout(failsafe);
       subscription.unsubscribe();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 
@@ -117,6 +176,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await supabase.auth.signOut();
     setSession(null);
     setProfile(null);
+    cachedProfileRef.current = null;
     localStorage.removeItem("snippr_role");
     localStorage.removeItem("owner");
   };

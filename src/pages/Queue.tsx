@@ -15,6 +15,8 @@ export default function Queue() {
   const [modalOpen, setModalOpen] = useState(false);
   const { loading, actionLoading, owner, salon, services, barbers, grouped, addWalkIn, updateStatus, updateBarber } = useQueue(navigate);
 
+  console.log("QUEUE_COMPONENT_RENDER", { waiting: grouped.waiting.length, inProgress: grouped.inProgress.length, completed: grouped.completed.length, cancelled: grouped.cancelled.length });
+
   const sections = useMemo(
     () => [
       { key: "waiting", title: "Waiting", items: grouped.waiting },
@@ -63,7 +65,7 @@ export default function Queue() {
                       section.items.map((item) => {
                         const customerLabel = item.customer_first_name && item.customer_last_name 
                           ? `${item.customer_first_name} ${item.customer_last_name}` 
-                          : (item.user_id ? `User ${item.user_id.slice(0, 6)}` : "Walk-in Customer");
+                          : (item.customer_phone ? item.customer_phone : "Walk-in Customer");
                         return (
                           <div key={item.id} className="rounded-xl border border-[#e3e2e5] p-4">
                             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -79,7 +81,7 @@ export default function Queue() {
                                 value={item.barber_id || ""}
                                 onChange={(event) => updateBarber(item.id, event.target.value || null)}
                                 className="h-10 w-full rounded-xl border border-input bg-background/90 px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-                                disabled={item.status === "completed" || item.status === "cancelled"}
+                                disabled={item.status === "completed" || item.status === "cancelled" || item.status === "rejected"}
                               >
                                 <option value="">Unassigned barber</option>
                                 {barbers.map((barber) => (
@@ -112,7 +114,7 @@ export default function Queue() {
                                   </>
                                 ) : null}
 
-                                {item.status === "in_progress" ? (
+                                {(item.status === "in_progress" || item.status === "accepted") ? (
                                   <Button
                                     size="sm"
                                     className="rounded-xl"
@@ -139,7 +141,7 @@ export default function Queue() {
                     </div>
                     {grouped.cancelled.map((item) => (
                       <div key={item.id} className="rounded-xl border border-[#e3e2e5] p-4">
-                        <p className="font-semibold">{item.customer_first_name && item.customer_last_name ? `${item.customer_first_name} ${item.customer_last_name}` : (item.user_id ? `User ${item.user_id.slice(0, 6)}` : "Walk-in Customer")}</p>
+                        <p className="font-semibold">{item.customer_first_name && item.customer_last_name ? `${item.customer_first_name} ${item.customer_last_name}` : (item.customer_phone ? item.customer_phone : "Walk-in Customer")}</p>
                         <p className="text-sm text-[#494551]">{item.services?.name || "Service"}</p>
                       </div>
                     ))}

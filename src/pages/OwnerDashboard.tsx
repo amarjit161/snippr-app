@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import gsap from "gsap";
 import { Loader2, CalendarDays, Activity, Timer, DollarSign, ArrowRight, Plus, Clock3, Users, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -46,10 +47,25 @@ const formatStatus = (value: string) => (value === "in_service" ? "In Service" :
 
 export default function OwnerDashboard() {
   const navigate = useNavigate();
+  const { signOut } = useAuth();
   const supabaseAny = supabase as any;
   const pageRef = useRef<HTMLDivElement | null>(null);
   const headerRef = useRef<HTMLElement | null>(null);
   const queueRef = useRef<HTMLElement | null>(null);
+  const hasFetchedRef = useRef(false);
+  const isVisibleRef = useRef(true);
+
+  // Track tab visibility to prevent refresh on tab switch
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      const isVisible = !document.hidden;
+      console.log("DASHBOARD_VISIBILITY_CHANGED", { isVisible });
+      isVisibleRef.current = isVisible;
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []); // Prevent duplicate fetches
 
   const [owner, setOwner] = useState<OwnerRecord | null>(null);
   const [salon, setSalon] = useState<SalonRow | null>(null);
@@ -71,6 +87,13 @@ export default function OwnerDashboard() {
 
   // Comprehensive Identity & Dashboard Data Resolution
   useEffect(() => {
+    // Only fetch once on mount, never again
+    if (hasFetchedRef.current) {
+      console.log("DASHBOARD_SKIP_DUPLICATE_FETCH: Already fetched");
+      return;
+    }
+    hasFetchedRef.current = true;
+
     const fetchDashboard = async () => {
       try {
         console.log("FETCH_DASHBOARD_START");
@@ -84,6 +107,25 @@ export default function OwnerDashboard() {
           setLoadingData(false);
           navigate("/owner-login", { replace: true });
           return;
+        }
+
+        // 0. Fetch Owner Profile
+        const { data: ownerData, error: ownerError } = await supabase
+          .from("owners")
+          .select("*")
+          .eq("id", authUser.id)
+          .maybeSingle();
+
+        if (ownerError) {
+          console.error("OWNER_FETCH_ERROR:", ownerError);
+          setLoadingSalon(false);
+          setLoadingData(false);
+          return;
+        }
+
+        if (ownerData) {
+          setOwner(ownerData as OwnerRecord);
+          console.log("OWNER_PROFILE_LOADED:", ownerData.name);
         }
 
         // 1. Resolve Salon
@@ -153,7 +195,7 @@ export default function OwnerDashboard() {
     };
 
     fetchDashboard();
-  }, [navigate]);
+  }, []); // Only run once on mount, never again
 
   // Keep manual refresh logic
   const fetchDashboardData = useCallback(async (id: string) => {
@@ -239,7 +281,7 @@ export default function OwnerDashboard() {
           <h2 className="mt-6 text-2xl font-bold">Salon Not Found</h2>
           <p className="mt-2 text-[#494551]">We couldn't find a salon associated with your account. Please register your salon to continue.</p>
           <Button className="mt-8 w-full rounded-xl" onClick={() => navigate("/register-salon")}>Register Salon</Button>
-          <Button variant="outline" className="mt-3 w-full rounded-xl" onClick={() => { localStorage.removeItem("owner"); navigate("/owner-login"); }}>Logout</Button>
+          <Button variant="outline" className="mt-3 w-full rounded-xl" onClick={() => { signOut(); navigate("/owner-login"); }}>Logout</Button>
         </div>
       </div>
     );
@@ -247,7 +289,7 @@ export default function OwnerDashboard() {
 
   if (loadingData) {
     return (
-      <OwnerShell onLogout={() => { localStorage.removeItem("owner"); navigate("/owner-login", { replace: true }); }}>
+      <OwnerShell onLogout={() => { signOut(); navigate("/owner-login", { replace: true }); }}>
         <div className="flex h-[60vh] items-center justify-center">
           <div className="text-center">
             <Loader2 className="mx-auto h-10 w-10 animate-spin text-primary" />
@@ -264,7 +306,7 @@ export default function OwnerDashboard() {
   const profileImage = salon?.image_url || "/default-salon.jpg";
 
   return (
-    <OwnerShell onLogout={() => { localStorage.removeItem("owner"); navigate("/owner-login", { replace: true }); }}>
+    <OwnerShell onLogout={() => { signOut(); navigate("/owner-login", { replace: true }); }}>
       <div ref={pageRef} className="space-y-6">
         <header ref={headerRef as any} className="dashboard-animate flex flex-col gap-4 rounded-xl border border-[#e3e2e5] bg-white p-5 shadow-sm lg:flex-row lg:items-start lg:justify-between">
           <div>

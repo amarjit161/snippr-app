@@ -34,6 +34,36 @@ const getSalonImageSrc = (imageUrl: string | null) => {
   return data.publicUrl || "/default-salon.jpg";
 };
 
+const isWithinOperatingHours = (openTime: string | null, closeTime: string | null): boolean => {
+  if (!openTime || !closeTime) return true; // If no times set, assume always open
+  
+  try {
+    const now = new Date();
+    const currentTime = now.getHours() * 100 + now.getMinutes(); // Convert to HHMM format (e.g., 1430 for 2:30 PM)
+    
+    // Parse time - handle both "09:00" and "09:00:00" formats
+    const openParts = openTime.split(":").map(Number);
+    const closeParts = closeTime.split(":").map(Number);
+    
+    const [openHour, openMin] = [openParts[0], openParts[1] || 0];
+    const [closeHour, closeMin] = [closeParts[0], closeParts[1] || 0];
+    
+    const openTimeNum = openHour * 100 + openMin;
+    const closeTimeNum = closeHour * 100 + closeMin;
+    
+    // Handle case where closing time is next day (e.g., 9 AM to 11 PM)
+    if (openTimeNum <= closeTimeNum) {
+      return currentTime >= openTimeNum && currentTime <= closeTimeNum;
+    } else {
+      // Closing time is next day (e.g., 10 PM to 6 AM)
+      return currentTime >= openTimeNum || currentTime <= closeTimeNum;
+    }
+  } catch (e) {
+    console.error("TIME_PARSE_ERROR", openTime, closeTime, e);
+    return true; // Assume open if parse fails
+  }
+};
+
 interface SalonCardProps {
   salon: Tables<"salons"> & { queueCount: number; waitTime: number; distance?: number };
   index: number;
@@ -41,7 +71,25 @@ interface SalonCardProps {
 }
 
 const SalonCard = ({ salon, index, onSelect }: SalonCardProps) => {
-  const isOpen = salon.status === "open";
+  // Logic: If manually closed, always show closed. Otherwise check operating hours.
+  const isManuallyClosed = salon.is_manual_closed;
+  const isWithinHours = isWithinOperatingHours(salon.open_time, salon.close_time);
+  const isOpen = !isManuallyClosed && isWithinHours;
+  
+  if (index === 0) {
+    const now = new Date();
+    const currentTimeNum = now.getHours() * 100 + now.getMinutes();
+    console.log("SALON_CARD_LOGIC", {
+      salonName: salon.name,
+      isManuallyClosed,
+      openTime: salon.open_time,
+      closeTime: salon.close_time,
+      isWithinHours,
+      currentTime: `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`,
+      currentTimeNum,
+      isOpen,
+    });
+  }
 
   return (
     <motion.div

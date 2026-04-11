@@ -33,18 +33,27 @@ if (typeof window !== "undefined") {
   }
 }
 
-const createSupabaseClient = () =>
-  createClient<Database>(supabaseUrl, supabaseKey, {
-  db: {
-    schema: "public",
-  },
-  auth: {
-    storage: window.localStorage,
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-  }
-});
+const createSupabaseClient = () => {
+  const client = createClient<Database>(supabaseUrl, supabaseKey, {
+    db: {
+      schema: "public",
+    },
+    auth: {
+      storage: window.localStorage,
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    }
+  });
+  
+  console.log("🔧 Supabase Client Created:", {
+    url: supabaseUrl,
+    hasKey: !!supabaseKey,
+    keyLength: supabaseKey?.length,
+  });
+  
+  return client;
+};
 
 export const supabase = typeof window !== "undefined"
   ? (window.__SNIPPR_SUPABASE__ = createSupabaseClient())

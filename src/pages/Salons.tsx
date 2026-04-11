@@ -128,19 +128,40 @@ const Salons = () => {
     fetchSalons();
   }, [fetchSalons]);
 
-  // 2. Queue Real-time Subscription
+  // 2. Real-time Subscriptions for Salon & Queue updates
   useEffect(() => {
     console.log("SALONS_SUBSCRIPTION_INIT");
     const channel = supabase
-      .channel("salon-queue-updates")
-      .on("postgres_changes", { event: "*", schema: "public", table: "queue" }, () => {
-        console.log("QUEUE_CHANGE_DETECTED");
+      .channel("salon-updates")
+      .on("postgres_changes", { event: "*", schema: "public", table: "queue" }, (payload) => {
+        console.log("SALONS_REALTIME: QUEUE_CHANGE_DETECTED");
         fetchSalons();
       })
-      .subscribe();
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "salons" }, (payload) => {
+        console.log("SALONS_REALTIME: SALON_UPDATE_DETECTED", payload.new?.id);
+        // Immediately refetch on salon update
+        fetchSalons();
+      })
+      .subscribe((status) => {
+        console.log("SALONS_SUBSCRIPTION_STATUS", status);
+      });
     return () => { 
       console.log("SALONS_SUBSCRIPTION_CLEANUP");
       supabase.removeChannel(channel); 
+    };
+  }, [fetchSalons]);
+
+  // 3. Periodic refresh fallback (every 10 seconds) to ensure latest data
+  useEffect(() => {
+    console.log("SALONS_PERIODIC_REFRESH_INIT");
+    const interval = setInterval(() => {
+      console.log("SALONS_PERIODIC_REFRESH_TRIGGERED");
+      fetchSalons();
+    }, 10000); // 10 seconds
+
+    return () => {
+      console.log("SALONS_PERIODIC_REFRESH_CLEANUP");
+      clearInterval(interval);
     };
   }, [fetchSalons]);
 

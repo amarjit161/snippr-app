@@ -76,6 +76,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
   }, [queueItems]);
 
   const fetchQueue = useCallback(async (salonId: string) => {
+    console.log("FETCH_QUEUE_START", salonId);
     const { data, error } = await supabaseAny
       .from("queue")
       .select(`
@@ -89,10 +90,12 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
       .order("created_at", { ascending: true });
 
     if (error) {
+      console.error("FETCH_QUEUE_ERROR", error.message);
       toast.error(error.message || "Failed to load queue");
       return;
     }
 
+    console.log("FETCH_QUEUE_SUCCESS", data?.length, "items:", data?.map((item: any) => ({ id: item.id, status: item.status })));
     setQueueItems((data as QueueItem[]) || []);
   }, [supabaseAny]);
 
@@ -152,6 +155,8 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
   useEffect(() => {
     if (!salon?.id) return;
 
+    console.log("QUEUE_REALTIME_SUBSCRIPTION_START", salon.id);
+    
     const channel = supabase
       .channel(`owner-queue-${salon.id}`)
       .on(
@@ -162,13 +167,19 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
           table: "queue",
           filter: `salon_id=eq.${salon.id}`,
         },
-        async () => {
-          await fetchQueue(salon.id);
+        async (payload: any) => {
+          console.log("QUEUE_REALTIME_EVENT", payload.eventType, payload.new?.id);
+          // Only refetch instead of doing bootstrap to avoid full page reload
+          // Add longer delay to ensure database is updated and optimistic updates have settled
+          setTimeout(() => {
+            fetchQueue(salon.id);
+          }, 400);
         }
       )
       .subscribe();
 
     return () => {
+      console.log("QUEUE_REALTIME_SUBSCRIPTION_CLEANUP");
       supabase.removeChannel(channel);
     };
   }, [fetchQueue, salon?.id]);
@@ -187,12 +198,14 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
     toast.success("Barber updated");
   }, [queueItems, supabaseAny]);
 
-  const updateStatus = useCallback(async (queueId: string, status: "in_progress" | "cancelled" | "completed") => {
+  const updateStatus = useCallback(async (queueId: string, status: "in_progress" | "cancelled" | "rejected" | "completed") => {
+    console.log("UPDATE_STATUS_START", queueId, status);
     const previous = queueItems;
     const now = new Date().toISOString();
 
-    setQueueItems((prev) =>
-      prev.map((item) => {
+    // Optimistic update
+    setQueueItems((prev) => {
+      const updated = prev.map((item) => {
         if (item.id !== queueId) return item;
         return {
           ...item,
@@ -200,8 +213,10 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
           started_at: status === "in_progress" ? now : item.started_at,
           completed_at: status === "completed" ? now : item.completed_at,
         };
-      })
-    );
+      });
+      console.log("UPDATE_STATUS_OPTIMISTIC", { total: updated.length, item: updated.find(i => i.id === queueId) });
+      return updated;
+    });
 
     const payload: Record<string, unknown> = { status };
     if (status === "in_progress") payload.started_at = now;
@@ -212,13 +227,25 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
     setActionLoading(null);
 
     if (error) {
+      console.error("UPDATE_STATUS_ERROR", error.message);
+      // Revert optimistic update on error
       setQueueItems(previous);
       toast.error(error.message || "Failed to update queue");
       return;
     }
 
+    console.log("STATUS_UPDATE_API_SUCCESS", queueId, status);
     toast.success(`Status updated to ${status.replace("_", " ")}`);
-  }, [queueItems, supabaseAny]);
+    
+    // Refetch after a slightly longer delay to ensure DB is updated
+    // This prevents the optimistic update from being overwritten by stale data
+    setTimeout(() => {
+      console.log("REFETCH_AFTER_UPDATE_CALLING", queueId);
+      if (salon?.id) {
+        fetchQueue(salon.id);
+      }
+    }, 300);
+  }, [queueItems, supabaseAny, salon?.id, fetchQueue]);
 
   const addWalkIn = useCallback(async (payload: WalkInPayload) => {
     if (!salon) {
@@ -307,9 +334,9 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
 
   const grouped = useMemo(() => {
     const waiting = sortedQueue.filter((item) => item.status === "waiting");
-    const inProgress = sortedQueue.filter((item) => item.status === "in_progress");
+    const inProgress = sortedQueue.filter((item) => item.status === "in_progress" || item.status === "accepted");
     const completed = sortedQueue.filter((item) => item.status === "completed");
-    const cancelled = sortedQueue.filter((item) => item.status === "cancelled");
+    const cancelled = sortedQueue.filter((item) => item.status === "cancelled" || item.status === "rejected");
     return { waiting, inProgress, completed, cancelled };
   }, [sortedQueue]);
 
