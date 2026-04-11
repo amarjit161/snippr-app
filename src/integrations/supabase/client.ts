@@ -38,9 +38,6 @@ const createSupabaseClient = () =>
   db: {
     schema: "public",
   },
-  global: {
-    fetch: (input, init) => fetch(input, { ...(init ?? {}), cache: "no-store" }),
-  },
   auth: {
     storage: window.localStorage,
     persistSession: true,

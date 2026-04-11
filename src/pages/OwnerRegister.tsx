@@ -244,21 +244,34 @@ export default function OwnerRegister() {
 
     try {
       // 0. DB PROBE (Isolate the hang)
-      console.log("STEP 0: DB PROBE START (Checking 'salons' table connectivity)");
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
+      
+      console.log("STEP 0: DB PROBE START");
       const probeStart = Date.now();
+      
       try {
-        const { error: probeError } = await Promise.race([
-          supabase.from("salons").select("count", { count: "exact", head: true }),
-          new Promise<any>((_, reject) => setTimeout(() => reject(new Error("Probe Timeout (5s)")), 5000))
-        ]);
+        // Test A: Supabase Client Library
+        const clientProbePromise = supabase.from("salons").select("id").limit(1);
         
-        if (probeError) {
-          console.warn("STEP 0: PROBE_FAILED (Database might be globally slow/down):", probeError.message);
-        } else {
-          console.log(`STEP 0: PROBE_SUCCESS (${Date.now() - probeStart}ms) - 'salons' table is responsive.`);
-        }
+        // Test B: Raw Browser Fetch (Bypassing Library)
+        const rawProbePromise = fetch(`${supabaseUrl}/rest/v1/salons?select=id&limit=1`, {
+          headers: {
+            "apikey": supabaseKey,
+            "Authorization": `Bearer ${supabaseKey}`
+          }
+        });
+
+        const [clientRes, rawRes] = await Promise.all([
+          Promise.race([clientProbePromise, new Promise<any>((_, reject) => setTimeout(() => reject(new Error("Client Timeout")), 6000))]),
+          Promise.race([rawProbePromise, new Promise<any>((_, reject) => setTimeout(() => reject(new Error("Raw Fetch Timeout")), 6000))])
+        ]);
+
+        console.log(`STEP 0: PROBE_COMPLETE (${Date.now() - probeStart}ms)`);
+        console.log("CLIENT_LIB_OK:", !clientRes.error);
+        console.log("RAW_FETCH_OK:", rawRes.ok, "STATUS:", rawRes.status);
       } catch (probeErr: any) {
-        console.warn("STEP 0: PROBE_TIMEOUT (Database connection is very slow):", probeErr.message);
+        console.warn("STEP 0: PROBE_DIAGNOSTIC:", probeErr.message);
       }
 
       // 1. SIGNUP / SESSION CHECK
