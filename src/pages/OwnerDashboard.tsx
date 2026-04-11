@@ -232,6 +232,43 @@ export default function OwnerDashboard() {
     }
   }, []);
 
+  // Real-time subscription for queue updates
+  useEffect(() => {
+    if (!salon?.id) return;
+
+    console.log("DASHBOARD_REALTIME_SUBSCRIPTION_START", salon.id);
+
+    const channel = supabase
+      .channel(`queue-updates-${salon.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "queue",
+          filter: `salon_id=eq.${salon.id}`
+        },
+        (payload) => {
+          console.log("DASHBOARD_QUEUE_REALTIME_EVENT", payload.eventType);
+          // Refetch after small delay to ensure DB is updated
+          setTimeout(() => fetchDashboardData(salon.id), 300);
+        }
+      )
+      .subscribe();
+
+    // Also set periodic refresh every 8 seconds as fallback
+    const interval = setInterval(() => {
+      console.log("DASHBOARD_PERIODIC_REFRESH");
+      fetchDashboardData(salon.id);
+    }, 8000);
+
+    return () => {
+      console.log("DASHBOARD_REALTIME_SUBSCRIPTION_CLEANUP");
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
+  }, [salon?.id, fetchDashboardData]);
+
   const summaryCards = useMemo(() => {
     const today = todayISO();
     const items = queueItems || [];
