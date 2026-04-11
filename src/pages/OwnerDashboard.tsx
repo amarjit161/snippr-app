@@ -28,6 +28,9 @@ type QueueRow = {
   created_at: string;
   status: string;
   user_id: string;
+  customer_first_name?: string | null;
+  customer_last_name?: string | null;
+  customer_phone?: string | null;
   services?: { name: string; price: number; duration: number } | null;
 };
 
@@ -170,12 +173,24 @@ export default function OwnerDashboard() {
           const rows = queueRes.data as QueueRow[];
           setQueueItems(rows);
 
-          // Build Profile Map for Queue
-          const userIds = Array.from(new Set(rows.map((row) => row.user_id).filter(Boolean)));
+          // Build Profile Map for registered customers (walk-ins use customer_first_name, customer_last_name fields)
+          // Try to fetch full user profiles for registered customers
+          const userIds = Array.from(new Set(rows
+            .filter((row) => row.user_id && !row.customer_first_name) // Only registered users without walk-in data
+            .map((row) => row.user_id)
+            .filter(Boolean)
+          ));
+          
           if (userIds.length > 0) {
-            const { data: profileRows } = await (supabase as any).from("owners").select("id, name").in("id", userIds);
+            // Try to fetch user names from profiles table if it exists
+            const { data: profileRows } = await (supabase as any)
+              .from("profiles")
+              .select("id, full_name")
+              .in("id", userIds)
+              .catch(() => ({ data: [] })); // Fallback if profiles table doesn't exist
+            
             const lookup = ((profileRows || []) as any[]).reduce<Record<string, string>>((acc, row) => {
-              acc[row.id] = row.name || "Guest";
+              acc[row.id] = row.full_name || "Guest";
               return acc;
             }, {});
             setProfileMap(lookup);
@@ -418,7 +433,10 @@ export default function OwnerDashboard() {
                 </thead>
                 <tbody className="divide-y divide-[#eeedf0]">
                   {queueItems.map((item) => {
-                    const customerName = profileMap[item.user_id] || `User ${item.user_id.slice(0, 6)}`;
+                    const walkinName = (item as any).customer_first_name && (item as any).customer_last_name 
+                      ? `${(item as any).customer_first_name} ${(item as any).customer_last_name}`
+                      : (item as any).customer_phone ? `${(item as any).customer_phone}` : null;
+                    const customerName = walkinName || profileMap[item.user_id] || `User ${item.user_id.slice(0, 6)}`;
                     const initials = customerName.split(" ").slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join("");
                     const serviceName = item.services?.name || "Service";
                     const status = item.status || "waiting";
