@@ -42,4 +42,4 @@ const OwnerProtectedRoute: React.FC<OwnerProtectedRouteProps> = ({ children }) =
   return <>{children}</>;
 };
 
-export default OwnerProtectedRoute;
+export { OwnerProtectedRoute };
