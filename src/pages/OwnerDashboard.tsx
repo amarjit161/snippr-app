@@ -232,7 +232,28 @@ export default function OwnerDashboard() {
     }
   }, []);
 
-  // Real-time subscription for queue updates
+  // Intelligent merge for real-time updates (Swiggy/Uber style - no flicker)
+  const mergeQueueUpdate = useCallback((payload: any) => {
+    const { eventType, new: newRow, old: oldRow } = payload;
+    
+    setQueueItems((prev) => {
+      if (eventType === "DELETE" && oldRow) {
+        return prev.filter((item) => item.id !== oldRow.id);
+      }
+      
+      if (eventType === "INSERT" && newRow) {
+        return [...prev, { ...newRow } as QueueRow];
+      }
+      
+      if (eventType === "UPDATE" && newRow) {
+        return prev.map((item) => (item.id === newRow.id ? { ...newRow } as QueueRow : item));
+      }
+      
+      return prev;
+    });
+  }, []);
+
+  // Real-time subscription for queue updates (silent background sync)
   useEffect(() => {
     if (!salon?.id) return;
 
@@ -249,25 +270,25 @@ export default function OwnerDashboard() {
           filter: `salon_id=eq.${salon.id}`
         },
         (payload) => {
-          console.log("DASHBOARD_QUEUE_REALTIME_EVENT", payload.eventType);
-          // Refetch after small delay to ensure DB is updated
-          setTimeout(() => fetchDashboardData(salon.id), 300);
+          console.log("DASHBOARD_QUEUE_REALTIME_EVENT", payload.eventType, payload.new?.id);
+          // Merge the update intelligently without full refetch
+          mergeQueueUpdate(payload);
         }
       )
       .subscribe();
 
-    // Also set periodic refresh every 8 seconds as fallback
+    // Periodic sync every 15 seconds as fallback (less aggressive than before)
     const interval = setInterval(() => {
-      console.log("DASHBOARD_PERIODIC_REFRESH");
+      console.log("DASHBOARD_PERIODIC_SYNC");
       fetchDashboardData(salon.id);
-    }, 8000);
+    }, 15000);
 
     return () => {
       console.log("DASHBOARD_REALTIME_SUBSCRIPTION_CLEANUP");
       supabase.removeChannel(channel);
       clearInterval(interval);
     };
-  }, [salon?.id, fetchDashboardData]);
+  }, [salon?.id, mergeQueueUpdate, fetchDashboardData]);
 
   const summaryCards = useMemo(() => {
     const today = todayISO();
@@ -480,7 +501,7 @@ export default function OwnerDashboard() {
                     const waitTime = Math.max(1, Math.floor((Date.now() - new Date(item.created_at).getTime()) / 60000));
 
                     return (
-                      <tr key={item.id} className="transition-colors hover:bg-slate-50">
+                      <tr key={item.id} className="animate-in fade-in duration-500 transition-all hover:bg-slate-50">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
                             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700">{initials || "CU"}</div>
@@ -489,7 +510,7 @@ export default function OwnerDashboard() {
                         </td>
                         <td className="px-6 py-4 text-sm text-[#494551]">{serviceName}</td>
                         <td className="px-6 py-4 text-sm font-semibold text-[#ab3500]">{waitTime}m</td>
-                        <td className="px-6 py-4"><span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase ${statusClass[status] || "bg-slate-100 text-slate-700"}`}>{formatStatus(status)}</span></td>
+                        <td className="px-6 py-4"><span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase transition-colors ${statusClass[status] || "bg-slate-100 text-slate-700"}`}>{formatStatus(status)}</span></td>
                         <td className="px-6 py-4">
                           <div className="flex gap-2">
                             <Button size="sm" className="h-8 rounded-xl" disabled={updatingQueueId === item.id || status !== "waiting"} onClick={() => updateQueueStatus(item, "accepted")}>Accept</Button>
