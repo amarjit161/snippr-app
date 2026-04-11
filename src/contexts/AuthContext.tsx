@@ -8,6 +8,7 @@ interface AuthContextType {
   user: User | null;
   profile: Tables<"owners"> | null;
   loading: boolean;
+  profileLoading: boolean;
   signOut: () => Promise<void>;
 }
 
@@ -16,6 +17,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
   loading: true,
+  profileLoading: false,
   signOut: async () => {},
 });
 
@@ -25,11 +27,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Tables<"owners"> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async (s: Session | null) => {
       if (s?.user) {
         console.log("FETCH_PROFILE_START", s.user.id);
+        setProfileLoading(true);
         
         try {
           const fetchPromise = supabase
@@ -39,7 +43,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             .maybeSingle();
 
           const timeoutPromise = new Promise<any>((_, reject) => 
-            setTimeout(() => reject(new Error("Profile Fetch Timeout")), 4000)
+            setTimeout(() => reject(new Error("Profile Fetch Timeout")), 10000)
           );
 
           const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
@@ -54,9 +58,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         } catch (err: any) {
           console.warn("FETCH_PROFILE_HANDLED_EXCEPTION:", err.message);
           setProfile(null);
+        } finally {
+          setProfileLoading(false);
         }
       } else {
         setProfile(null);
+        setProfileLoading(false);
       }
     };
 
@@ -120,7 +127,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user: session?.user ?? null, profile, loading, signOut }}>
+    <AuthContext.Provider value={{ session, user: session?.user ?? null, profile, loading, profileLoading, signOut }}>
       {children}
     </AuthContext.Provider>
   );
