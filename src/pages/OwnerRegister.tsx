@@ -243,37 +243,6 @@ export default function OwnerRegister() {
     setSubmitting(true);
 
     try {
-      // 0. DB PROBE (Isolate the hang)
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
-      
-      console.log("STEP 0: DB PROBE START");
-      const probeStart = Date.now();
-      
-      try {
-        // Test A: Supabase Client Library
-        const clientProbePromise = supabase.from("salons").select("id").limit(1);
-        
-        // Test B: Raw Browser Fetch (Bypassing Library)
-        const rawProbePromise = fetch(`${supabaseUrl}/rest/v1/salons?select=id&limit=1`, {
-          headers: {
-            "apikey": supabaseKey,
-            "Authorization": `Bearer ${supabaseKey}`
-          }
-        });
-
-        const [clientRes, rawRes] = await Promise.all([
-          Promise.race([clientProbePromise, new Promise<any>((_, reject) => setTimeout(() => reject(new Error("Client Timeout")), 6000))]),
-          Promise.race([rawProbePromise, new Promise<any>((_, reject) => setTimeout(() => reject(new Error("Raw Fetch Timeout")), 6000))])
-        ]);
-
-        console.log(`STEP 0: PROBE_COMPLETE (${Date.now() - probeStart}ms)`);
-        console.log("CLIENT_LIB_OK:", !clientRes.error);
-        console.log("RAW_FETCH_OK:", rawRes.ok, "STATUS:", rawRes.status);
-      } catch (probeErr: any) {
-        console.warn("STEP 0: PROBE_DIAGNOSTIC:", probeErr.message);
-      }
-
       // 1. SIGNUP / SESSION CHECK
       let currentUser = user;
       
@@ -284,7 +253,6 @@ export default function OwnerRegister() {
           password: password,
         });
 
-        console.log("SIGNUP_FLOW:", signUpData);
         if (signUpError) {
           console.error("SIGNUP_ERROR:", signUpError);
           throw signUpError;
