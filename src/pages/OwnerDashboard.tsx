@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import gsap from "gsap";
 import { Loader2, CalendarDays, Activity, Timer, DollarSign, ArrowRight, Plus, Clock3, Users, Sparkles } from "lucide-react";
@@ -83,21 +83,34 @@ export default function OwnerDashboard() {
     }, 5000);
 
     const resolveIdentity = async () => {
-      const raw = localStorage.getItem("owner");
-      if (!raw) {
-        navigate("/owner-login", { replace: true });
-        return;
-      }
-
       try {
         console.log("LOAD_SALON_START");
-        const parsed = JSON.parse(raw) as OwnerRecord;
-        setOwner(parsed);
+        
+        // Try getting identity from auth session first for maximum RLS compatibility
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        let ownerId = authUser?.id;
 
+        const raw = localStorage.getItem("owner");
+        if (raw) {
+          const parsed = JSON.parse(raw) as OwnerRecord;
+          setOwner(parsed);
+          if (!ownerId) ownerId = parsed.id;
+        }
+
+        if (!ownerId) {
+          console.warn("NO_IDENTITY_FOUND");
+          navigate("/owner-login", { replace: true });
+          return;
+        }
+
+        // Fetch salon for this owner_id
+        // Handle potential PGRST116 by using select/limit instead of single
         const { data, error } = await supabaseAny
           .from("salons")
           .select("*")
-          .eq("owner_id", parsed.id);
+          .eq("owner_id", ownerId)
+          .order("created_at", { ascending: false })
+          .limit(1);
 
         if (error) throw error;
         
@@ -105,7 +118,7 @@ export default function OwnerDashboard() {
           console.log("SALON_FOUND", data[0]);
           setSalon(data[0] as SalonRow);
         } else {
-          console.warn("NO_SALON_FOUND_FOR_OWNER", parsed.id);
+          console.warn("NO_SALON_FOUND_FOR_OWNER", ownerId);
           setSalon(null);
         }
       } catch (error: any) {
@@ -123,6 +136,44 @@ export default function OwnerDashboard() {
     return () => clearTimeout(failsafe);
   }, [navigate]);
 
+  const fetchDashboardData = useCallback(async (id: string) => {
+    console.log("FETCH_DASHBOARD_START", id);
+    setQueueLoading(true);
+    
+    try {
+      const { data, error } = await supabaseAny
+        .from("queue")
+        .select("*, services (*), barbers (*), salons (*)")
+        .eq("salon_id", id)
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+
+      const rows = (data as QueueRow[]) || [];
+      setQueueItems(rows);
+
+      const userIds = Array.from(new Set(rows.map((row) => row.user_id).filter(Boolean)));
+      if (userIds.length > 0) {
+        const { data: profileRows } = await supabaseAny.from("owners").select("id, name").in("id", userIds);
+        const lookup = ((profileRows || []) as any[]).reduce<Record<string, string>>((acc, row) => {
+          acc[row.id] = row.name || "Guest";
+          return acc;
+        }, {});
+        setProfileMap(lookup);
+      } else {
+        setProfileMap({});
+      }
+      
+      console.log("FETCH_DASHBOARD_SUCCESS");
+    } catch (error: any) {
+      console.error("FETCH_DASHBOARD_ERROR:", error.message || error);
+      toast.error("Failed to load real-time data.");
+    } finally {
+      setQueueLoading(false);
+      setLoadingData(false);
+    }
+  }, [supabaseAny]);
+
   // Phase 2: Data Orchestration
   useEffect(() => {
     if (!salon?.id) {
@@ -130,46 +181,8 @@ export default function OwnerDashboard() {
       return;
     }
 
-    const fetchDashboardData = async (id: string) => {
-      console.log("FETCH_DASHBOARD_START", id);
-      setQueueLoading(true);
-      
-      try {
-        const { data, error } = await supabaseAny
-          .from("queue")
-          .select("*, services (*), barbers (*), salons (*)")
-          .eq("salon_id", id)
-          .order("created_at", { ascending: true });
-
-        if (error) throw error;
-
-        const rows = (data as QueueRow[]) || [];
-        setQueueItems(rows);
-
-        const userIds = Array.from(new Set(rows.map((row) => row.user_id).filter(Boolean)));
-        if (userIds.length > 0) {
-          const { data: profileRows } = await supabaseAny.from("owners").select("id, name").in("id", userIds);
-          const lookup = ((profileRows || []) as any[]).reduce<Record<string, string>>((acc, row) => {
-            acc[row.id] = row.name || "Guest";
-            return acc;
-          }, {});
-          setProfileMap(lookup);
-        } else {
-          setProfileMap({});
-        }
-        
-        console.log("FETCH_DASHBOARD_SUCCESS");
-      } catch (error: any) {
-        console.error("FETCH_DASHBOARD_ERROR:", error.message || error);
-        toast.error("Failed to load real-time data.");
-      } finally {
-        setQueueLoading(false);
-        setLoadingData(false);
-      }
-    };
-
     fetchDashboardData(salon.id);
-  }, [salon?.id]);
+  }, [salon?.id, fetchDashboardData]);
 
   const summaryCards = useMemo(() => {
     const today = todayISO();
@@ -348,7 +361,7 @@ export default function OwnerDashboard() {
         <section ref={queueRef as any} className="dashboard-animate overflow-hidden rounded-xl border border-[#e3e2e5] bg-white shadow-sm">
           <div className="flex items-center justify-between border-b border-[#eeedf0] px-6 py-4">
             <h3 className="font-display text-xl font-bold">Live Queue Status</h3>
-            <Button variant="outline" className="rounded-full" onClick={() => salon && fetchQueue(salon.id)} disabled={queueLoading || !salon}>
+            <Button variant="outline" className="rounded-full" onClick={() => salon && fetchDashboardData(salon.id)} disabled={queueLoading || !salon}>
               {queueLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Refresh
             </Button>

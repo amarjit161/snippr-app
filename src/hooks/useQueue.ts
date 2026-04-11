@@ -231,91 +231,103 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
       return;
     }
 
-    const { data: positionRows, error: positionError } = await supabaseAny
-      .from("queue")
-      .select(`
-        *,
-        services (*),
-        salons (*),
-        barbers (*)
-      `)
-      .eq("salon_id", salon.id)
-      .order("position", { ascending: false })
-      .limit(1);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("User not authenticated");
+      }
 
-    if (positionError) {
-      toast.error(positionError.message || "Failed to calculate queue position");
-      return;
+      console.log("BOOKING_USER_ID", user.id);
+
+      const { data: positionRows, error: positionError } = await supabaseAny
+        .from("queue")
+        .select(`
+          *,
+          services (*),
+          salons (*),
+          barbers (*)
+        `)
+        .eq("salon_id", salon.id)
+        .order("position", { ascending: false })
+        .limit(1);
+
+      if (positionError) {
+        toast.error(positionError.message || "Failed to calculate queue position");
+        return;
+      }
+
+      const nextPosition = ((positionRows?.[0]?.position as number | undefined) || 0) + 1;
+      const createdAt = new Date().toISOString();
+      const tempId = `temp-${Date.now()}`;
+
+      const selectedService = services.find((service) => service.id === payload.serviceId) || null;
+      const selectedBarber = barbers.find((barber) => barber.id === payload.barberId) || null;
+
+      const optimisticItem: QueueItem = {
+        id: tempId,
+        created_at: createdAt,
+        status: "waiting",
+        user_id: user.id,
+        service_id: payload.serviceId,
+        barber_id: payload.barberId,
+        position: nextPosition,
+        started_at: null,
+        completed_at: null,
+        customer_first_name: payload.customerFirstName.trim(),
+        customer_last_name: payload.customerLastName.trim(),
+        customer_phone: payload.phoneNumber.trim(),
+        services: selectedService,
+        barbers: selectedBarber,
+      };
+
+      setQueueItems((prev) => [...prev, optimisticItem]);
+
+      const insertBase = {
+        salon_id: salon.id,
+        user_id: user.id,
+        service_id: payload.serviceId,
+        barber_id: payload.barberId,
+        status: "waiting",
+        position: nextPosition,
+        created_at: createdAt,
+      };
+
+      let insertedData: any = null;
+      let insertError: any = null;
+
+      const withCustomerMeta = {
+        ...insertBase,
+        customer_first_name: payload.customerFirstName.trim(),
+        customer_last_name: payload.customerLastName.trim(),
+        customer_phone: payload.phoneNumber.trim(),
+      };
+
+      const firstInsert = await supabaseAny.from("queue").insert(withCustomerMeta).select("*").single();
+      insertedData = firstInsert.data;
+      insertError = firstInsert.error;
+
+      if (insertError) {
+        const retryInsert = await supabaseAny.from("queue").insert(insertBase).select("*").single();
+        insertedData = retryInsert.data;
+        insertError = retryInsert.error;
+      }
+
+      if (insertError || !insertedData) {
+        setQueueItems((prev) => prev.filter((item) => item.id !== tempId));
+        toast.error(insertError?.message || "Failed to add walk-in customer");
+        return;
+      }
+
+      setQueueItems((prev) =>
+        prev.map((item) => (item.id === tempId ? { ...item, ...insertedData, services: selectedService, barbers: selectedBarber } : item))
+      );
+
+      toast.success("Walk-in added to queue");
+      await fetchQueue(salon.id);
+    } catch (err: any) {
+      console.error("WALK_IN_ERROR", err);
+      toast.error(err.message || "Failed to add walk-in");
     }
-
-    const nextPosition = ((positionRows?.[0]?.position as number | undefined) || 0) + 1;
-    const createdAt = new Date().toISOString();
-    const tempId = `temp-${Date.now()}`;
-
-    const selectedService = services.find((service) => service.id === payload.serviceId) || null;
-    const selectedBarber = barbers.find((barber) => barber.id === payload.barberId) || null;
-
-    const optimisticItem: QueueItem = {
-      id: tempId,
-      created_at: createdAt,
-      status: "waiting",
-      user_id: null,
-      service_id: payload.serviceId,
-      barber_id: payload.barberId,
-      position: nextPosition,
-      started_at: null,
-      completed_at: null,
-      customer_first_name: payload.customerFirstName.trim(),
-      customer_last_name: payload.customerLastName.trim(),
-      customer_phone: payload.phoneNumber.trim(),
-      services: selectedService,
-      barbers: selectedBarber,
-    };
-
-    setQueueItems((prev) => [...prev, optimisticItem]);
-
-    const insertBase = {
-      salon_id: salon.id,
-      user_id: null,
-      service_id: payload.serviceId,
-      barber_id: payload.barberId,
-      status: "waiting",
-      position: nextPosition,
-      created_at: createdAt,
-    };
-
-    let insertedData: any = null;
-    let insertError: any = null;
-
-    const withCustomerMeta = {
-      ...insertBase,
-      customer_first_name: payload.customerFirstName.trim(),
-      customer_last_name: payload.customerLastName.trim(),
-      customer_phone: payload.phoneNumber.trim(),
-    };
-
-    const firstInsert = await supabaseAny.from("queue").insert(withCustomerMeta).select("*").single();
-    insertedData = firstInsert.data;
-    insertError = firstInsert.error;
-
-    if (insertError) {
-      const retryInsert = await supabaseAny.from("queue").insert(insertBase).select("*").single();
-      insertedData = retryInsert.data;
-      insertError = retryInsert.error;
-    }
-
-    if (insertError || !insertedData) {
-      setQueueItems((prev) => prev.filter((item) => item.id !== tempId));
-      toast.error(insertError?.message || "Failed to add walk-in customer");
-      return;
-    }
-
-    setQueueItems((prev) =>
-      prev.map((item) => (item.id === tempId ? { ...item, ...insertedData, services: selectedService, barbers: selectedBarber } : item))
-    );
-
-    toast.success("Walk-in added to queue");
-    await fetchQueue(salon.id);
   }, [barbers, fetchQueue, salon, services, supabaseAny]);
 
   const grouped = useMemo(() => {

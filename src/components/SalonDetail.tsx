@@ -266,96 +266,102 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
     setVerifyingCaptcha(true);
 
-    const token = turnstileRef.current?.getResponse() || "";
-    if (!token) {
-      toast.error("Invalid or expired captcha");
-      resetCaptcha();
-      setVerifyingCaptcha(false);
-      return;
-    }
-
-    const captchaResult = await verifyTurnstileToken(token);
-    if (!captchaResult.success) {
-      toast.error(captchaResult.message || "Captcha verification failed");
-      resetCaptcha();
-      setVerifyingCaptcha(false);
-      return;
-    }
-
-    resetCaptcha();
-    setVerifyingCaptcha(false);
-
-    setBooking(true);
-
-    const { data: conflictCheck } = await supabase
-      .from("queue" as any)
-      .select("id")
-      .eq("salon_id", salon.id)
-      .eq("barber_id", selectedBarberId)
-      .eq("booking_date", date)
-      .eq("booking_time", time)
-      .in("status", ["waiting", "in_progress"])
-      .limit(1)
-      .maybeSingle();
-
-    if (conflictCheck) {
-      setBooking(false);
-      toast.error(`Barber is already booked for ${time} on ${date}. Please choose another slot or barber.`);
-      return;
-    }
-
-    const { data: latestQueueEntry } = await supabase
-      .from("queue" as any)
-      .select("position")
-      .eq("salon_id", salon.id)
-      .order("position", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const nextPosition = Number(latestQueueEntry?.position || 0) + 1;
-    const createdAt = new Date().toISOString();
-
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    
-    if (!authUser) {
-      setBooking(false);
-      toast.error("You must be logged in to join the queue.");
-      return;
-    }
-
-    const { error } = await supabase.from("queue" as any).insert({
-      user_id: authUser.id,
-      salon_id: salon.id,
-      service_id: selectedService.id,
-      barber_id: selectedBarberId,
-      status: "waiting",
-      position: nextPosition,
-      created_at: createdAt,
-      customer_first_name: activeCustomer.firstName.trim(),
-      customer_last_name: activeCustomer.lastName.trim(),
-      customer_phone: activeCustomer.phone.trim(),
-      notes: customer.notes.trim() || null,
-      booking_date: date,
-      booking_time: time,
-    } as any);
-
-    console.log("BOOKING_INSERT", authUser.id);
-
-    if (error) {
-      setBooking(false);
-      toast.error(error.message);
-    } else {
-      if (bookingForSomeoneElse) {
-        setCustomer((prev) => ({ ...prev, firstName: "", lastName: "", phone: "" }));
+    try {
+      const token = turnstileRef.current?.getResponse() || "";
+      if (!token) {
+        toast.error("Invalid or expired captcha");
+        resetCaptcha();
+        setVerifyingCaptcha(false);
+        return;
       }
 
-      setMyQueuePosition(nextPosition);
-      const successMsg = isAdvanceBooking
-        ? `Booking confirmed for ${date} at ${time}. Your position: #${nextPosition}`
-        : `Booking successful. Your position in queue: #${nextPosition}`;
-      toast.success(successMsg);
-      onJoined();
+      const captchaResult = await verifyTurnstileToken(token);
+      if (!captchaResult.success) {
+        toast.error(captchaResult.message || "Captcha verification failed");
+        resetCaptcha();
+        setVerifyingCaptcha(false);
+        return;
+      }
+
+      resetCaptcha();
+      setVerifyingCaptcha(false);
+
+      setBooking(true);
+
+      const { data: conflictCheck } = await supabase
+        .from("queue" as any)
+        .select("id")
+        .eq("salon_id", salon.id)
+        .eq("barber_id", selectedBarberId)
+        .eq("booking_date", date)
+        .eq("booking_time", time)
+        .in("status", ["waiting", "in_progress"])
+        .limit(1)
+        .maybeSingle();
+
+      if (conflictCheck) {
+        setBooking(false);
+        toast.error(`Barber is already booked for ${time} on ${date}. Please choose another slot or barber.`);
+        return;
+      }
+
+      const { data: latestQueueEntry } = await supabase
+        .from("queue" as any)
+        .select("position")
+        .eq("salon_id", salon.id)
+        .order("position", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const nextPosition = Number(latestQueueEntry?.position || 0) + 1;
+      const createdAt = new Date().toISOString();
+
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        setBooking(false);
+        throw new Error("User not authenticated");
+      }
+
+      console.log("BOOKING_USER_ID", user.id);
+
+      const { error } = await supabase.from("queue" as any).insert({
+        user_id: user.id,
+        salon_id: salon.id,
+        service_id: selectedService.id,
+        barber_id: selectedBarberId,
+        status: "waiting",
+        position: nextPosition,
+        created_at: createdAt,
+        customer_first_name: activeCustomer.firstName.trim(),
+        customer_last_name: activeCustomer.lastName.trim(),
+        customer_phone: activeCustomer.phone.trim(),
+        notes: customer.notes.trim() || null,
+        booking_date: date,
+        booking_time: time,
+      } as any);
+
+      if (error) {
+        setBooking(false);
+        toast.error(error.message);
+      } else {
+        if (bookingForSomeoneElse) {
+          setCustomer((prev) => ({ ...prev, firstName: "", lastName: "", phone: "" }));
+        }
+
+        setMyQueuePosition(nextPosition);
+        const successMsg = isAdvanceBooking
+          ? `Booking confirmed for ${date} at ${time}. Your position: #${nextPosition}`
+          : `Booking successful. Your position in queue: #${nextPosition}`;
+        toast.success(successMsg);
+        onJoined();
+        setBooking(false);
+      }
+    } catch (err: any) {
+      console.error("BOOKING_ERROR", err);
+      toast.error(err.message || "Failed to join queue");
       setBooking(false);
+      setVerifyingCaptcha(false);
     }
   };
 

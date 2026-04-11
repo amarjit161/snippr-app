@@ -189,26 +189,18 @@ export default function RegisterSalon() {
     if (submitting || uploadingImage) return;
     if (!validate() || !owner) return;
 
-    let ownerId: string | undefined;
-    try {
-      const ownerRaw = localStorage.getItem("owner");
-      const parsedOwner = ownerRaw ? (JSON.parse(ownerRaw) as OwnerRecord) : null;
-      ownerId = parsedOwner?.id;
-    } catch {
-      ownerId = undefined;
-    }
-
-    if (!ownerId) {
-      toast.error("Owner session not found. Please login again.");
-      navigate("/owner-login", { replace: true });
-      return;
-    }
-
     setSubmitting(true);
-
+ 
     try {
-      let imageUrl: string | null = null;
+      console.log("STEP 1: START");
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        throw new Error("User session not found. Please login again.");
+      }
 
+      const ownerId = user.id;
+      let imageUrl: string | null = null;
+ 
       if (imageFile) {
         setUploadingImage(true);
         try {
@@ -217,25 +209,23 @@ export default function RegisterSalon() {
             maxWidthOrHeight: 1024,
             useWebWorker: true,
           });
-
+ 
           const fileName = `salons/${Date.now()}-${compressedFile.name}`;
           const { data, error: uploadError } = await supabase.storage
             .from("salon-images")
             .upload(fileName, compressedFile, { upsert: true });
-
+ 
           if (!uploadError && data) {
             imageUrl = data.path;
           } else {
             console.warn("Image upload skipped:", uploadError?.message);
-            toast.warning("Image upload failed. Using default image.");
           }
         } finally {
           setUploadingImage(false);
         }
       }
-
-      console.log("OWNER ID:", ownerId);
-
+ 
+      console.log("STEP 2: INSERT SALON");
       const payload = {
         name: salonName.trim(),
         owner_id: ownerId,
@@ -246,52 +236,56 @@ export default function RegisterSalon() {
         open_time: openTime || null,
         close_time: closeTime || null,
         image_url: imageUrl || null,
-        location: address.trim() || null, // Standardizing location to address
+        location: address.trim() || null,
       };
-
 
       const { data: salon, error: salonError } = await supabase
         .from("salons")
-        .insert([payload])
-        .select("id")
-        .single();
+        .insert(payload)
+        .select()
+        .maybeSingle();
  
-      if (salonError || !salon) {
-        throw new Error(salonError?.message || "Failed to create salon");
+      if (salonError) throw salonError;
+      if (!salon) throw new Error("Failed to create salon record or permissions denied.");
+
+      console.log("SALON_CREATED", salon.id, "OWNER", user.id);
+
+      // Insert services
+      if (services.length > 0) {
+        console.log("STEP 3: INSERT SERVICES");
+        const { error: servicesError } = await supabase.from("services").insert(
+          services.map((s) => ({
+            salon_id: salon.id,
+            name: (s.name || "").trim() || "Service",
+            price: Number(s.price) || 0,
+            duration: Number(s.duration) || 30,
+          }))
+        );
+
+        if (servicesError) throw servicesError;
       }
 
-      const { error: servicesError } = await supabase.from("services").insert(
-        services.map((service) => ({
-          salon_id: salon.id,
-          name: service.name.trim(),
-          price: Number(service.price),
-          duration: Number(service.duration),
-        }))
-      );
+      // Insert barbers
+      if (barbers.length > 0) {
+        console.log("STEP 4: INSERT BARBERS");
+        const { error: barbersError } = await supabase.from("barbers").insert(
+          barbers.map((b) => ({
+            salon_id: salon.id,
+            name: (b.name || "").trim() || "Barber",
+            chair_number: Number(b.chair) || 1,
+            specialization: (b.specialization || "").trim() || "General",
+          }))
+        );
 
-      if (servicesError) {
-        throw new Error(servicesError.message);
+        if (barbersError) throw barbersError;
       }
 
-      const barberPayloads = barbers.map((barber) => ({
-        salon_id: salon.id,
-        name: barber.name.trim(),
-        chair_number: Number(barber.chair) || 1,
-        specialization: barber.specialization.trim(),
-      }));
-
-      const { error: barbersError } = await supabase.from("barbers").insert(barberPayloads);
-
-      if (barbersError) {
-        throw new Error(barbersError.message);
-      }
-
+      console.log("STEP 5: COMPLETE");
       toast.success("Salon registered successfully");
       navigate("/owner-dashboard", { replace: true });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Registration failed";
-      console.error("Register salon error:", error);
-      toast.error(message);
+    } catch (error: any) {
+      console.error("REGISTER_ERROR", error);
+      alert(error.message || "Registration failed");
     } finally {
       setSubmitting(false);
     }

@@ -199,6 +199,7 @@ export default function OwnerRegister() {
 
     try {
       // 1. SIGNUP
+      console.log("STEP 1: START SIGNUP");
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: email.trim(),
         password: password,
@@ -211,15 +212,29 @@ export default function OwnerRegister() {
       }
 
       const user = signUpData.user;
+      const session = signUpData.session;
       console.log("USER_OBJECT:", user);
+      console.log("SESSION_OBJECT:", session);
+
+      // If session is null, it means email confirmation is required
+      if (!session) {
+        console.log("STEP 1.5: EMAIL CONFIRMATION REQUIRED (SESSION IS NULL)");
+        toast.info("Account created! Please check your email to verify your account.", {
+          duration: 10000,
+          description: "For local development, you can disable email confirmation in Supabase (Authentication -> Settings) to skip this step."
+        });
+        setSubmitting(false);
+        return;
+      }
 
       if (!user) {
-        toast.info("Please verify your email before continuing");
+        toast.error("User creation failed. Please try again.");
         setSubmitting(false);
         return;
       }
 
       // 2. OWNER UPSERT (Safe & Retry-able)
+      console.log("STEP 2: OWNER UPSERT", user.id);
       const { data: ownerData, error: ownerError } = await supabase.from("owners").upsert({
         id: user.id,
         email: user.email!,
@@ -227,7 +242,7 @@ export default function OwnerRegister() {
         phone: phone.trim(),
         is_verified: true,
         is_active: true,
-      }, { onConflict: "id" }).select("*").single();
+      }, { onConflict: "id" }).select("*").maybeSingle();
 
       console.log("OWNER_INSERT:", ownerData);
       if (ownerError) {
@@ -243,6 +258,7 @@ export default function OwnerRegister() {
       let imagePath: string | null = null;
       if (imageFile) {
         setUploadingImage(true);
+        console.log("STEP 3: IMAGE COMPRESSION & UPLOAD START");
         try {
           const compressedFile = await imageCompression(imageFile, {
             maxSizeMB: 1,
@@ -257,8 +273,9 @@ export default function OwnerRegister() {
 
           if (!uploadError && imageData) {
             imagePath = imageData.path;
+            console.log("STEP 3: IMAGE UPLOAD SUCCESS", imagePath);
           } else {
-            console.warn("IMAGE_UPLOAD_SKIPPED:", uploadError?.message);
+            console.warn("STEP 3: IMAGE_UPLOAD_SKIPPED:", uploadError?.message);
             toast.warning("Image upload failed. Using default image.");
           }
         } finally {
@@ -267,6 +284,7 @@ export default function OwnerRegister() {
       }
 
       // 4. SALON INSERT
+      console.log("STEP 4: SALON INSERT START");
       const salonPayload = {
         name: salonName.trim(),
         owner_id: user.id,
@@ -284,17 +302,17 @@ export default function OwnerRegister() {
         .from("salons")
         .insert([salonPayload])
         .select("id")
-        .single();
+        .maybeSingle();
 
-      console.log("SALON_INSERT:", salonData);
       if (salonError) {
-        console.error("SALON_INSERT_ERROR:", salonError);
+        console.error("STEP 4: SALON_INSERT_ERROR:", salonError);
         throw salonError;
       }
-
       if (!salonData) throw new Error("Salon creation failed to return an ID");
+      console.log("STEP 4: SALON_INSERT SUCCESS", salonData.id);
 
       // 5. SERVICES INSERT
+      console.log("STEP 5: SERVICES INSERT START");
       const { error: servicesError } = await supabase.from("services").insert(
         services.map((service) => ({
           salon_id: salonData.id,
@@ -304,13 +322,14 @@ export default function OwnerRegister() {
         }))
       );
 
-      console.log("SERVICES_INSERT:", servicesError === null ? "SUCCESS" : "FAILED");
       if (servicesError) {
-        console.error("SERVICES_INSERT_ERROR:", servicesError);
+        console.error("STEP 5: SERVICES_INSERT_ERROR:", servicesError);
         throw servicesError;
       }
+      console.log("STEP 5: SERVICES_INSERT SUCCESS");
 
       // 6. BARBERS INSERT
+      console.log("STEP 6: BARBERS INSERT START");
       const { error: barbersError } = await supabase.from("barbers").insert(
         barbers.map((barber) => ({
           salon_id: salonData.id,
@@ -320,15 +339,18 @@ export default function OwnerRegister() {
         }))
       );
 
-      console.log("BARBERS_INSERT:", barbersError === null ? "SUCCESS" : "FAILED");
       if (barbersError) {
-        console.error("BARBERS_INSERT_ERROR:", barbersError);
+        console.error("STEP 6: BARBERS_INSERT_ERROR:", barbersError);
         throw barbersError;
       }
+      console.log("STEP 6: BARBERS_INSERT SUCCESS");
 
       // 7. FINALIZATION
+      console.log("STEP 7: FINALIZATION");
       await triggerOwnerVerificationEmail(ownerData.email, ownerData.name);
       localStorage.setItem("owner", JSON.stringify(ownerData));
+      
+      console.log("REGISTRATION_FLOW_COMPLETE");
       toast.success("Account created and salon registered");
       navigate("/owner-dashboard", { replace: true });
     } catch (error: any) {

@@ -171,7 +171,6 @@ export type Database = {
           owner_id: string | null
           owner_record_id: string | null
           owner_name: string | null
-          owner_email: string | null
           owner_phone: string | null
           address: string | null
           city: string | null
@@ -193,7 +192,6 @@ export type Database = {
           owner_id?: string | null
           owner_record_id?: string | null
           owner_name?: string | null
-          owner_email?: string | null
           owner_phone?: string | null
           address?: string | null
           city?: string | null
@@ -215,7 +213,6 @@ export type Database = {
           owner_id?: string | null
           owner_record_id?: string | null
           owner_name?: string | null
-          owner_email?: string | null
           owner_phone?: string | null
           address?: string | null
           city?: string | null

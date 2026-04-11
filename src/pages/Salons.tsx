@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 export type SalonWithQueueAndDistance = Tables<"salons"> & { queueCount: number; waitTime: number; distance?: number };
 
 const Salons = () => {
+  console.log("SALONS_COMPONENT_RENDER_START");
   const { user, profile, loading: authLoading, signOut } = useAuth();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
@@ -26,26 +27,37 @@ const Salons = () => {
   const [locationDenied, setLocationDenied] = useState(false);
   const [selectedCity, setSelectedCity] = useState("");
 
+  console.log("SALONS_AUTH_STATE:", { 
+    userId: user?.id, 
+    authLoading, 
+    hasProfile: !!profile 
+  });
+
   useEffect(() => {
     if (!authLoading && !user) {
+      console.log("SALONS_REDIRECT_TO_AUTH");
       navigate("/auth");
     }
   }, [user, authLoading, navigate]);
 
   useEffect(() => {
+    console.log("SALONS_GEOLOCATION_INIT");
     if (!navigator.geolocation) {
+      console.warn("GEOLOCATION_NOT_SUPPORTED");
       setLocationDenied(true);
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        console.log("GEOLOCATION_SUCCESS", position.coords);
         setUserLoc({
           lat: position.coords.latitude,
           lng: position.coords.longitude,
         });
       },
-      () => {
+      (error) => {
+        console.warn("GEOLOCATION_ERROR", error.code, error.message);
         setLocationDenied(true);
       },
       {
@@ -56,34 +68,32 @@ const Salons = () => {
     );
   }, []);
 
-  const fetchSalons = async () => {
+  const fetchSalons = useCallback(async () => {
+    console.log("FETCH_SALONS_START_INNER");
     setLoading(true);
     setLoadError(null);
 
     try {
       const { data: salonData, error: salonError } = await supabase.from("salons").select("*");
       if (salonError) throw salonError;
+      console.log("FETCH_SALONS_RAW_DATA", salonData?.length);
 
       const enriched: SalonWithQueueAndDistance[] = await Promise.all(
         (salonData ?? []).map(async (salon) => {
+           // Optimized nested query: only fetch duration from services
            const { data: queueData, error: queueError } = await supabase
             .from("queue")
-            .select(`
-              *,
-              services (*),
-              salons (*),
-              barbers (*)
-            `)
+            .select("services(duration)")
             .eq("salon_id", salon.id)
             .eq("status", "waiting");
 
            if (queueError) {
-            console.warn("Queue fetch failed for salon", salon.id, queueError.message);
+             console.warn("Queue fetch failed for salon", salon.id, queueError.message);
            }
 
            const queueCount = queueData?.length ?? 0;
            const waitTime = (queueData ?? []).reduce(
-            (sum, e: any) => sum + (e.services?.duration ?? 20), 0
+             (sum, e: any) => sum + (e.services?.duration ?? 20), 0
            );
 
            let dist = undefined;
@@ -102,23 +112,37 @@ const Salons = () => {
       });
 
       setSalons(enriched);
-    } catch (error) {
+      console.log("FETCH_SALONS_ENRICHED_SUCCESS", enriched.length);
+    } catch (error: any) {
       console.error("Failed to load salons:", error);
       setLoadError("Could not load salons right now. Please try again.");
       setSalons([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [userLoc]); // Re-fetch only when userLoc changes
 
+  // 1. Initial Fetch on Mount
   useEffect(() => {
+    console.log("SALONS_MOUNT_EFFECT");
     fetchSalons();
+  }, [fetchSalons]);
+
+  // 2. Queue Real-time Subscription
+  useEffect(() => {
+    console.log("SALONS_SUBSCRIPTION_INIT");
     const channel = supabase
       .channel("salon-queue-updates")
-      .on("postgres_changes", { event: "*", schema: "public", table: "queue" }, () => fetchSalons())
+      .on("postgres_changes", { event: "*", schema: "public", table: "queue" }, () => {
+        console.log("QUEUE_CHANGE_DETECTED");
+        fetchSalons();
+      })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [userLoc]);
+    return () => { 
+      console.log("SALONS_SUBSCRIPTION_CLEANUP");
+      supabase.removeChannel(channel); 
+    };
+  }, [fetchSalons]);
 
   const filteredBySearch = salons.filter(
     (s) =>
@@ -153,7 +177,7 @@ const Salons = () => {
       <Header
         onSignOut={signOut}
         userName={user.email ?? user.phone ?? "User"}
-        onAdminToggle={profile?.role === "salon_owner" ? () => navigate("/admin") : undefined}
+        onAdminToggle={profile ? () => navigate("/owner-dashboard") : undefined}
         isAdmin={false}
       />
 

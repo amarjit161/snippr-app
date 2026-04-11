@@ -183,9 +183,9 @@ export default function OwnerRegistration() {
         .from("salons")
         .insert(salonPayload as any)
         .select("id")
-        .single();
+        .maybeSingle();
 
-      if (salonError || !salonData) throw new Error(salonError?.message || "Could not create salon.");
+      if (salonError || !salonData) throw new Error(salonError?.message || "Could not create salon record or permissions denied.");
 
       const salonId = salonData.id;
 
