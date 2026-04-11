@@ -164,7 +164,7 @@ export default function OwnerDashboard() {
             .from("queue")
             .select("*, services (*), barbers (*), salons (*)")
             .eq("salon_id", salonData.id)
-            .order("created_at", { ascending: true }),
+            .order("created_at", { ascending: false }),
           supabase.from("barbers").select("*").eq("salon_id", salonData.id),
           supabase.from("services").select("*").eq("salon_id", salonData.id)
         ]);
@@ -220,7 +220,7 @@ export default function OwnerDashboard() {
         .from("queue")
         .select("*, services (*), barbers (*), salons (*)")
         .eq("salon_id", id)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
       setQueueItems((data as QueueRow[]) || []);
@@ -242,7 +242,8 @@ export default function OwnerDashboard() {
       }
       
       if (eventType === "INSERT" && newRow) {
-        return [...prev, { ...newRow } as QueueRow];
+        // Add new items at the top (newest first)
+        return [{ ...newRow } as QueueRow, ...prev];
       }
       
       if (eventType === "UPDATE" && newRow) {
@@ -253,7 +254,7 @@ export default function OwnerDashboard() {
     });
   }, []);
 
-  // Real-time subscription for queue updates (silent background sync)
+  // Real-time subscription for queue updates (silent background sync - no flicker)
   useEffect(() => {
     if (!salon?.id) return;
 
@@ -271,24 +272,17 @@ export default function OwnerDashboard() {
         },
         (payload) => {
           console.log("DASHBOARD_QUEUE_REALTIME_EVENT", payload.eventType, payload.new?.id);
-          // Merge the update intelligently without full refetch
+          // Merge the update intelligently without full refetch (no flicker!)
           mergeQueueUpdate(payload);
         }
       )
       .subscribe();
 
-    // Periodic sync every 15 seconds as fallback (less aggressive than before)
-    const interval = setInterval(() => {
-      console.log("DASHBOARD_PERIODIC_SYNC");
-      fetchDashboardData(salon.id);
-    }, 15000);
-
     return () => {
       console.log("DASHBOARD_REALTIME_SUBSCRIPTION_CLEANUP");
       supabase.removeChannel(channel);
-      clearInterval(interval);
     };
-  }, [salon?.id, mergeQueueUpdate, fetchDashboardData]);
+  }, [salon?.id, mergeQueueUpdate]);
 
   const summaryCards = useMemo(() => {
     const today = todayISO();
