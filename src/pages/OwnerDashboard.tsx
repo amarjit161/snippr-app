@@ -232,6 +232,21 @@ export default function OwnerDashboard() {
     }
   }, []);
 
+  // Fetch full queue item details with relations for real-time events
+  const fetchQueueItemFull = useCallback(async (queueId: string) => {
+    try {
+      const { data } = await supabase
+        .from("queue")
+        .select("*, services (*), barbers (*), salons (*)")
+        .eq("id", queueId)
+        .maybeSingle();
+      return data as QueueRow | null;
+    } catch (err) {
+      console.error("FETCH_QUEUE_ITEM_ERROR", err);
+      return null;
+    }
+  }, []);
+
   // Intelligent merge for real-time updates (Swiggy/Uber style - no flicker)
   const mergeQueueUpdate = useCallback((payload: any) => {
     const { eventType, new: newRow, old: oldRow } = payload;
@@ -242,23 +257,43 @@ export default function OwnerDashboard() {
       }
       
       if (eventType === "INSERT" && newRow) {
-        // Add new items at the top (newest first)
-        return [{ ...newRow } as QueueRow, ...prev];
+        // For new items, fetch full details asynchronously
+        fetchQueueItemFull(newRow.id).then((fullItem) => {
+          if (fullItem) {
+            setQueueItems((current) => {
+              const exists = current.some((item) => item.id === fullItem.id);
+              if (exists) return current; // Already added
+              return [fullItem, ...current];
+            });
+          }
+        });
+        // Add placeholder immediately for instant feedback
+        return [{ ...newRow, services: null, barbers: null } as QueueRow, ...prev];
       }
       
       if (eventType === "UPDATE" && newRow) {
-        return prev.map((item) => (item.id === newRow.id ? { ...newRow } as QueueRow : item));
+        // For updates, also fetch full details
+        fetchQueueItemFull(newRow.id).then((fullItem) => {
+          if (fullItem) {
+            setQueueItems((current) =>
+              current.map((item) => (item.id === fullItem.id ? fullItem : item))
+            );
+          }
+        });
+        // Update with new data immediately
+        return prev.map((item) => (item.id === newRow.id ? { ...item, ...newRow } as QueueRow : item));
       }
       
       return prev;
     });
-  }, []);
+  }, [fetchQueueItemFull]);
 
   // Real-time subscription for queue updates (silent background sync - no flicker)
   useEffect(() => {
     if (!salon?.id) return;
 
     console.log("DASHBOARD_REALTIME_SUBSCRIPTION_START", salon.id);
+    let lastEventTime = Date.now();
 
     const channel = supabase
       .channel(`queue-updates-${salon.id}`)
@@ -271,18 +306,51 @@ export default function OwnerDashboard() {
           filter: `salon_id=eq.${salon.id}`
         },
         (payload) => {
+          lastEventTime = Date.now();
           console.log("DASHBOARD_QUEUE_REALTIME_EVENT", payload.eventType, payload.new?.id);
           // Merge the update intelligently without full refetch (no flicker!)
           mergeQueueUpdate(payload);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log("DASHBOARD_REALTIME_STATUS", status);
+      });
+
+    // Safety fallback: If no real-time events in 60 seconds, do a smart comparison check
+    const interval = setInterval(async () => {
+      const now = Date.now();
+      if (now - lastEventTime > 60000) {
+        console.log("DASHBOARD_FALLBACK_SYNC: No real-time events for 60s, checking for missed updates");
+        try {
+          const { data } = await supabase
+            .from("queue")
+            .select("id, status, created_at")
+            .eq("salon_id", salon.id)
+            .order("created_at", { ascending: false })
+            .limit(1);
+
+          if (data && data.length > 0) {
+            const latestId = data[0].id;
+            const currentLatestId = queueItems?.[0]?.id;
+            
+            // Only full refresh if we're missing the latest item
+            if (latestId !== currentLatestId) {
+              console.log("DASHBOARD_FALLBACK_DETECTED_MISSING_ITEMS, refreshing");
+              fetchDashboardData(salon.id);
+            }
+          }
+        } catch (err) {
+          console.error("DASHBOARD_FALLBACK_ERROR", err);
+        }
+      }
+    }, 30000); // Check every 30 seconds
 
     return () => {
       console.log("DASHBOARD_REALTIME_SUBSCRIPTION_CLEANUP");
       supabase.removeChannel(channel);
+      clearInterval(interval);
     };
-  }, [salon?.id, mergeQueueUpdate]);
+  }, [salon?.id, mergeQueueUpdate, fetchDashboardData, queueItems]);
 
   const summaryCards = useMemo(() => {
     const today = todayISO();
