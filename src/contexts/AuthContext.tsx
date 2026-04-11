@@ -30,18 +30,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const fetchProfile = async (s: Session | null) => {
       if (s?.user) {
         console.log("FETCH_PROFILE_START", s.user.id);
-        const { data, error } = await supabase
-          .from("owners")
-          .select("*")
-          .eq("id", s.user.id)
-          .maybeSingle();
+        
+        try {
+          const fetchPromise = supabase
+            .from("owners")
+            .select("*")
+            .eq("id", s.user.id)
+            .maybeSingle();
 
-        if (error) {
-          console.warn("FETCH_PROFILE_ERROR:", error.message);
+          const timeoutPromise = new Promise<any>((_, reject) => 
+            setTimeout(() => reject(new Error("Profile Fetch Timeout")), 4000)
+          );
+
+          const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
+
+          if (error) {
+            console.warn("FETCH_PROFILE_ERROR:", error.message);
+            setProfile(null);
+          } else {
+            console.log("FETCH_PROFILE_COMPLETE:", data ? "Profile Found" : "No Profile Found");
+            setProfile(data ?? null);
+          }
+        } catch (err: any) {
+          console.warn("FETCH_PROFILE_HANDLED_EXCEPTION:", err.message);
           setProfile(null);
-        } else {
-          console.log("FETCH_PROFILE_COMPLETE:", data ? "Profile Found" : "No Profile Found");
-          setProfile(data ?? null);
         }
       } else {
         setProfile(null);
