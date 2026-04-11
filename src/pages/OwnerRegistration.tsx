@@ -391,24 +391,26 @@ export default function OwnerRegistration() {
 
       // 4. SALON INSERT
       console.log("STEP 4: SALON INSERT START");
-      const salonPayload = {
-        name: salonName.trim(),
-        owner_id: currentUser.id,
-        phone: phone.trim() || null,
-        address: address.trim() || null,
-        city: city.trim() || null,
-        pincode: pincode.trim() || null,
-        open_time: openTime || null,
-        close_time: closeTime || null,
-        image_url: imagePath || null,
-        location: address.trim() || null,
-      };
+      
+      const { data: { user: freshUser } } = await supabase.auth.getUser();
+      if (!freshUser) throw new Error("Authentication session expired. Please refresh and try again.");
 
       const { data: salonData, error: salonError } = await supabase
         .from("salons")
-        .insert([salonPayload])
+        .insert({
+          name: salonName.trim(),
+          owner_id: freshUser.id,
+          phone: phone.trim() || null,
+          address: address.trim() || null,
+          city: city.trim() || null,
+          pincode: pincode.trim() || null,
+          open_time: openTime || null,
+          close_time: closeTime || null,
+          image_url: imagePath || null,
+          location: address.trim() || null,
+        })
         .select("id")
-        .maybeSingle();
+        .single();
 
       if (salonError) {
         console.error("STEP 4: SALON_INSERT_ERROR:", salonError);

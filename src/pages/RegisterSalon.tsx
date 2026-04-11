@@ -226,24 +226,26 @@ export default function RegisterSalon() {
       }
  
       console.log("STEP 2: INSERT SALON");
-      const payload = {
-        name: salonName.trim(),
-        owner_id: ownerId,
-        phone: phone.trim() || null,
-        address: address.trim() || null,
-        city: city.trim() || null,
-        pincode: pincode.trim() || null,
-        open_time: openTime || null,
-        close_time: closeTime || null,
-        image_url: imageUrl || null,
-        location: address.trim() || null,
-      };
+      
+      const { data: { user: freshAuthUser } } = await supabase.auth.getUser();
+      if (!freshAuthUser) throw new Error("Authentication session expired. Please login again.");
 
       const { data: salon, error: salonError } = await supabase
         .from("salons")
-        .insert(payload)
+        .insert({
+          name: salonName.trim(),
+          owner_id: freshAuthUser.id,
+          phone: phone.trim() || null,
+          address: address.trim() || null,
+          city: city.trim() || null,
+          pincode: pincode.trim() || null,
+          open_time: openTime || null,
+          close_time: closeTime || null,
+          image_url: imageUrl || null,
+          location: address.trim() || null,
+        })
         .select()
-        .maybeSingle();
+        .single();
  
       if (salonError) throw salonError;
       if (!salon) throw new Error("Failed to create salon record or permissions denied.");

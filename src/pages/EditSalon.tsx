@@ -42,29 +42,18 @@ export default function EditSalon() {
 
   useEffect(() => {
     const init = async () => {
-      const ownerRaw = localStorage.getItem("owner");
-      if (!ownerRaw) {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) {
         navigate("/owner-login", { replace: true });
         return;
       }
 
-      let parsedOwner: OwnerRecord;
-      try {
-        parsedOwner = JSON.parse(ownerRaw) as OwnerRecord;
-      } catch {
-        localStorage.removeItem("owner");
-        navigate("/owner-login", { replace: true });
-        return;
-      }
+      setOwner({ id: authUser.id, email: authUser.email || "", name: authUser.user_metadata?.name || "" });
 
-      setOwner(parsedOwner);
-
-      const { data: salonData, error } = await supabaseAny
+      const { data: salonData, error } = await supabase
         .from("salons")
         .select("*")
-        .or(`owner_record_id.eq.${parsedOwner.id},owner_id.eq.${parsedOwner.id}`)
-        .order("created_at", { ascending: false })
-        .limit(1)
+        .eq("owner_id", authUser.id)
         .maybeSingle();
 
       if (error) {
