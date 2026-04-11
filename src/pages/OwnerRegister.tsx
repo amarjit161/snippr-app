@@ -243,6 +243,24 @@ export default function OwnerRegister() {
     setSubmitting(true);
 
     try {
+      // 0. DB PROBE (Isolate the hang)
+      console.log("STEP 0: DB PROBE START (Checking 'salons' table connectivity)");
+      const probeStart = Date.now();
+      try {
+        const { error: probeError } = await Promise.race([
+          supabase.from("salons").select("count", { count: "exact", head: true }),
+          new Promise<any>((_, reject) => setTimeout(() => reject(new Error("Probe Timeout (5s)")), 5000))
+        ]);
+        
+        if (probeError) {
+          console.warn("STEP 0: PROBE_FAILED (Database might be globally slow/down):", probeError.message);
+        } else {
+          console.log(`STEP 0: PROBE_SUCCESS (${Date.now() - probeStart}ms) - 'salons' table is responsive.`);
+        }
+      } catch (probeErr: any) {
+        console.warn("STEP 0: PROBE_TIMEOUT (Database connection is very slow):", probeErr.message);
+      }
+
       // 1. SIGNUP / SESSION CHECK
       let currentUser = user;
       
