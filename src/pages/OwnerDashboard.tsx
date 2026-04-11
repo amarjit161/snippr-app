@@ -69,120 +69,111 @@ export default function OwnerDashboard() {
     return () => ctx.revert();
   }, [loadingSalon, loadingData, queueItems.length]);
 
-  // Phase 1: Identity & Salon Resolution
+  // Comprehensive Identity & Dashboard Data Resolution
   useEffect(() => {
-    // Failsafe timer for salon loading phase
-    const failsafe = setTimeout(() => {
-      setLoadingSalon((current) => {
-        if (current) {
-          console.warn("FORCE_UNBLOCK_SALON_LOADING: Identity resolution took too long.");
-          return false;
-        }
-        return false;
-      });
-    }, 5000);
-
-    const resolveIdentity = async () => {
+    const fetchDashboard = async () => {
       try {
-        console.log("LOAD_SALON_START");
-        
-        // Try getting identity from auth session first for maximum RLS compatibility
+        console.log("FETCH_DASHBOARD_START");
+        setLoadingSalon(true);
+        setLoadingData(true);
+
         const { data: { user: authUser } } = await supabase.auth.getUser();
-        let ownerId = authUser?.id;
-
-        const raw = localStorage.getItem("owner");
-        if (raw) {
-          const parsed = JSON.parse(raw) as OwnerRecord;
-          setOwner(parsed);
-          if (!ownerId) ownerId = parsed.id;
-        }
-
-        if (!ownerId) {
-          console.warn("NO_IDENTITY_FOUND");
+        if (!authUser) {
+          console.warn("DASHBOARD_AUTH_FAILED: No session");
+          setLoadingSalon(false);
+          setLoadingData(false);
           navigate("/owner-login", { replace: true });
           return;
         }
 
-        // Fetch salon for this owner_id
-        // Handle potential PGRST116 by using select/limit instead of single
-        const { data, error } = await supabaseAny
+        // 1. Resolve Salon
+        const { data: salonData, error: salonError } = await supabase
           .from("salons")
           .select("*")
-          .eq("owner_id", ownerId)
-          .order("created_at", { ascending: false })
-          .limit(1);
+          .eq("owner_id", authUser.id)
+          .maybeSingle();
 
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          console.log("SALON_FOUND", data[0]);
-          setSalon(data[0] as SalonRow);
-        } else {
-          console.warn("NO_SALON_FOUND_FOR_OWNER", ownerId);
-          setSalon(null);
+        if (salonError) {
+          console.error("SALON_FETCH_ERROR:", salonError);
+          setLoadingSalon(false);
+          setLoadingData(false);
+          return;
         }
-      } catch (error: any) {
-        console.error("SALON_LOAD_ERROR:", error.message || error);
-        toast.error("Identity check failed. Please re-login.");
-        localStorage.removeItem("owner");
-        navigate("/owner-login", { replace: true });
+
+        if (!salonData) {
+          console.warn("SALON_NOT_FOUND_FOR_OWNER", authUser.id);
+          setSalon(null);
+          setLoadingSalon(false);
+          setLoadingData(false);
+          return;
+        }
+
+        setSalon(salonData as SalonRow);
+        setLoadingSalon(false);
+
+        // 2. Fetch Dependent Data (Queue, Barbers, Services)
+        console.log("FETCHING_DEPENDENT_DATA", salonData.id);
+        
+        const [queueRes, barbersRes, servicesRes] = await Promise.all([
+          supabase
+            .from("queue")
+            .select("*, services (*), barbers (*), salons (*)")
+            .eq("salon_id", salonData.id)
+            .order("created_at", { ascending: true }),
+          supabase.from("barbers").select("*").eq("salon_id", salonData.id),
+          supabase.from("services").select("*").eq("salon_id", salonData.id)
+        ]);
+
+        if (queueRes.data) {
+          const rows = queueRes.data as QueueRow[];
+          setQueueItems(rows);
+
+          // Build Profile Map for Queue
+          const userIds = Array.from(new Set(rows.map((row) => row.user_id).filter(Boolean)));
+          if (userIds.length > 0) {
+            const { data: profileRows } = await (supabase as any).from("owners").select("id, name").in("id", userIds);
+            const lookup = ((profileRows || []) as any[]).reduce<Record<string, string>>((acc, row) => {
+              acc[row.id] = row.name || "Guest";
+              return acc;
+            }, {});
+            setProfileMap(lookup);
+          }
+        }
+
+        // Barbers & Services aren't currently in standalone state apart from the queue join, 
+        // but we keep the logic ready if needed for other UI parts.
+
+        console.log("FETCH_DASHBOARD_SUCCESS");
+      } catch (err: any) {
+        console.error("DASHBOARD_CRITICAL_ERROR:", err);
       } finally {
         setLoadingSalon(false);
+        setLoadingData(false);
       }
     };
 
-    resolveIdentity();
-
-    return () => clearTimeout(failsafe);
+    fetchDashboard();
   }, [navigate]);
 
+  // Keep manual refresh logic
   const fetchDashboardData = useCallback(async (id: string) => {
-    console.log("FETCH_DASHBOARD_START", id);
     setQueueLoading(true);
-    
     try {
-      const { data, error } = await supabaseAny
+      const { data, error } = await (supabase as any)
         .from("queue")
         .select("*, services (*), barbers (*), salons (*)")
         .eq("salon_id", id)
         .order("created_at", { ascending: true });
 
       if (error) throw error;
-
-      const rows = (data as QueueRow[]) || [];
-      setQueueItems(rows);
-
-      const userIds = Array.from(new Set(rows.map((row) => row.user_id).filter(Boolean)));
-      if (userIds.length > 0) {
-        const { data: profileRows } = await supabaseAny.from("owners").select("id, name").in("id", userIds);
-        const lookup = ((profileRows || []) as any[]).reduce<Record<string, string>>((acc, row) => {
-          acc[row.id] = row.name || "Guest";
-          return acc;
-        }, {});
-        setProfileMap(lookup);
-      } else {
-        setProfileMap({});
-      }
-      
-      console.log("FETCH_DASHBOARD_SUCCESS");
+      setQueueItems((data as QueueRow[]) || []);
     } catch (error: any) {
-      console.error("FETCH_DASHBOARD_ERROR:", error.message || error);
-      toast.error("Failed to load real-time data.");
+      console.error("REFRESH_ERROR:", error);
+      toast.error("Failed to refresh data.");
     } finally {
       setQueueLoading(false);
-      setLoadingData(false);
     }
-  }, [supabaseAny]);
-
-  // Phase 2: Data Orchestration
-  useEffect(() => {
-    if (!salon?.id) {
-      setLoadingData(false);
-      return;
-    }
-
-    fetchDashboardData(salon.id);
-  }, [salon?.id, fetchDashboardData]);
+  }, []);
 
   const summaryCards = useMemo(() => {
     const today = todayISO();
