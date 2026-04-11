@@ -35,32 +35,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.log("FETCH_PROFILE_START", s.user.id);
         setProfileLoading(true);
         
-        try {
+        let profileData = null;
+        
+        const fetchWithTimeout = async (userId: string, ms: number) => {
           const fetchPromise = supabase
             .from("owners")
             .select("*")
-            .eq("id", s.user.id)
+            .eq("id", userId)
             .maybeSingle();
 
           const timeoutPromise = new Promise<any>((_, reject) => 
-            setTimeout(() => reject(new Error("Profile Fetch Timeout")), 10000)
+            setTimeout(() => reject(new Error("Profile Fetch Timeout")), ms)
           );
+          return Promise.race([fetchPromise, timeoutPromise]);
+        };
 
-          const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
-
-          if (error) {
-            console.warn("FETCH_PROFILE_ERROR:", error.message);
-            setProfile(null);
-          } else {
-            console.log("FETCH_PROFILE_COMPLETE:", data ? "Profile Found" : "No Profile Found");
-            setProfile(data ?? null);
+        try {
+          const { data, error } = await fetchWithTimeout(s.user.id, 15000);
+          if (error) throw error;
+          profileData = data;
+        } catch (timeoutError: any) {
+          console.warn("FETCH_PROFILE_WARN: 1st attempt timed out/failed", timeoutError.message);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          try {
+            const { data, error } = await fetchWithTimeout(s.user.id, 10000);
+            if (error) throw error;
+            profileData = data;
+          } catch (retryError: any) {
+            console.log('FETCH_PROFILE_FAILED_BOTH_ATTEMPTS', retryError.message);
+            profileData = null;
           }
-        } catch (err: any) {
-          console.warn("FETCH_PROFILE_HANDLED_EXCEPTION:", err.message);
-          setProfile(null);
-        } finally {
-          setProfileLoading(false);
         }
+        
+        console.log("FETCH_PROFILE_COMPLETE:", profileData ? "Profile Found" : "No Profile Found");
+        setProfile(profileData ?? null);
+        setProfileLoading(false);
       } else {
         setProfile(null);
         setProfileLoading(false);

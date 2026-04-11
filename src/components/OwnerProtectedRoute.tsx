@@ -35,7 +35,7 @@ const OwnerProtectedRoute: React.FC<OwnerProtectedRouteProps> = ({ children }) =
 
   if (!profile) {
     console.log('OWNER_PROTECTED_ROUTE: No owner profile found, redirecting to registration');
-    return <Navigate to="/owner-registration" replace />;
+    return <Navigate to="/owner-register" replace />;
   }
 
   console.log('OWNER_PROTECTED_ROUTE: Access granted for', user.email);
