@@ -30,9 +30,14 @@ export default function OwnerLogin() {
   const turnstileRef = useRef<TurnstileCaptchaHandle | null>(null);
 
   useEffect(() => {
-    if (!authLoading && user && profile) {
-      console.log("OWNER_LOGIN: User already authenticated with profile, redirecting...");
-      navigate("/owner-dashboard", { replace: true });
+    if (!authLoading && user) {
+      if (profile) {
+        console.log("OWNER_LOGIN: User already authenticated with profile, redirecting to Dashboard");
+        navigate("/owner-dashboard", { replace: true });
+      } else {
+        console.log("OWNER_LOGIN: User authenticated but NO profile found, redirecting to Registration to resume setup");
+        navigate("/owner-register", { replace: true });
+      }
     }
   }, [user, profile, authLoading, navigate]);
 
@@ -86,20 +91,20 @@ export default function OwnerLogin() {
       if (authError) {
         console.error("AUTH_SIGNIN_ERROR:", authError.message);
         toast.error(authError.message || "Invalid credentials");
+        setLoading(false);
         return;
       }
 
-      if (!authData.user) {
-        throw new Error("Login failed to retrieve user");
-      }
-
-      console.log("AUTH_SIGNIN_SUCCESS", authData.user.id);
+      console.log("AUTH_SIGNIN_SUCCESS", authData.user?.id);
+      
+      // Wait a moment for AuthContext to sync up if it hasn't yet
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       console.log("PROFILE_FETCH_START");
-      const { data: profile, error: profileError } = await supabase
+      const { data: ownerProfile, error: profileError } = await supabase
         .from("owners")
         .select("*")
-        .eq("id", authData.user.id)
+        .eq("id", authData.user!.id)
         .maybeSingle();
  
       if (profileError) {
@@ -107,22 +112,21 @@ export default function OwnerLogin() {
         throw profileError;
       }
 
-      if (!profile) {
-        console.log("PROFILE_NOT_FOUND");
-        toast.error("Owner profile not found. Please contact support.");
+      if (!ownerProfile) {
+        console.log("PROFILE_NOT_FOUND - Transitioning to Register");
+        toast.info("Profile setup incomplete. Redirecting...");
+        navigate("/owner-register", { replace: true });
         return;
       }
 
-      console.log("PROFILE_FETCH_SUCCESS", profile.id);
-
-      const normalizedOwner: OwnerRecord = profile as any;
-      localStorage.setItem("owner", JSON.stringify(normalizedOwner));
+      console.log("PROFILE_FETCH_SUCCESS", ownerProfile.id);
+      localStorage.setItem("owner", JSON.stringify(ownerProfile));
 
       console.log("SALON_FETCH_START");
       const { data: existingSalon } = await supabase
         .from("salons")
         .select("*")
-        .eq("owner_id", normalizedOwner.id)
+        .eq("owner_id", ownerProfile.id)
         .maybeSingle();
 
       console.log("LOGIN_COMPLETE", { hasSalon: !!existingSalon });
@@ -132,7 +136,8 @@ export default function OwnerLogin() {
       console.error("LOGIN_PIPELINE_ERROR:", error.message || error);
       toast.error(error.message || "Login failed");
     } finally {
-      setLoading(false);
+      // Small delay before removing the loading state to allow unmount to happen cleanly
+      setTimeout(() => setLoading(false), 1000);
     }
   };
 

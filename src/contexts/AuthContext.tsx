@@ -29,6 +29,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const fetchProfile = async (s: Session | null) => {
       if (s?.user) {
+        console.log("FETCH_PROFILE_START", s.user.id);
         const { data, error } = await supabase
           .from("owners")
           .select("*")
@@ -36,9 +37,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           .maybeSingle();
 
         if (error) {
-          console.warn("Profile fetch failed:", error.message);
+          console.warn("FETCH_PROFILE_ERROR:", error.message);
           setProfile(null);
         } else {
+          console.log("FETCH_PROFILE_COMPLETE:", data ? "Profile Found" : "No Profile Found");
           setProfile(data ?? null);
         }
       } else {
