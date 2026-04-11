@@ -283,45 +283,55 @@ export default function OwnerRegister() {
         return;
       }
 
-      // 2. OWNER UPSERT (Safe & Retry-able)
-      console.log("STEP 2: OWNER UPSERT START", currentUser.id);
-      
-      const ownerPayload = {
-        id: currentUser.id,
-        email: currentUser.email!,
-        name: name.trim(),
-        phone: phone.trim(),
-        is_verified: true,
-        is_active: true,
-      };
-      
-      console.log("STEP 2.1: PAYLOAD_READY", ownerPayload);
+      // 2. OWNER UPSERT (Check then Skip)
+      console.log("STEP 2.0: CHECKING IF OWNER PROFILE EXISTS", currentUser.id);
+      const { data: existingProfile, error: checkError } = await supabase
+        .from("owners")
+        .select("*")
+        .eq("id", currentUser.id)
+        .maybeSingle();
 
-      // Add a 10s timeout to the upsert to prevent infinite hangs
-      const upsertPromise = supabase.from("owners").upsert(ownerPayload, { onConflict: "id" }).select("*").maybeSingle();
-      const timeoutPromise = new Promise<any>((_, reject) => 
-        setTimeout(() => reject(new Error("Database timeout (10s) while saving Owner Profile")), 10000)
-      );
-
-      const { data: ownerData, error: ownerError } = await Promise.race([upsertPromise, timeoutPromise]);
-
-      console.log("STEP 2.2: UPSERT_RETURNED", { 
-        success: !!ownerData, 
-        error: ownerError?.message || ownerError,
-        data_id: ownerData?.id 
-      });
-
-      if (ownerError) {
-        console.error("OWNER_INSERT_ERROR_DETAILS:", ownerError);
-        throw ownerError;
+      if (checkError) {
+        console.warn("PROFILE_CHECK_WARN:", checkError.message);
       }
 
-      if (!ownerData) {
-        console.warn("OWNER_UPSERT_RETURNED_NO_DATA");
-        throw new Error("Could not retrieve owner profile after creation. Please try again.");
+      let finalOwner = existingProfile;
+
+      if (existingProfile) {
+        console.log("STEP 2: SKIPPING UPSERT - Profile already exists:", existingProfile.id);
+      } else {
+        console.log("STEP 2: OWNER UPSERT START", currentUser.id);
+        
+        const ownerPayload = {
+          id: currentUser.id,
+          email: currentUser.email!,
+          name: name.trim(),
+          phone: phone.trim(),
+          is_verified: true,
+          is_active: true,
+        };
+        
+        console.log("STEP 2.1: PAYLOAD_READY", ownerPayload);
+
+        // Add a 10s timeout to the upsert to prevent infinite hangs
+        const upsertPromise = supabase.from("owners").upsert(ownerPayload, { onConflict: "id" }).select("*").maybeSingle();
+        const timeoutPromise = new Promise<any>((_, reject) => 
+          setTimeout(() => reject(new Error("Database timeout (10s) while saving Owner Profile")), 10000)
+        );
+
+        const { data: ownerData, error: ownerError } = await Promise.race([upsertPromise, timeoutPromise]);
+
+        if (ownerError) {
+          console.error("OWNER_INSERT_ERROR:", ownerError);
+          throw ownerError;
+        }
+        finalOwner = ownerData;
+        console.log("STEP 2: UPSERT_SUCCESS");
       }
 
-      console.log("STEP 2.3: OWNER_UPSERT_SUCCESS");
+      if (!finalOwner) {
+        throw new Error("Could not retrieve owner profile. Please try again.");
+      }
 
       // 3. STORAGE UPLOAD (Optional)
       let imagePath: string | null = null;
@@ -416,8 +426,8 @@ export default function OwnerRegister() {
 
       // 7. FINALIZATION
       console.log("STEP 7: FINALIZATION");
-      await triggerOwnerVerificationEmail(ownerData.email, ownerData.name);
-      localStorage.setItem("owner", JSON.stringify(ownerData));
+      await triggerOwnerVerificationEmail(finalOwner.email, finalOwner.name);
+      localStorage.setItem("owner", JSON.stringify(finalOwner));
       localStorage.removeItem(STORAGE_KEY);
       
       console.log("REGISTRATION_FLOW_COMPLETE");
