@@ -96,7 +96,7 @@ export function useSlotAvailability(
 
       // Handle query errors gracefully
       if (bookingsError) {
-        console.error('SLOT_FETCH_ERROR:', bookingsError);
+        console.error('SLOT_QUERY_ERROR:', bookingsError.code, bookingsError.message);
         // Don't crash — just treat as 0 booked slots and show all as available
         setSlots(
           generateTimeSlots(FALLBACK_OPEN_TIME, FALLBACK_CLOSE_TIME).map(

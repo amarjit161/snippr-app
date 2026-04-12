@@ -47,11 +47,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         try {
           console.log("FETCH_PROFILE: Requesting from database...");
           
-          const { data, error } = await supabase
-            .from("owners")
-            .select("*")
-            .eq("id", s.user.id)
-            .maybeSingle();
+          // Create a promise that times out after 8 seconds (for network issues)
+          const fetchWithTimeout = async () => {
+            return Promise.race([
+              supabase
+                .from("owners")
+                .select("*")
+                .eq("id", s.user.id)
+                .maybeSingle(),
+              new Promise((_, reject) =>
+                setTimeout(() => reject(new Error("Query timeout after 8s")), 8000)
+              ),
+            ]);
+          };
+
+          const { data, error } = (await fetchWithTimeout()) as any;
 
           // maybeSingle() returns null if no row found — this is not an error for customers
           if (!error) {
