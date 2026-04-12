@@ -482,6 +482,13 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       if (error) {
         setBooking(false);
         
+        console.error('BOOKING_INSERT_ERROR:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
+        
         // Handle unique constraint violation (23505) - slot just booked by someone else
         if (error.code === '23505' || error.message?.includes('unique_barber_slot')) {
           toast.error("⏱️ Just missed it! Someone booked this slot. Pick another time.");

@@ -80,8 +80,8 @@ export function useSlotAvailability(
 
       console.log('SALON_FETCH:', { salonId, salon, error: salonError });
 
-      const openTime = salon?.open_time || FALLBACK_OPEN_TIME;
-      const closeTime = salon?.close_time || FALLBACK_CLOSE_TIME;
+      const openTime = salon?.open_time?.trim() || FALLBACK_OPEN_TIME;
+      const closeTime = salon?.close_time?.trim() || FALLBACK_CLOSE_TIME;
 
       console.log('SALON_HOURS:', { openTime, closeTime, hasSalonData: !!salon });
 

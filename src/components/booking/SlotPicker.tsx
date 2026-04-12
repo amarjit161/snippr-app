@@ -68,9 +68,9 @@ export function SlotPicker({
   };
 
   const getGroupColor = (available: number, total: number) => {
-    if (available === 0) return "bg-red-50 border-red-200";
-    if (available < 3) return "bg-amber-50 border-amber-200";
-    return "bg-green-50 border-green-200";
+    if (available === 0) return "bg-red-50 border-red-100";
+    if (available < 3) return "bg-amber-50 border-amber-100";
+    return "bg-green-50 border-green-100";
   };
 
   const getGroupBadgeColor = (available: number, total: number) => {
@@ -168,11 +168,11 @@ export function SlotPicker({
       {/* Fully booked state */}
       {isFullyBooked ? (
         <div className="text-center py-12 bg-red-50 border-2 border-red-200 rounded-lg">
-          <Calendar className="w-12 h-12 mx-auto mb-3 text-red-400" />
+          <Calendar className="w-12 h-12 mx-auto mb-3 text-red-500" />
           <p className="text-sm font-semibold text-red-700 mb-1">
-            No slots available
+            ❌ No slots available
           </p>
-          <p className="text-xs text-red-600">Try selecting a different date</p>
+          <p className="text-xs text-red-600">Try selecting a different date or barber</p>
         </div>
       ) : (
         <>
@@ -217,20 +217,17 @@ export function SlotPicker({
                               relative py-2.5 px-2 rounded-lg font-medium text-xs sm:text-sm transition-all
                               ${
                                 selectedSlot === slot.timeValue
-                                  ? "bg-purple-500 text-white border-2 border-purple-600 shadow-lg scale-105"
+                                  ? "bg-purple-600 text-white border-2 border-purple-600 shadow-lg scale-105"
                                   : slot.available
-                                    ? "bg-white border-2 border-gray-300 text-gray-700 hover:border-purple-400 hover:bg-purple-50"
-                                    : "bg-gray-200 border-2 border-gray-300 text-gray-400 line-through cursor-not-allowed"
+                                    ? "bg-white border-2 border-gray-200 text-gray-700 hover:border-purple-500 hover:bg-purple-50 cursor-pointer transition-all"
+                                    : "bg-red-50 border-2 border-red-200 text-red-300 line-through cursor-not-allowed opacity-60"
                               }
                             `}
                           >
                             {selectedSlot === slot.timeValue && (
-                              <span className="absolute -top-1 -right-1 bg-white text-purple-500 rounded-full w-5 h-5 flex items-center justify-center text-xs">
+                              <span className="absolute -top-1 -right-1 bg-white text-purple-600 rounded-full w-5 h-5 flex items-center justify-center text-xs">
                                 ✓
                               </span>
-                            )}
-                            {!slot.available && (
-                              <span className="absolute -top-2 -right-2 w-3 h-3 bg-red-500 rounded-full" />
                             )}
                             {slot.time}
                           </button>
@@ -245,15 +242,17 @@ export function SlotPicker({
           {/* Legend */}
           <div className="border-t pt-4 grid grid-cols-3 gap-3 text-xs">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded border-2 border-gray-300 bg-white" />
+              <div className="w-6 h-6 rounded border-2 border-gray-200 bg-white" />
               <span className="text-gray-600">Available</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded bg-purple-500 border-2 border-purple-600" />
+              <div className="w-6 h-6 rounded bg-purple-600 border-2 border-purple-600" />
               <span className="text-gray-600">Selected</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded border-2 border-gray-300 bg-gray-200 line-through" />
+              <div className="w-6 h-6 rounded border-2 border-red-200 bg-red-50 text-red-300 line-through flex items-center justify-center text-xs opacity-60">
+                —
+              </div>
               <span className="text-gray-600">Booked</span>
             </div>
           </div>
