@@ -72,17 +72,22 @@ export function useSlotAvailability(
     setLoading(true);
     try {
       // Fetch salon open/close times
-      const { data: salon } = await supabase
+      const { data: salon, error: salonError } = await supabase
         .from("salons" as any)
         .select("open_time, close_time")
         .eq("id", salonId)
         .maybeSingle();
 
+      console.log('SALON_FETCH:', { salonId, salon, error: salonError });
+
       const openTime = salon?.open_time || FALLBACK_OPEN_TIME;
       const closeTime = salon?.close_time || FALLBACK_CLOSE_TIME;
 
+      console.log('SALON_HOURS:', { openTime, closeTime, hasSalonData: !!salon });
+
       // Generate all time slots for this date
       const allTimeValues = generateTimeSlots(openTime, closeTime);
+      console.log('GENERATED_SLOTS:', { total: allTimeValues.length, firstSlot: allTimeValues[0], lastSlot: allTimeValues[allTimeValues.length - 1] });
 
       // Fetch booked slots from queue
       let query = supabase
@@ -94,9 +99,15 @@ export function useSlotAvailability(
 
       const { data: bookedRecords, error: bookingsError } = await query;
 
+      console.log('SLOT_QUERY:', { 
+        date, 
+        bookingsFound: bookedRecords?.length || 0,
+        error: bookingsError ? { code: bookingsError.code, message: bookingsError.message, details: bookingsError.details } : null
+      });
+
       // Handle query errors gracefully
       if (bookingsError) {
-        console.error('SLOT_QUERY_ERROR:', bookingsError.code, bookingsError.message);
+        console.error('SLOT_QUERY_ERROR:', bookingsError.code, bookingsError.message, bookingsError.details);
         // Don't crash — just treat as 0 booked slots and show all as available
         setSlots(
           generateTimeSlots(FALLBACK_OPEN_TIME, FALLBACK_CLOSE_TIME).map(
@@ -173,6 +184,15 @@ export function useSlotAvailability(
             totalBarbers,
           };
         }
+      });
+
+      console.log('FINAL_SLOTS:', { 
+        totalSlots: updatedSlots.length, 
+        availableCount: updatedSlots.filter(s => s.available).length,
+        firstSlot: updatedSlots[0],
+        lastSlot: updatedSlots[updatedSlots.length - 1],
+        barberId,
+        date
       });
 
       setSlots(updatedSlots);

@@ -25,6 +25,18 @@ export function SlotPicker({
   const { slots, loading, availableCount, totalCount, lastUpdated, refresh } =
     useSlotAvailability(salonId, date, barberId);
 
+  console.log('SLOT_PICKER_RENDER:', { 
+    salonId, 
+    date, 
+    barberId,
+    selectedSlot,
+    slotsCount: slots.length,
+    availableCount,
+    totalCount,
+    loading,
+    lastUpdated
+  });
+
   // Group slots by time of day
   const groupSlots = (): SlotGroup[] => {
     const morning = [];
