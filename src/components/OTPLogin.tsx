@@ -113,8 +113,6 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
   };
 
   const handleGoogleLogin = async () => {
-    if (!(await ensureCaptcha())) return;
-
     setLoading(true);
     try {
       const { error } = await supabase.auth.signInWithOAuth({
@@ -135,7 +133,7 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: "easeOut" }}
-      className="w-full overflow-hidden rounded-2xl border border-border bg-card/95 p-8 shadow-sm backdrop-blur-xl sm:p-10"
+      className="w-full overflow-hidden rounded-xl sm:rounded-2xl border border-border bg-card/95 p-6 sm:p-8 md:p-10 shadow-sm backdrop-blur-xl"
     >
       <AnimatePresence mode="wait">
         
@@ -175,36 +173,38 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
-            className="flex flex-col items-center text-center space-y-6"
+            className="flex flex-col items-center text-center space-y-6 sm:space-y-8"
           >
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800">
-              <CheckCircle2 className="h-8 w-8 text-zinc-900 dark:text-zinc-50" />
+            <div className="flex h-16 sm:h-20 w-16 sm:w-20 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800">
+              <CheckCircle2 className="h-8 sm:h-10 w-8 sm:w-10 text-zinc-900 dark:text-zinc-50" />
             </div>
-            <div className="space-y-2">
-              <h3 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+            <div className="space-y-2 sm:space-y-3">
+              <h3 className="text-xl sm:text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
                 Check your email
               </h3>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 max-w-[280px]">
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 max-w-xs">
                 We've sent a secure login link to <br/>
-                <span className="font-medium text-zinc-900 dark:text-zinc-200">{email}</span>
+                <span className="font-medium text-zinc-900 dark:text-zinc-200 break-all">{email}</span>
               </p>
             </div>
 
-            <TurnstileCaptcha ref={turnstileRef} onTokenChange={setCaptchaToken} className="min-h-[78px]" />
+            <div className="rounded-xl sm:rounded-2xl bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-900 dark:to-zinc-800 p-4 sm:p-5 border border-zinc-200 dark:border-zinc-700 w-full">
+              <TurnstileCaptcha ref={turnstileRef} onTokenChange={setCaptchaToken} theme="light" className="w-full min-h-[85px] sm:min-h-[100px]" />
+            </div>
             
-            <div className="w-full flex flex-col gap-3 pt-2">
+            <div className="w-full flex flex-col gap-3 sm:gap-3.5">
               <Button
                 onClick={handleEmailOTP}
                 disabled={loading || !captchaToken}
                 variant="outline"
-                className="h-11 w-full rounded-xl border-zinc-200 font-medium text-zinc-700 hover:bg-zinc-50"
+                className="h-11 sm:h-12 w-full rounded-xl border-zinc-200 font-medium text-zinc-700 hover:bg-zinc-50 text-sm sm:text-base"
               >
                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Resend email
               </Button>
               <button
                 onClick={() => setEmailSent(false)}
-                className="text-sm font-medium text-zinc-500 hover:text-zinc-900 transition-colors dark:text-zinc-400 dark:hover:text-zinc-200"
+                className="text-xs sm:text-sm font-medium text-zinc-500 hover:text-zinc-900 transition-colors dark:text-zinc-400 dark:hover:text-zinc-200"
               >
                 Change email
               </button>
@@ -220,16 +220,16 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
           >
-            <div className="mb-6 flex flex-col items-center space-y-1.5 text-center">
-              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-500 text-white shadow-sm">
-                <svg className="h-6 w-6 text-zinc-900 dark:text-zinc-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="mb-6 sm:mb-8 flex flex-col items-center space-y-2 sm:space-y-3 text-center">
+              <div className="mb-2 sm:mb-3 flex h-12 sm:h-14 w-12 sm:w-14 items-center justify-center rounded-xl sm:rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-500 text-white shadow-sm">
+                <svg className="h-6 sm:h-7 w-6 sm:w-7 text-zinc-900 dark:text-zinc-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
               </div>
-              <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
+              <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-foreground">
                 Welcome to Snippr
               </h2>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs sm:text-sm text-muted-foreground max-w-sm">
                 Sign in to track queues and bookings in real time.
               </p>
             </div>
@@ -241,24 +241,39 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 10 }}
-                  className="space-y-4"
+                  className="space-y-4 sm:space-y-5"
                 >
                   <Input
                     autoFocus
                     placeholder="name@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="h-11 rounded-xl"
+                    className="h-11 sm:h-12 rounded-xl text-sm sm:text-base"
                     type="email"
                     onKeyDown={(e) => e.key === "Enter" && handleEmailOTP()}
                   />
-                  <TurnstileCaptcha ref={turnstileRef} onTokenChange={setCaptchaToken} className="min-h-[78px]" />
+                  <div className="rounded-xl sm:rounded-2xl bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-900 dark:to-zinc-800 p-4 sm:p-5 border border-zinc-200 dark:border-zinc-700 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-xs sm:text-sm font-semibold text-zinc-700 dark:text-zinc-300">🔒 Security Verification</p>
+                      {captchaToken && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 dark:bg-green-950 text-xs font-medium text-green-700 dark:text-green-200">
+                          <span className="w-2 h-2 rounded-full bg-green-600 dark:bg-green-400 animate-pulse"></span>
+                          Verified
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex justify-center">
+                      <TurnstileCaptcha ref={turnstileRef} onTokenChange={setCaptchaToken} theme="light" className="w-full min-h-[85px] sm:min-h-[100px]" />
+                    </div>
+                  </div>
                   <Button
                     onClick={handleEmailOTP}
                     disabled={loading || verifyingCaptcha || !email || !captchaToken}
-                    className="h-11 w-full rounded-xl bg-gradient-to-r from-primary to-indigo-500 text-sm font-medium text-primary-foreground shadow-sm hover:brightness-110 disabled:opacity-50"
+                    className="h-11 sm:h-12 w-full rounded-xl bg-gradient-to-r from-primary to-indigo-500 text-sm sm:text-base font-semibold text-primary-foreground shadow-md hover:brightness-110 disabled:opacity-50 transition-all"
                   >
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Continue"}
+                    {!captchaToken && "✓ Complete security check"}
+                    {captchaToken && loading && <><Loader2 className="h-4 w-4 animate-spin mr-2" />Sending...</>}
+                    {captchaToken && !loading && "✓ Continue"}
                   </Button>
                 </motion.div>
               ) : (
@@ -267,24 +282,39 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
                   initial={{ opacity: 0, x: 10 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -10 }}
-                  className="space-y-4"
+                  className="space-y-4 sm:space-y-5"
                 >
                   <Input
                     autoFocus
-                    placeholder="Enter your number"
+                    placeholder="Enter your phone number"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="h-11 rounded-xl"
+                    className="h-11 sm:h-12 rounded-xl text-sm sm:text-base"
                     type="tel"
                     onKeyDown={(e) => e.key === "Enter" && handlePhoneOTP()}
                   />
-                  <TurnstileCaptcha ref={turnstileRef} onTokenChange={setCaptchaToken} className="min-h-[78px]" />
+                  <div className="rounded-xl sm:rounded-2xl bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-900 dark:to-zinc-800 p-4 sm:p-5 border border-zinc-200 dark:border-zinc-700 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-xs sm:text-sm font-semibold text-zinc-700 dark:text-zinc-300">🔒 Security Verification</p>
+                      {captchaToken && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 dark:bg-green-950 text-xs font-medium text-green-700 dark:text-green-200">
+                          <span className="w-2 h-2 rounded-full bg-green-600 dark:bg-green-400 animate-pulse"></span>
+                          Verified
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex justify-center">
+                      <TurnstileCaptcha ref={turnstileRef} onTokenChange={setCaptchaToken} theme="light" className="w-full min-h-[85px] sm:min-h-[100px]" />
+                    </div>
+                  </div>
                   <Button
                     onClick={handlePhoneOTP}
                     disabled={loading || verifyingCaptcha || phone.length < 5 || !captchaToken}
-                    className="h-11 w-full rounded-xl bg-gradient-to-r from-primary to-indigo-500 text-sm font-medium text-primary-foreground shadow-sm hover:brightness-110 disabled:opacity-50"
+                    className="h-11 sm:h-12 w-full rounded-xl bg-gradient-to-r from-primary to-indigo-500 text-sm sm:text-base font-semibold text-primary-foreground shadow-md hover:brightness-110 disabled:opacity-50 transition-all"
                   >
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Get Started"}
+                    {!captchaToken && "✓ Complete security check"}
+                    {captchaToken && loading && <><Loader2 className="h-4 w-4 animate-spin mr-2" />Sending...</>}
+                    {captchaToken && !loading && "✓ Get Started"}
                   </Button>
                 </motion.div>
               )}
@@ -301,13 +331,13 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
               <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 sm:space-y-3.5">
               {mode === "phone" && (
                 <button
                   onClick={() => {
                     setMode("email");
                   }}
-                  className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm font-medium text-foreground transition-all hover:bg-muted"
+                  className="flex h-11 sm:h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm sm:text-base font-medium text-foreground transition-all hover:bg-muted"
                 >
                   <Mail className="h-4 w-4 text-zinc-500" />
                   Continue with Email
@@ -317,7 +347,7 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
               {mode === "email" && (
                 <button
                   onClick={() => setMode("phone")}
-                  className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm font-medium text-foreground transition-all hover:bg-muted"
+                  className="flex h-11 sm:h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm sm:text-base font-medium text-foreground transition-all hover:bg-muted"
                 >
                   <Phone className="h-4 w-4 text-zinc-500" />
                   Continue with Phone
@@ -326,8 +356,8 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
 
               <button
                 onClick={handleGoogleLogin}
-                disabled={loading || verifyingCaptcha || !captchaToken}
-                className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm font-medium text-foreground transition-all hover:bg-muted disabled:opacity-50"
+                disabled={loading}
+                className="flex h-11 sm:h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm sm:text-base font-medium text-foreground transition-all hover:bg-muted disabled:opacity-50"
               >
                 <svg className="h-4 w-4" aria-hidden="true" viewBox="0 0 24 24">
                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
@@ -338,7 +368,7 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
                 Google
               </button>
 
-              <p className="pt-2 text-center text-xs text-zinc-500">
+              <p className="pt-2 text-center text-xs sm:text-sm text-zinc-500">
                 By continuing, you agree to our Terms of Service and Privacy Policy.
               </p>
             </div>

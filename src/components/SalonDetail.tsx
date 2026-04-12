@@ -10,6 +10,7 @@ import { useGeolocation, estimateTravelMinutes } from "@/hooks/useGeolocation";
 import type { Tables } from "@/integrations/supabase/types";
 import TurnstileCaptcha, { type TurnstileCaptchaHandle } from "@/components/TurnstileCaptcha";
 import { verifyTurnstileToken } from "@/lib/turnstile";
+import { SlotPicker } from "@/components/booking/SlotPicker";
 
 import salon1 from "@/assets/salon-1.jpg";
 import salon2 from "@/assets/salon-2.jpg";
@@ -89,12 +90,16 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
   const [bookingForSomeoneElse, setBookingForSomeoneElse] = useState(false);
   const [touched, setTouched] = useState({ firstName: false, lastName: false, phone: false });
   const [date, setDate] = useState("");
-  const [time, setTime] = useState("10:00 AM");
+  const [time, setTime] = useState(""); // HH:MM:SS format (set by SlotPicker)
   const [nextQueuePosition, setNextQueuePosition] = useState<number | null>(null);
   const [myQueuePosition, setMyQueuePosition] = useState<number | null>(null);
   const [booking, setBooking] = useState(false);
   const [verifyingCaptcha, setVerifyingCaptcha] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [currentStep, setCurrentStep] = useState(1);
+  const [bookedSlots, setBookedSlots] = useState<Set<string>>(new Set());
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
+  const [lastAvailabilityUpdate, setLastAvailabilityUpdate] = useState<Date | null>(null);
   const turnstileRef = useRef<TurnstileCaptchaHandle | null>(null);
   const firstNameInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -187,6 +192,107 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
     };
   }, [salon.id]);
 
+  // CHECK AVAILABILITY - Real-time slot booking status
+  useEffect(() => {
+    if (!date || !selectedBarberId) return;
+
+    const checkAvailability = async () => {
+      setCheckingAvailability(true);
+      try {
+        const { data } = await supabase
+          .from("queue" as any)
+          .select("booking_time")
+          .eq("salon_id", salon.id)
+          .eq("barber_id", selectedBarberId)
+          .eq("booking_date", date)
+          .in("status", ["waiting", "in_progress"]);
+
+        const booked = new Set((data || []).map((b: any) => b.booking_time));
+        console.log(`✅ AVAILABILITY_CHECK: ${TIME_SLOTS.length - booked.size}/${TIME_SLOTS.length} slots available for ${date}`, {
+          bookedSlots: Array.from(booked),
+          barber: selectedBarberId
+        });
+        setBookedSlots(booked);
+        setLastAvailabilityUpdate(new Date());
+      } catch (error) {
+        console.error("❌ AVAILABILITY_CHECK_FAILED:", error);
+      } finally {
+        setCheckingAvailability(false);
+      }
+    };
+
+    checkAvailability();
+
+    // REAL-TIME UPDATES - Listen for ALL queue changes and refresh
+    const subscription = supabase
+      .channel(`bookings-${salon.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "queue",
+          // NO FILTER - catch all changes and check availability
+        },
+        (payload) => {
+          // Only refresh if it's for THIS salon and date
+          if (payload.new?.salon_id === salon.id || payload.old?.salon_id === salon.id) {
+            console.log("🔄 REAL_TIME_UPDATE: A booking changed", {
+              eventType: payload.eventType,
+              newData: payload.new?.booking_date,
+              oldData: payload.old?.booking_date
+            });
+            // Refresh availability for current selections
+            if (date && selectedBarberId) {
+              console.log("🔁 REFRESHING availability due to real-time event");
+              checkAvailability();
+            }
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log(`📡 SUBSCRIPTION_STATUS: ${status}`, { 
+          salonId: salon.id,
+          date, 
+          barberId: selectedBarberId 
+        });
+      });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [date, selectedBarberId, salon.id]);
+
+  // PERIODIC REFRESH - Fallback if real-time doesn't work (check every 3 seconds while booking)
+  useEffect(() => {
+    if (!date || !selectedBarberId || currentStep !== 4) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const { data } = await supabase
+          .from("queue" as any)
+          .select("booking_time")
+          .eq("salon_id", salon.id)
+          .eq("barber_id", selectedBarberId)
+          .eq("booking_date", date)
+          .in("status", ["waiting", "in_progress"]);
+
+        const booked = new Set((data || []).map((b: any) => b.booking_time));
+        
+        // If availability changed, update silently (don't spam logs)
+        if (booked.size !== bookedSlots.size) {
+          console.log(`🔃 PERIODIC_REFRESH: Availability changed from ${TIME_SLOTS.length - bookedSlots.size} to ${TIME_SLOTS.length - booked.size}`);
+          setBookedSlots(booked);
+          setLastAvailabilityUpdate(new Date());
+        }
+      } catch (error) {
+        console.error("❌ PERIODIC_REFRESH_FAILED:", error);
+      }
+    }, 3000); // Check every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [date, selectedBarberId, salon.id, currentStep, bookedSlots.size]);
+
   const travelMin = location && salon.lat && salon.lng
     ? estimateTravelMinutes(location.lat, location.lng, salon.lat, salon.lng)
     : 10;
@@ -264,6 +370,12 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       return;
     }
 
+    // CHECK AVAILABILITY BEFORE CAPTCHA
+    if (bookedSlots.has(time)) {
+      toast.error("❌ This time slot was just booked! Another customer is faster. Please choose a different time.");
+      return;
+    }
+
     setVerifyingCaptcha(true);
 
     try {
@@ -288,6 +400,27 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
       setBooking(true);
 
+      // FINAL SAFETY CHECK - Refresh availability one last time before booking
+      console.log("🔒 FINAL_CHECK: Refreshing availability before booking...");
+      const { data: latestBookings } = await supabase
+        .from("queue" as any)
+        .select("booking_time")
+        .eq("salon_id", salon.id)
+        .eq("barber_id", selectedBarberId)
+        .eq("booking_date", date)
+        .in("status", ["waiting", "in_progress"]);
+
+      const latestBooked = new Set((latestBookings || []).map((b: any) => b.booking_time));
+      if (latestBooked.has(time)) {
+        console.log("🚫 FINAL_CHECK: Slot was just booked during captcha!");
+        setBookedSlots(latestBooked);
+        setLastAvailabilityUpdate(new Date());
+        setBooking(false);
+        toast.error("⏱️ Just missed it! Someone booked this slot during verification. Refreshing available times...");
+        return;
+      }
+
+      // Now do the original conflict check
       const { data: conflictCheck } = await supabase
         .from("queue" as any)
         .select("id")
@@ -301,7 +434,9 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
       if (conflictCheck) {
         setBooking(false);
-        toast.error(`Barber is already booked for ${time} on ${date}. Please choose another slot or barber.`);
+        // Update booked slots immediately to reflect the change
+        setBookedSlots((prev) => new Set([...prev, time]));
+        toast.error("⏱️ This slot was just booked by another customer! Refreshing times...");
         return;
       }
 
@@ -341,20 +476,63 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         customer_phone: activeCustomer.phone.trim(),
         notes: customer.notes.trim() || null,
         booking_date: date,
-        booking_time: time,
+        time_slot: time,
       });
 
       if (error) {
         setBooking(false);
-        toast.error(error.message);
+        
+        // Handle unique constraint violation (23505) - slot just booked by someone else
+        if (error.code === '23505' || error.message?.includes('unique_barber_slot')) {
+          toast.error("⏱️ Just missed it! Someone booked this slot. Pick another time.");
+          // Trigger refresh to show updated availability
+          const { data } = await supabase
+            .from("queue" as any)
+            .select("time_slot")
+            .eq("salon_id", salon.id)
+            .eq("barber_id", selectedBarberId)
+            .eq("booking_date", date)
+            .in("status", ["waiting", "in_progress", "confirmed"]);
+          
+          const booked = new Set((data || []).map((b: any) => b.time_slot));
+          setBookedSlots(booked);
+          return;
+        }
+        
+        // Legacy 409 conflict handling
+        if (error.message?.includes('unique_barber_booking') || error.status === 409) {
+          const { data } = await supabase
+            .from("queue" as any)
+            .select("booking_time")
+            .eq("salon_id", salon.id)
+            .eq("barber_id", selectedBarberId)
+            .eq("booking_date", date)
+            .in("status", ["waiting", "in_progress"]);
+          
+          const booked = new Set((data || []).map((b: any) => b.booking_time));
+          setBookedSlots(booked);
+          
+          toast.error(`⏱️ Just missed it! That slot was booked by someone faster. Please pick another time or barber.`);
+          return;
+        }
+        
+        toast.error(error.message || "Failed to book");
       } else {
         if (bookingForSomeoneElse) {
           setCustomer((prev) => ({ ...prev, firstName: "", lastName: "", phone: "" }));
         }
 
         setMyQueuePosition(nextPosition);
+        
+        // Format time from HH:MM:SS to 12-hour format
+        const [hours, minutes] = time.split(':');
+        const hour = parseInt(hours);
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+        const displayTime = `${displayHour}:${minutes} ${ampm}`;
+        
         const successMsg = isAdvanceBooking
-          ? `Booking confirmed for ${date} at ${time}. Your position: #${nextPosition}`
+          ? `Booking confirmed for ${date} at ${displayTime}. Your position: #${nextPosition}`
           : `Booking successful. Your position in queue: #${nextPosition}`;
         toast.success(successMsg);
         onJoined();
@@ -369,231 +547,202 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
   };
 
   return (
-    <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="min-h-screen bg-[#f7f3ff]">
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mb-6 overflow-hidden rounded-xl bg-white shadow-sm">
-          <div className="relative h-56 bg-muted md:h-72">
-            <img src={salonImages[salon.image_url ?? ""] ?? salon1} alt={salon.name} className="h-full w-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
-            <button
-              onClick={onBack}
-              className="absolute left-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 shadow-sm backdrop-blur-sm transition-transform hover:scale-105 sm:left-6 sm:top-6"
-            >
-              <ArrowLeft className="h-5 w-5 text-foreground" />
-            </button>
-            <div className="absolute bottom-0 left-0 right-0 p-4 text-white sm:p-6 lg:p-8">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-medium backdrop-blur-sm">
-                <MapPin className="h-3.5 w-3.5" /> {salon.location}
+    <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="min-h-screen bg-[#faf9fc] text-[#1a1c1e]">
+      <div className="mx-auto w-full px-3 pb-20 pt-12 sm:px-4 md:px-6 lg:px-8 xl:px-0 xl:max-w-7xl">
+        <div className="grid grid-cols-1 items-start gap-4 md:gap-6 lg:gap-8 lg:grid-cols-12">
+          {/* FORM SECTION */}
+          <div className="space-y-5 md:space-y-6 lg:col-span-12">
+            {/* HEADER */}
+            <header className="space-y-2 sm:space-y-3 md:space-y-4">
+              <button
+                onClick={onBack}
+                className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-[#e9ddff] text-[#4f378a] transition-transform active:scale-90"
+              >
+                <ArrowLeft className="h-4 sm:h-5 w-4 sm:w-5" />
+              </button>
+              <div className="space-y-1 sm:space-y-2">
+                <h1 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.05] tracking-tight">
+                  Craft Your
+                  <br />
+                  <span className="bg-gradient-to-r from-[#4f378a] to-[#6750a4] bg-clip-text text-transparent">Perfect Look.</span>
+                </h1>
+                <p className="max-w-md text-sm sm:text-base md:text-lg text-[#494551]">
+                  Enter your details below to join the live queue at <span className="font-semibold text-[#1a1c1e]">{salon.name}</span>.
+                </p>
               </div>
-              <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl md:text-4xl lg:text-4xl">{salon.name}</h1>
-              <p className="mt-2 flex flex-wrap items-center gap-3 text-sm text-white/90">
-                <span className="inline-flex items-center gap-1.5"><Navigation className="h-4 w-4" /> {travelMin} min away</span>
-                <span className="inline-flex items-center gap-1.5"><Star className="h-4 w-4 fill-current" /> Premium booking experience</span>
-              </p>
+            </header>
+
+            {/* PROGRESS INDICATOR */}
+            <div className="flex gap-1.5 sm:gap-2">
+              {[1, 2, 3, 4].map((step) => (
+                <div key={step} className="flex-1 h-1.5 sm:h-2 rounded-full transition-colors" style={{
+                  backgroundColor: step <= currentStep ? '#4f378a' : '#e3e2e5'
+                }} />
+              ))}
             </div>
-          </div>
-        </div>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="space-y-6 lg:col-span-2">
-            <section className="rounded-xl bg-white p-6 shadow-sm">
-              <div className="flex flex-col gap-4 rounded-2xl bg-[#faf9fc] p-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-xl font-semibold text-foreground">Profile</h3>
-                    <span className="rounded-full bg-purple-50 px-2.5 py-1 text-[11px] font-semibold text-purple-700">
-                      {hasSavedProfile ? "Saved" : "One-time setup"}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-500">Create it once and reuse it for every booking.</p>
-
-                  {hasSavedProfile ? (
-                    <div className="mt-2 space-y-1 text-sm text-gray-700">
-                      <p className="font-medium text-gray-900">{savedProfile.firstName} {savedProfile.lastName}</p>
-                      <p>{savedProfile.phone}</p>
+            {/* STEP 1: INFORMATION */}
+            {currentStep === 1 && (
+              <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 sm:space-y-5 md:space-y-6 rounded-xl sm:rounded-2xl bg-[#f4f3f6] p-4 sm:p-6 md:p-8 lg:p-10">
+                <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
+                  <span className="flex h-8 sm:h-9 md:h-10 w-8 sm:w-9 md:w-10 items-center justify-center rounded-full bg-[#4f378a] text-xs font-bold text-white">1</span>
+                  <h2 className="font-display text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold">Your Information</h2>
+                </div>
+                <div className="space-y-4 sm:space-y-5 md:space-y-6">
+                  <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 md:gap-5 lg:gap-6">
+                    <div>
+                      <label className="mb-2 block text-xs sm:text-sm font-semibold text-[#4f378a]">Full Name</label>
+                      <Input
+                        ref={firstNameInputRef}
+                        value={`${activeCustomer.firstName} ${activeCustomer.lastName}`.trim() || ""}
+                        onChange={(event) => {
+                          const [first, ...last] = event.target.value.trim().split(" ");
+                          setCustomer((prev) => ({ ...prev, firstName: first || "", lastName: last.join(" ") }));
+                        }}
+                        onBlur={() => setTouched((prev) => ({ ...prev, firstName: true, lastName: true }))}
+                        placeholder="Johnathan Doe"
+                        readOnly={!bookingForSomeoneElse && hasSavedProfile}
+                        className="h-10 sm:h-11 md:h-12 rounded-lg border-2 border-[#cbc4d2] bg-white px-3 sm:px-4 text-sm sm:text-base placeholder:text-slate-300 focus-visible:ring-2 focus-visible:ring-[#6750a4]/20"
+                      />
+                      {(firstNameError || lastNameError) ? <p className="mt-1 text-xs sm:text-sm text-red-600">{firstNameError || lastNameError}</p> : null}
                     </div>
-                  ) : (
-                    <p className="mt-2 text-sm text-gray-700">Enter your name and phone one time to unlock faster booking.</p>
+                    <div>
+                      <label className="mb-2 block text-xs sm:text-sm font-semibold text-[#4f378a]">Phone Number</label>
+                      <Input
+                        value={activeCustomer.phone}
+                        onChange={(event) => setCustomer((prev) => ({ ...prev, phone: event.target.value }))}
+                        onBlur={() => setTouched((prev) => ({ ...prev, phone: true }))}
+                        placeholder="+91 98765 43210"
+                        inputMode="tel"
+                        readOnly={!bookingForSomeoneElse && hasSavedProfile}
+                        className="h-10 sm:h-11 md:h-12 rounded-lg border-2 border-[#cbc4d2] bg-white px-3 sm:px-4 text-sm sm:text-base placeholder:text-slate-300 focus-visible:ring-2 focus-visible:ring-[#6750a4]/20"
+                      />
+                      {phoneError ? <p className="mt-1 text-xs sm:text-sm text-red-600">{phoneError}</p> : null}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-xs sm:text-sm font-semibold text-[#7a7582]">Notes (Optional)</label>
+                    <textarea
+                      value={customer.notes}
+                      onChange={(event) => setCustomer((prev) => ({ ...prev, notes: event.target.value }))}
+                      placeholder="Special requirements or hair history..."
+                      rows={3}
+                      className="w-full rounded-lg border-2 border-[#cbc4d2] bg-white px-3 sm:px-4 py-2 sm:py-3 text-sm placeholder:text-slate-300 focus:border-[#4f378a] focus:outline-none focus:ring-2 focus:ring-[#6750a4]/10"
+                    />
+                  </div>
+                  {hasSavedProfile && (
+                    <label className="flex cursor-pointer items-center gap-2 sm:gap-3 pt-1">
+                      <input
+                        type="checkbox"
+                        checked={!bookingForSomeoneElse}
+                        onChange={(e) => {
+                          const next = !e.target.checked;
+                          setBookingForSomeoneElse(next);
+                          setTouched({ firstName: false, lastName: false, phone: false });
+                          if (next) {
+                            setCustomer((prev) => ({ ...prev, firstName: "", lastName: "", phone: "" }));
+                          } else if (hasSavedProfile) {
+                            setCustomer((prev) => ({ ...prev, ...savedProfile }));
+                          }
+                        }}
+                        className="h-4 w-4 sm:h-5 sm:w-5 rounded-md border-[#cbc4d2] text-[#4f378a]"
+                      />
+                      <span className="text-sm sm:text-base font-medium text-[#494551]">Use saved profile</span>
+                    </label>
                   )}
                 </div>
+              </motion.section>
+            )}
 
-                <div className="flex flex-col gap-3 sm:items-end">
-                  {hasSavedProfile ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProfileDraft(savedProfile);
-                        setProfileModalOpen(true);
-                      }}
-                      className="text-sm font-medium text-purple-700 transition hover:text-purple-800"
-                    >
-                      Edit profile
-                    </button>
-                  ) : null}
-
-                  <div className="flex items-center gap-2 rounded-full bg-white px-3 py-2 shadow-sm">
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={bookingForSomeoneElse}
-                      onClick={() => {
-                        const next = !bookingForSomeoneElse;
-                        setBookingForSomeoneElse(next);
-                        setTouched({ firstName: false, lastName: false, phone: false });
-
-                        if (next) {
-                          setCustomer((prev) => ({ ...prev, firstName: "", lastName: "", phone: "" }));
-                        } else if (hasSavedProfile) {
-                          setCustomer((prev) => ({ ...prev, ...savedProfile }));
-                        }
-                      }}
-                      className={`relative h-6 w-11 rounded-full transition ${bookingForSomeoneElse ? "bg-purple-600" : "bg-gray-300"}`}
-                    >
-                      <span
-                        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition ${bookingForSomeoneElse ? "left-5" : "left-0.5"}`}
-                      />
-                    </button>
-                    <p className="text-sm text-gray-600">Booking for someone else?</p>
-                  </div>
+            {/* STEP 2: SERVICE */}
+            {currentStep === 2 && (
+              <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 sm:space-y-5 md:space-y-6 rounded-xl sm:rounded-2xl bg-[#f4f3f6] p-4 sm:p-6 md:p-8 lg:p-10">
+                <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
+                  <span className="flex h-8 sm:h-9 md:h-10 w-8 sm:w-9 md:w-10 items-center justify-center rounded-full bg-[#4f378a] text-xs font-bold text-white">2</span>
+                  <h2 className="font-display text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold">Select Service</h2>
                 </div>
-              </div>
-
-              <div className="mt-4 space-y-4">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-500">First Name</label>
-                    <Input
-                      ref={firstNameInputRef}
-                      value={activeCustomer.firstName}
-                      onChange={(event) => setCustomer((prev) => ({ ...prev, firstName: event.target.value }))}
-                      onBlur={() => setTouched((prev) => ({ ...prev, firstName: true }))}
-                      placeholder="Enter first name"
-                      readOnly={!bookingForSomeoneElse && hasSavedProfile}
-                      className="rounded-lg border border-gray-100 px-4 py-3 transition focus:ring-2 focus:ring-purple-500"
-                    />
-                    {firstNameError ? <p className="mt-1 text-sm text-red-600">{firstNameError}</p> : null}
-                  </div>
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-500">Last Name</label>
-                    <Input
-                      value={activeCustomer.lastName}
-                      onChange={(event) => setCustomer((prev) => ({ ...prev, lastName: event.target.value }))}
-                      onBlur={() => setTouched((prev) => ({ ...prev, lastName: true }))}
-                      placeholder="Enter last name"
-                      readOnly={!bookingForSomeoneElse && hasSavedProfile}
-                      className="rounded-lg border border-gray-100 px-4 py-3 transition focus:ring-2 focus:ring-purple-500"
-                    />
-                    {lastNameError ? <p className="mt-1 text-sm text-red-600">{lastNameError}</p> : null}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-500">Phone Number</label>
-                  <Input
-                    value={activeCustomer.phone}
-                    onChange={(event) => setCustomer((prev) => ({ ...prev, phone: event.target.value }))}
-                    onBlur={() => setTouched((prev) => ({ ...prev, phone: true }))}
-                    placeholder="Enter phone number"
-                    inputMode="tel"
-                    readOnly={!bookingForSomeoneElse && hasSavedProfile}
-                    className="rounded-lg border border-gray-100 px-4 py-3 transition focus:ring-2 focus:ring-purple-500"
-                  />
-                  {phoneError ? <p className="mt-1 text-sm text-red-600">{phoneError}</p> : null}
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-500">Notes (optional)</label>
-                  <textarea
-                    value={customer.notes}
-                    onChange={(event) => setCustomer((prev) => ({ ...prev, notes: event.target.value }))}
-                    placeholder="Add special requests or notes"
-                    rows={3}
-                    className="w-full rounded-lg border border-gray-100 px-4 py-3 text-sm outline-none transition placeholder:text-gray-400 focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-              </div>
-            </section>
-
-            <section className="rounded-xl bg-white p-6 shadow-sm">
-              <h3 className="text-xl font-semibold text-foreground">Select Service</h3>
-              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {services.map((svc) => (
-                  <button
-                    key={svc.id}
-                    onClick={() => setSelectedService(svc)}
-                    className={`rounded-xl border p-4 text-left transition-all duration-200 hover:shadow-md ${
-                      selectedService?.id === svc.id
-                        ? "border-purple-500 bg-purple-50 shadow-sm"
-                        : "border-gray-100 bg-white"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-foreground">{svc.name}</p>
-                        <p className="mt-1 text-sm text-gray-500">Premium service</p>
-                      </div>
-                      {selectedService?.id === svc.id ? <Check className="h-5 w-5 text-purple-600" /> : null}
-                    </div>
-                    <div className="mt-4 flex items-center gap-4 text-sm text-gray-500">
-                      <span className="inline-flex items-center gap-1.5"><Clock className="h-4 w-4" /> {svc.duration}m</span>
-                      <span className="inline-flex items-center gap-1.5"><DollarSign className="h-4 w-4" /> INR {svc.price}</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <section className="rounded-xl bg-white p-6 shadow-sm">
-              <h3 className="text-xl font-semibold text-foreground">Choose Barber</h3>
-              {barbers.length === 0 ? (
-                <div className="mt-4 rounded-xl border border-dashed border-gray-200 p-5 text-sm text-gray-500">No barbers available right now.</div>
-              ) : (
-                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  {barbers.map((barber, index) => {
-                    const selected = selectedBarberId === barber.id;
-
-                    return (
+                {services.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-[#cbc4d2] p-6 text-center text-[#494551]">No services available</div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:gap-5 lg:gap-6">
+                    {services.map((svc) => (
                       <button
-                        key={barber.id}
-                        onClick={() => setSelectedBarberId(barber.id)}
-                        className={`rounded-xl border p-4 text-left transition-all duration-200 hover:shadow-md ${
-                          selected ? "border-purple-500 bg-purple-50 shadow-sm" : "border-gray-100 bg-white"
+                        key={svc.id}
+                        onClick={() => setSelectedService(svc)}
+                        className={`rounded-lg sm:rounded-xl border-2 p-4 sm:p-5 md:p-6 text-left transition-all ${
+                          selectedService?.id === svc.id
+                            ? "border-[#4f378a] bg-[#f0e9ff]"
+                            : "border-transparent bg-white shadow-sm hover:border-[#cbc4d2]"
                         }`}
                       >
-                        <div className="flex items-start gap-4">
-                          <div className={`flex h-12 w-12 items-center justify-center rounded-full ${selected ? "bg-purple-600 text-white" : "bg-gray-100 text-gray-600"}`}>
-                            <UserRound className="h-5 w-5" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between gap-3">
-                              <p className="truncate font-semibold text-foreground">{barber.name}</p>
-                              {selected ? <Check className="h-5 w-5 text-purple-600" /> : null}
-                            </div>
-                            <p className="mt-1 text-sm text-gray-500">Chair {barber.chair_number ?? index + 1}</p>
-                            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-                              <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-gray-700">
-                                <Star className="h-3.5 w-3.5 text-amber-500" /> 4.9
-                              </span>
-                              <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">Available</span>
-                              <span className="rounded-full bg-purple-50 px-2.5 py-1 text-purple-700">{barber.specialization || "General"}</span>
-                            </div>
-                          </div>
+                        <div className="mb-3 sm:mb-4 flex items-start justify-between gap-2">
+                          <span className={`rounded-full px-2 sm:px-3 py-1 text-[10px] sm:text-xs font-bold uppercase tracking-wider ${selectedService?.id === svc.id ? "bg-[#4f378a] text-white" : "bg-[#e3e2e5] text-[#494551]"}`}>
+                            {selectedService?.id === svc.id ? "Selected" : "Standard"}
+                          </span>
+                          <span className="font-bold text-[#1a1c1e] text-sm sm:text-base">INR {svc.price}</span>
+                        </div>
+                        <p className="text-base sm:text-lg font-bold text-[#1a1c1e] mb-2">{svc.name}</p>
+                        <div className="flex items-center gap-2 text-xs sm:text-sm text-[#494551]">
+                          <Clock className="h-4 w-4" />
+                          <span>{svc.duration} mins</span>
                         </div>
                       </button>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
+                    ))}
+                  </div>
+                )}
+              </motion.section>
+            )}
 
-            <section className="rounded-xl bg-white p-6 shadow-sm">
-              <h3 className="text-xl font-semibold text-foreground">Select Time</h3>
-              <p className="mt-2 text-sm text-gray-500">Advance bookings: up to 30 days ahead (30-minute slots)</p>
-              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-500">Date</label>
-                  <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            {/* STEP 3: BARBER */}
+            {currentStep === 3 && (
+              <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 sm:space-y-5 md:space-y-6 rounded-xl sm:rounded-2xl bg-[#f4f3f6] p-4 sm:p-6 md:p-8 lg:p-10">
+                <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
+                  <span className="flex h-8 sm:h-9 md:h-10 w-8 sm:w-9 md:w-10 items-center justify-center rounded-full bg-[#4f378a] text-xs font-bold text-white">3</span>
+                  <h2 className="font-display text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold">Choose Barber</h2>
+                </div>
+                {barbers.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-[#cbc4d2] p-6 text-center text-[#494551]">No barbers available right now</div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 md:gap-5 lg:gap-6">
+                    {barbers.map((barber) => {
+                      const selected = selectedBarberId === barber.id;
+                      return (
+                        <button
+                          key={barber.id}
+                          onClick={() => setSelectedBarberId(barber.id)}
+                          className={`flex items-center gap-3 sm:gap-4 rounded-lg sm:rounded-xl border-2 p-4 sm:p-5 md:p-6 text-left transition-all ${selected ? "border-[#4f378a] bg-[#f0e9ff]" : "border-transparent bg-white shadow-sm hover:border-[#cbc4d2]"}`}
+                        >
+                          <div className={`flex h-12 sm:h-14 md:h-16 w-12 sm:w-14 md:w-16 flex-shrink-0 items-center justify-center rounded-full text-lg sm:text-xl md:text-2xl font-bold ${selected ? "bg-[#4f378a] text-white" : "bg-[#c9a74d] text-[#503d00]"}`}>
+                            {barber.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <p className="truncate font-bold text-[#1a1c1e] text-sm sm:text-base">{barber.name}</p>
+                              <span className="rounded-full px-2 sm:px-3 py-0.5 sm:py-1 text-xs font-bold uppercase tracking-wide text-green-700 bg-green-50 whitespace-nowrap">Online</span>
+                            </div>
+                            <p className="mb-1 text-xs text-[#494551]">Chair {barber.chair_number ?? 1}</p>
+                            <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#1a1c1e]">
+                              <Star className="h-3.5 sm:h-4 w-3.5 sm:w-4 fill-amber-500 text-amber-500" /> 4.9
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </motion.section>
+            )}
+
+            {/* STEP 4: TIME */}
+            {currentStep === 4 && (
+              <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-5 sm:space-y-6 md:space-y-7 rounded-xl sm:rounded-2xl bg-[#f4f3f6] p-4 sm:p-6 md:p-8 lg:p-10">
+                <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
+                  <span className="flex h-8 sm:h-9 md:h-10 w-8 sm:w-9 md:w-10 items-center justify-center rounded-full bg-[#4f378a] text-xs font-bold text-white">4</span>
+                  <h2 className="font-display text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold">Select Time</h2>
+                </div>
+                <div className="grid grid-cols-1 gap-5 sm:gap-6 md:grid-cols-2 md:gap-5 lg:gap-6">
+                  <div className="space-y-2.5 sm:space-y-3">
+                    <label className="block text-sm sm:text-base font-semibold text-[#4f378a]">Date</label>
                     <Input
                       type="date"
                       required
@@ -601,149 +750,222 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
                       max={getMaxDate()}
                       value={date}
                       onChange={(e) => setDate(e.target.value)}
-                      className="border-gray-100 pl-10"
+                      className="h-11 sm:h-12 md:h-13 w-full rounded-lg border-2 border-[#cbc4d2] bg-white px-3 sm:px-4 text-sm sm:text-base text-[#1a1c1e] outline-none transition focus:border-[#4f378a] focus:ring-2 focus:ring-[#6750a4]/10"
                     />
                   </div>
                 </div>
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-500">Time (30-min slots)</label>
-                  <div className="relative">
-                    <Clock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                    <select
-                      value={time}
-                      onChange={(e) => setTime(e.target.value)}
-                      className="h-10 w-full rounded-lg border border-gray-100 bg-white pl-10 pr-3 text-sm outline-none transition focus:ring-2 focus:ring-purple-500"
-                    >
-                      <option value="">Select time slot</option>
-                      {TIME_SLOTS.map((slot) => (
-                        <option key={slot} value={slot}>{slot}</option>
-                      ))}
-                    </select>
-                  </div>
+
+                <div className="space-y-2.5 sm:space-y-3">
+                  <label className="block text-sm sm:text-base font-semibold text-[#4f378a]">Select Your Time</label>
+                  {date && selectedBarberId ? (
+                    <SlotPicker
+                      salonId={salon.id}
+                      date={date}
+                      barberId={selectedBarberId}
+                      selectedSlot={time}
+                      onSlotSelect={(timeValue) => setTime(timeValue)}
+                    />
+                  ) : (
+                    <div className="rounded-lg bg-gray-50 border-2 border-gray-200 p-4 sm:p-5 text-center">
+                      <p className="text-sm text-gray-600">👆 Please select a date and barber first</p>
+                    </div>
+                  )}
                 </div>
-              </div>
-            </section>
+
+                <div className="rounded-lg border-l-4 border-[#4f378a] bg-[#ede9f6] p-4 sm:p-5">
+                  <p className="text-xs sm:text-sm font-semibold text-[#4f378a] mb-1.5">ℹ️ ADVANCE BOOKING</p>
+                  <p className="text-sm text-[#494551] leading-relaxed">
+                    Up to 30 days ahead. Your position in the live queue will be locked instantly once confirmed.
+                  </p>
+                </div>
+              </motion.section>
+            )}
+
+            {/* NAVIGATION BUTTONS */}
+            <div className="flex gap-2.5 sm:gap-3 pt-4 sm:pt-5 md:pt-6">
+              {currentStep > 1 && (
+                <button
+                  onClick={() => setCurrentStep(currentStep - 1)}
+                  className="flex-1 rounded-lg border-2 border-[#cbc4d2] py-3 sm:py-3.5 md:py-4 px-3 sm:px-4 md:px-6 font-semibold text-sm sm:text-base text-[#1a1c1e] transition hover:border-[#4f378a] hover:bg-[#f4f3f6]"
+                >
+                  Back
+                </button>
+              )}
+              {currentStep < 4 && (
+                <button
+                  onClick={() => {
+                    if (currentStep === 1 && (!activeCustomer.firstName || !activeCustomer.phone)) {
+                      toast.error("Please fill in your details");
+                      return;
+                    }
+                    if (currentStep === 2 && !selectedService) {
+                      toast.error("Please select a service");
+                      return;
+                    }
+                    if (currentStep === 3 && !selectedBarberId) {
+                      toast.error("Please select a barber");
+                      return;
+                    }
+                    setCurrentStep(currentStep + 1);
+                  }}
+                  className="flex-1 rounded-lg bg-[#4f378a] py-3 sm:py-3.5 md:py-4 px-3 sm:px-4 md:px-6 font-semibold text-sm sm:text-base text-white transition hover:bg-[#6750a4] active:scale-95"
+                >
+                  Next
+                </button>
+              )}
+            </div>
           </div>
 
-          <aside className="lg:col-span-1">
+          {/* BOOKING CONFIRMATION CARD */}
+          <aside className="w-full lg:col-span-12 mt-6 lg:mt-8">
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              className="rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-600 p-6 text-white shadow-lg lg:sticky lg:top-6"
+              className="relative overflow-hidden rounded-xl sm:rounded-2xl bg-gradient-to-br from-[#4f378a] to-[#6750a4] p-5 sm:p-7 md:p-8 lg:p-10 text-white shadow-2xl"
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-widest text-white/70">Booking Summary</p>
-                  <h3 className="mt-2 text-2xl font-bold">Ready to join</h3>
-                </div>
-                <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-semibold text-white">
-                  {bookingTypeLabel}
-                </span>
-              </div>
+              <div className="absolute -right-10 sm:-right-12 md:-right-16 -top-10 sm:-top-12 md:-top-16 h-32 sm:h-40 md:h-56 w-32 sm:w-40 md:w-56 rounded-full bg-[#fe6a34] opacity-20 blur-3xl" />
+              <div className="relative z-10 space-y-5 sm:space-y-6 md:space-y-8">
+                <header className="space-y-2 sm:space-y-3">
+                  <div className="flex h-10 sm:h-11 md:h-12 lg:h-14 w-10 sm:w-11 md:w-12 lg:w-14 items-center justify-center rounded-full bg-white/20 backdrop-blur-md">
+                    <Check className="h-5 sm:h-6 md:h-7 w-5 sm:w-6 md:w-7" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">BOOKING SUMMARY</p>
+                    <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold leading-tight">Ready to join</h2>
+                  </div>
+                </header>
 
-              <div className="mt-6 space-y-3">
-                <div className="rounded-lg bg-white/10 p-3 backdrop-blur-sm">
-                  <p className="text-sm text-white/70">Customer</p>
-                  <p className="mt-1 font-semibold">{customerName || "Enter name"}</p>
-                  <p className="text-sm text-white/75">{activeCustomer.phone || "Enter phone"}</p>
-                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between border-b border-white/10 py-2.5 sm:py-3 md:py-4">
+                    <span className="text-xs sm:text-sm font-medium text-white/60">Customer</span>
+                    <span className="font-bold text-xs sm:text-sm md:text-base text-right">{customerName || "Enter name"}</span>
+                  </div>
+                  <div className="flex items-center justify-between border-b border-white/10 py-2.5 sm:py-3 md:py-4">
+                    <span className="text-xs sm:text-sm font-medium text-white/60">Service</span>
+                    <span className="font-bold text-xs sm:text-sm md:text-base text-right">{selectedService?.name || "Choose service"}</span>
+                  </div>
+                  <div className="flex items-center justify-between border-b border-white/10 py-2.5 sm:py-3 md:py-4">
+                    <span className="text-xs sm:text-sm font-medium text-white/60">Barber</span>
+                    <span className="font-bold text-xs sm:text-sm md:text-base text-right">{selectedBarber?.name || "Choose barber"}</span>
+                  </div>
 
-                <div className="rounded-lg bg-white/10 p-3 backdrop-blur-sm">
-                  <p className="text-sm text-white/70">Service</p>
-                  <p className="mt-1 font-semibold">{selectedService?.name || "Choose service"}</p>
-                  <p className="text-sm text-white/75">{selectedService ? `INR ${selectedService.price} • ${selectedService.duration}m` : "Select service"}</p>
-                </div>
-
-                <div className="rounded-lg bg-white/10 p-3 backdrop-blur-sm">
-                  <p className="text-sm text-white/70">Barber</p>
-                  <p className="mt-1 font-semibold">{selectedBarber?.name || "Select barber"}</p>
-                  <p className="text-sm text-white/75">{selectedBarber ? `Chair ${selectedBarber.chair_number ?? 1}` : "Choose barber"}</p>
-                </div>
-
-                <div className="rounded-lg bg-white/10 p-3 backdrop-blur-sm">
-                  <p className="text-sm text-white/70">Wait time</p>
-                  <p className="mt-1 font-semibold">{estimatedWait}</p>
-                </div>
-
-                <div className="rounded-lg bg-white/10 p-3 backdrop-blur-sm">
-                  <p className="text-sm text-white/70">Queue position</p>
-                  <p className="mt-1 font-semibold">{myQueuePosition ? `Your position in queue: #${myQueuePosition}` : `If you join now: #${nextQueuePosition ?? "--"}`}</p>
-                </div>
-
-                <div className="rounded-lg bg-white/10 p-3 backdrop-blur-sm">
-                  <p className="text-sm text-white/70">Price</p>
-                  <p className="mt-1 text-2xl font-bold">INR {selectedService?.price || 0}</p>
-                </div>
-
-                <div className="rounded-lg bg-white/10 p-3 backdrop-blur-sm">
-                  <p className="text-sm text-white/70">Verification</p>
-                  <div className="mt-2 min-h-[78px] rounded-md bg-white/10 p-2">
-                    <TurnstileCaptcha ref={turnstileRef} onTokenChange={setCaptchaToken} className="min-h-[78px]" />
+                  <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:gap-4 pt-4 sm:pt-5 md:pt-6">
+                    <div className="rounded-lg bg-white/10 p-3 sm:p-3.5 md:p-5 backdrop-blur-sm">
+                      <p className="mb-1 sm:mb-1.5 text-xs text-white/60">Wait Time</p>
+                      <p className="font-display text-lg sm:text-xl md:text-2xl font-bold">{estimatedWait}</p>
+                    </div>
+                    <div className="rounded-lg bg-white/10 p-3 sm:p-3.5 md:p-5 backdrop-blur-sm">
+                      <p className="mb-1 sm:mb-1.5 text-xs text-white/60">Queue Position</p>
+                      <p className="font-display text-lg sm:text-xl md:text-2xl font-bold">{myQueuePosition ? `#${myQueuePosition}` : `#${nextQueuePosition ?? "--"}`}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <button
-                onClick={handleBook}
-                disabled={!date || !selectedService || booking || verifyingCaptcha || !captchaToken}
-                className="mt-6 w-full rounded-lg bg-orange-500 py-3 font-semibold text-white hover:bg-orange-600 disabled:opacity-50"
-              >
-                {booking ? <Loader2 className="inline mr-2 h-5 w-5 animate-spin" /> : "Join Queue"}
-              </button>
+                <div className="flex items-center justify-between rounded-lg bg-white/10 p-4 sm:p-4.5 md:p-6 backdrop-blur-sm">
+                  <span className="text-sm sm:text-base font-bold text-white/80">Total Amount</span>
+                  <div className="text-right">
+                    <p className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold">INR {selectedService?.price || 0}</p>
+                    <p className="text-[10px] sm:text-xs text-white/60">incl. all taxes</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 sm:space-y-3.5">
+                  {currentStep === 4 && (
+                    <>
+                      <div className="rounded-lg bg-white/20 p-5 sm:p-5 md:p-5 backdrop-blur-sm border border-white/30">
+                        <p className="text-xs text-white/70 mb-3 font-semibold">Security Verification</p>
+                        <div className="flex justify-center">
+                          <TurnstileCaptcha ref={turnstileRef} onTokenChange={setCaptchaToken} theme="dark" className="w-full min-h-[130px] sm:min-h-[120px]" />
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleBook}
+                        disabled={!date || !selectedService || !time || booking || verifyingCaptcha || !captchaToken}
+                        className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#ab3500] py-3 sm:py-3.5 md:py-4 px-4 sm:px-5 font-bold text-white shadow-lg shadow-[#ab3500]/20 transition hover:scale-[1.01] hover:bg-[#fe6a34] disabled:cursor-not-allowed disabled:opacity-50 active:scale-95 text-sm sm:text-base"
+                      >
+                        {booking ? (
+                          <>
+                            <Loader2 className="h-4 sm:h-5 w-4 sm:w-5 animate-spin" />
+                            Processing...
+                          </>
+                        ) : (
+                          "Confirm Booking"
+                        )}
+                      </button>
+                      <p className="px-3 sm:px-4 text-center text-[10px] sm:text-xs leading-relaxed text-white/40">
+                        By joining the queue, you agree to our Terms of Service and Privacy Policy. Cancellation fees may apply within 2 hours of slot.
+                      </p>
+                    </>
+                  )}
+                  {currentStep < 4 && (
+                    <p className="rounded-lg bg-white/10 px-3 sm:px-4 py-2.5 sm:py-3 text-center text-xs sm:text-sm font-semibold text-white/70">
+                      Complete all steps to confirm booking
+                    </p>
+                  )}
+                </div>
+              </div>
             </motion.div>
           </aside>
         </div>
       </div>
 
-      {profileModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h3 className="text-xl font-semibold text-foreground">Create your profile</h3>
-            <p className="mt-1 text-sm text-gray-500">Save your details once for faster booking next time.</p>
+      {/* Profile Modal */}
+      {profileModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl">
+            <h3 className="text-2xl font-bold text-gray-900">Create your profile</h3>
+            <p className="mt-2 text-gray-600">Save your details once for faster booking next time.</p>
 
-            <div className="mt-5 space-y-4">
+            <div className="mt-6 space-y-4">
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-500">First Name</label>
+                <label className="mb-2 block text-sm font-medium text-gray-700">First Name</label>
                 <Input
                   value={profileDraft.firstName}
                   onChange={(e) => setProfileDraft((prev) => ({ ...prev, firstName: e.target.value }))}
-                  placeholder="Enter first name"
-                  className="border-gray-100"
+                  placeholder="Your first name"
+                  className="border-gray-200"
                 />
               </div>
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-500">Last Name</label>
+                <label className="mb-2 block text-sm font-medium text-gray-700">Last Name</label>
                 <Input
                   value={profileDraft.lastName}
                   onChange={(e) => setProfileDraft((prev) => ({ ...prev, lastName: e.target.value }))}
-                  placeholder="Enter last name"
-                  className="border-gray-100"
+                  placeholder="Your last name"
+                  className="border-gray-200"
                 />
               </div>
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-500">Phone</label>
+                <label className="mb-2 block text-sm font-medium text-gray-700">Phone</label>
                 <Input
                   value={profileDraft.phone}
                   onChange={(e) => setProfileDraft((prev) => ({ ...prev, phone: e.target.value }))}
-                  placeholder="Enter phone number"
+                  placeholder="Your phone number"
                   inputMode="tel"
-                  className="border-gray-100"
+                  className="border-gray-200"
                 />
               </div>
             </div>
 
-            <div className="mt-6 flex justify-end">
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setProfileModalOpen(false)}
+                className="flex-1 rounded-lg border border-gray-200 px-4 py-2 font-semibold text-gray-900 transition hover:bg-gray-50"
+              >
+                Cancel
+              </button>
               <button
                 type="button"
                 onClick={saveProfile}
-                className="rounded-lg bg-orange-500 px-4 py-2 font-semibold text-white transition hover:bg-orange-600"
+                className="flex-1 rounded-lg bg-orange-500 px-4 py-2 font-semibold text-white transition hover:bg-orange-600"
               >
-                Save and continue
+                Save
               </button>
             </div>
-          </div>
+          </motion.div>
         </div>
-      ) : null}
+      )}
     </motion.div>
   );
 }

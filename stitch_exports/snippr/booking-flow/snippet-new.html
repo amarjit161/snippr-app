@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Snippr - Craft Your Perfect Look</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@700;800&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-tertiary-fixed": "#241a00",
+                    "on-error": "#ffffff",
+                    "on-surface": "#1a1c1e",
+                    "tertiary": "#765b00",
+                    "on-secondary-container": "#5d1900",
+                    "secondary-container": "#fe6a34",
+                    "on-tertiary-container": "#503d00",
+                    "inverse-surface": "#2f3033",
+                    "surface-container-highest": "#e3e2e5",
+                    "surface-variant": "#e3e2e5",
+                    "primary": "#4f378a",
+                    "error": "#ba1a1a",
+                    "secondary": "#ab3500",
+                    "background": "#faf9fc",
+                    "surface-container-lowest": "#ffffff",
+                    "primary-fixed-dim": "#cfbcff",
+                    "on-secondary-fixed": "#390c00",
+                    "on-primary": "#ffffff",
+                    "surface-tint": "#6750a4",
+                    "tertiary-container": "#c9a74d",
+                    "primary-container": "#6750a4",
+                    "tertiary-fixed": "#ffdf93",
+                    "on-tertiary-fixed-variant": "#594400",
+                    "tertiary-fixed-dim": "#e7c365",
+                    "on-primary-fixed": "#22005d",
+                    "outline-variant": "#cbc4d2",
+                    "error-container": "#ffdad6",
+                    "surface": "#faf9fc",
+                    "on-background": "#1a1c1e",
+                    "surface-container-low": "#f4f3f6",
+                    "on-secondary": "#ffffff",
+                    "inverse-on-surface": "#f1f0f3",
+                    "secondary-fixed-dim": "#ffb59d",
+                    "surface-bright": "#faf9fc",
+                    "on-surface-variant": "#494551",
+                    "surface-dim": "#dadadc",
+                    "on-tertiary": "#ffffff",
+                    "secondary-fixed": "#ffdbd0",
+                    "on-secondary-fixed-variant": "#832600",
+                    "inverse-primary": "#cfbcff",
+                    "surface-container": "#eeedf0",
+                    "outline": "#7a7582",
+                    "on-primary-container": "#e0d2ff",
+                    "surface-container-high": "#e8e8eb",
+                    "on-primary-fixed-variant": "#4f378a",
+                    "primary-fixed": "#e9ddff",
+                    "on-error-container": "#93000a"
+            },
+            "borderRadius": {
+                    "DEFAULT": "1rem",
+                    "lg": "2rem",
+                    "xl": "3rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Manrope"],
+                    "body": ["Plus Jakarta Sans"],
+                    "label": ["Plus Jakarta Sans"]
+            }
+          },
+        }
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            vertical-align: middle;
+        }
+        .glass-summary {
+            background: linear-gradient(135deg, rgba(79, 55, 138, 0.95) 0%, rgba(103, 80, 164, 0.95) 100%);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopAppBar from JSON -->
+<nav class="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-xl flex justify-between items-center px-6 md:px-16 h-20 w-full shadow-sm">
+<div class="flex items-center gap-8">
+<span class="text-2xl font-black tracking-tight text-violet-700 font-headline">Snippr</span>
+<div class="hidden md:flex items-center gap-6">
+<a class="text-slate-600 font-medium hover:text-violet-600 transition-colors" href="#">Dashboard</a>
+<a class="text-violet-800 font-bold border-b-2 border-violet-600 transition-colors" href="#">Booking</a>
+<a class="text-slate-600 font-medium hover:text-violet-600 transition-colors" href="#">Barbers</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 rounded-full hover:bg-surface-container-high transition-transform active:scale-90 text-on-surface-variant">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 rounded-full hover:bg-surface-container-high transition-transform active:scale-90 text-on-surface-variant">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+</button>
+</div>
+</nav>
+<main class="pt-32 pb-20 px-6 md:px-16 max-w-7xl mx-auto">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+<!-- Left Column: Booking Flow (60%) -->
+<div class="lg:col-span-7 space-y-16">
+<!-- Header Section -->
+<header class="space-y-6">
+<button class="w-10 h-10 flex items-center justify-center rounded-full bg-primary-container text-on-primary-container transition-transform active:scale-90">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+</button>
+<div class="space-y-2">
+<h1 class="text-5xl md:text-6xl font-headline font-extrabold tracking-tight leading-[1.1]">
+<span class="text-on-surface">Craft Your</span><br/>
+<span class="bg-gradient-to-r from-primary to-primary-container bg-clip-text text-transparent">Perfect Look.</span>
+</h1>
+<p class="text-on-surface-variant text-lg max-w-md">Enter your details below to join the live queue at Luxe Grooming Lounge.</p>
+</div>
+</header>
+<!-- Step 1: Your Information -->
+<section class="space-y-8">
+<div class="flex items-center gap-4">
+<span class="w-10 h-10 flex items-center justify-center rounded-full bg-primary text-on-primary font-bold">1</span>
+<h2 class="text-2xl font-headline font-bold">Your Information</h2>
+</div>
+<div class="space-y-6">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="relative group">
+<label class="absolute -top-2.5 left-4 bg-surface px-1 text-xs font-semibold text-primary transition-all group-focus-within:text-primary">Full Name</label>
+<input class="w-full px-4 py-4 rounded-lg bg-transparent border border-outline-variant focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none transition-all placeholder:text-slate-300" placeholder="Johnathan Doe" type="text"/>
+</div>
+<div class="relative group">
+<label class="absolute -top-2.5 left-4 bg-surface px-1 text-xs font-semibold text-slate-500 transition-all group-focus-within:text-primary">Phone Number</label>
+<input class="w-full px-4 py-4 rounded-lg bg-transparent border border-outline-variant focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none transition-all placeholder:text-slate-300" placeholder="+91 98765 43210" type="tel"/>
+</div>
+</div>
+<div class="relative group">
+<label class="absolute -top-2.5 left-4 bg-surface px-1 text-xs font-semibold text-slate-500 transition-all group-focus-within:text-primary">Notes (Optional)</label>
+<textarea class="w-full px-4 py-4 rounded-lg bg-transparent border border-outline-variant focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none transition-all placeholder:text-slate-300 resize-none" placeholder="Special requirements or hair history..." rows="3"></textarea>
+</div>
+<label class="flex items-center gap-3 cursor-pointer group">
+<div class="relative flex items-center">
+<input class="peer appearance-none w-6 h-6 border-2 border-outline-variant rounded-md checked:bg-primary checked:border-primary transition-all" type="checkbox"/>
+<span class="material-symbols-outlined absolute text-white scale-0 peer-checked:scale-100 left-0.5 pointer-events-none transition-transform" style="font-size: 20px;">check</span>
+</div>
+<span class="text-sm font-medium text-on-surface-variant group-hover:text-on-surface">Use saved profile</span>
+</label>
+</div>
+</section>
+<!-- Step 2: Select Service -->
+<section class="space-y-8">
+<div class="flex items-center gap-4">
+<span class="w-10 h-10 flex items-center justify-center rounded-full bg-surface-container-high text-on-surface-variant font-bold">2</span>
+<h2 class="text-2xl font-headline font-bold">Select Service</h2>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<!-- Service Card Selected -->
+<div class="p-6 rounded-lg bg-primary-fixed-dim/20 border-2 border-primary cursor-pointer transition-all hover:shadow-md">
+<div class="flex justify-between items-start mb-4">
+<span class="px-3 py-1 bg-primary text-on-primary text-[10px] font-bold uppercase tracking-wider rounded-full">Premium service</span>
+<span class="text-primary font-bold">₹1,200</span>
+</div>
+<h3 class="font-bold text-lg mb-2">Executive Sculpt</h3>
+<div class="flex items-center gap-4 text-on-surface-variant text-sm">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-base" data-icon="schedule">schedule</span>
+<span>45 mins</span>
+</div>
+</div>
+</div>
+<!-- Service Card -->
+<div class="p-6 rounded-lg bg-surface-container-lowest border-2 border-transparent hover:border-outline-variant cursor-pointer transition-all shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<span class="px-3 py-1 bg-surface-container-highest text-on-surface-variant text-[10px] font-bold uppercase tracking-wider rounded-full">Standard</span>
+<span class="text-on-surface font-bold">₹600</span>
+</div>
+<h3 class="font-bold text-lg mb-2">Classic Buzz</h3>
+<div class="flex items-center gap-4 text-on-surface-variant text-sm">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-base" data-icon="schedule">schedule</span>
+<span>25 mins</span>
+</div>
+</div>
+</div>
+<!-- Service Card -->
+<div class="p-6 rounded-lg bg-surface-container-lowest border-2 border-transparent hover:border-outline-variant cursor-pointer transition-all shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<span class="px-3 py-1 bg-surface-container-highest text-on-surface-variant text-[10px] font-bold uppercase tracking-wider rounded-full">Add-on</span>
+<span class="text-on-surface font-bold">₹400</span>
+</div>
+<h3 class="font-bold text-lg mb-2">Beard Sculpting</h3>
+<div class="flex items-center gap-4 text-on-surface-variant text-sm">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-base" data-icon="schedule">schedule</span>
+<span>20 mins</span>
+</div>
+</div>
+</div>
+<!-- Service Card -->
+<div class="p-6 rounded-lg bg-surface-container-lowest border-2 border-transparent hover:border-outline-variant cursor-pointer transition-all shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<span class="px-3 py-1 bg-surface-container-highest text-on-surface-variant text-[10px] font-bold uppercase tracking-wider rounded-full">Luxury</span>
+<span class="text-on-surface font-bold">₹2,000</span>
+</div>
+<h3 class="font-bold text-lg mb-2">The Royal Ritual</h3>
+<div class="flex items-center gap-4 text-on-surface-variant text-sm">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-base" data-icon="schedule">schedule</span>
+<span>90 mins</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Step 3: Choose Barber -->
+<section class="space-y-8">
+<div class="flex items-center gap-4">
+<span class="w-10 h-10 flex items-center justify-center rounded-full bg-surface-container-high text-on-surface-variant font-bold">3</span>
+<h2 class="text-2xl font-headline font-bold">Choose Barber</h2>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<!-- Barber Card -->
+<div class="p-5 rounded-lg bg-surface-container-lowest border-2 border-transparent hover:border-outline-variant cursor-pointer transition-all shadow-sm flex items-center gap-4">
+<div class="w-14 h-14 rounded-full bg-tertiary-container text-on-tertiary-container flex items-center justify-center font-bold text-xl">
+                                M
+                            </div>
+<div class="flex-1">
+<div class="flex items-center justify-between">
+<h3 class="font-bold">Marcus Vane</h3>
+<span class="text-xs font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded uppercase tracking-wide">Available</span>
+</div>
+<p class="text-xs text-on-surface-variant mb-1">Chair 04</p>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-amber-500 text-sm" data-icon="star" data-weight="fill">star</span>
+<span class="text-xs font-bold text-on-surface">4.9</span>
+</div>
+</div>
+</div>
+<!-- Barber Card Selected -->
+<div class="p-5 rounded-lg bg-primary-fixed-dim/20 border-2 border-primary cursor-pointer transition-all shadow-sm flex items-center gap-4">
+<div class="w-14 h-14 rounded-full bg-primary text-on-primary flex items-center justify-center font-bold text-xl">
+                                D
+                            </div>
+<div class="flex-1">
+<div class="flex items-center justify-between">
+<h3 class="font-bold">David Chen</h3>
+<span class="text-xs font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded uppercase tracking-wide">Available</span>
+</div>
+<p class="text-xs text-on-surface-variant mb-1">Chair 01</p>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-amber-500 text-sm" data-icon="star" data-weight="fill">star</span>
+<span class="text-xs font-bold text-on-surface">5.0</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Select Time -->
+<section class="p-8 rounded-lg bg-surface-container-low border border-outline-variant/10 space-y-6">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<div class="space-y-2">
+<label class="text-sm font-bold text-slate-700">Date</label>
+<div class="relative">
+<input class="w-full px-4 py-3 rounded-lg bg-surface-container-lowest border border-outline-variant outline-none focus:border-primary transition-all" type="date" value="2023-10-24"/>
+</div>
+</div>
+<div class="space-y-2">
+<label class="text-sm font-bold text-slate-700">Available Slots</label>
+<select class="w-full px-4 py-3 rounded-lg bg-surface-container-lowest border border-outline-variant outline-none focus:border-primary transition-all appearance-none cursor-pointer">
+<option>10:30 AM</option>
+<option selected="">11:00 AM</option>
+<option>11:30 AM</option>
+<option>01:00 PM</option>
+</select>
+</div>
+</div>
+<div class="flex items-start gap-3 p-4 bg-surface-container-highest/30 rounded-lg">
+<span class="material-symbols-outlined text-primary" data-icon="info">info</span>
+<p class="text-sm text-on-surface-variant">Advance bookings: up to 30 days ahead (30-minute slots). Your position in the live queue will be locked once confirmed.</p>
+</div>
+</section>
+</div>
+<!-- Right Column: Sticky Summary Card (40%) -->
+<aside class="lg:col-span-5 lg:sticky lg:top-32">
+<div class="glass-summary p-10 rounded-xl text-white shadow-2xl relative overflow-hidden">
+<!-- Subtle Abstract Decoration -->
+<div class="absolute -top-20 -right-20 w-64 h-64 bg-secondary opacity-20 blur-3xl rounded-full"></div>
+<div class="relative z-10 space-y-10">
+<header class="flex flex-col gap-3">
+<div class="w-12 h-12 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-2xl" data-icon="check_circle">check_circle</span>
+</div>
+<div>
+<p class="text-white/70 text-xs font-bold tracking-[0.2em] uppercase">BOOKING SUMMARY</p>
+<h2 class="text-3xl font-headline font-extrabold">Ready to join</h2>
+</div>
+</header>
+<div class="space-y-6">
+<div class="flex justify-between items-center py-4 border-b border-white/10">
+<span class="text-white/60 font-medium">Customer</span>
+<span class="font-bold">Johnathan Doe</span>
+</div>
+<div class="flex justify-between items-center py-4 border-b border-white/10">
+<span class="text-white/60 font-medium">Service</span>
+<span class="font-bold">Executive Sculpt</span>
+</div>
+<div class="flex justify-between items-center py-4 border-b border-white/10">
+<span class="text-white/60 font-medium">Barber</span>
+<span class="font-bold">David Chen</span>
+</div>
+<div class="pt-6 grid grid-cols-2 gap-4">
+<div class="p-4 rounded-lg bg-white/10 backdrop-blur-sm">
+<p class="text-xs text-white/60 mb-1">Wait Time</p>
+<p class="text-2xl font-headline font-bold">12 mins</p>
+</div>
+<div class="p-4 rounded-lg bg-white/10 backdrop-blur-sm">
+<p class="text-xs text-white/60 mb-1">Queue Position</p>
+<p class="text-2xl font-headline font-bold">#3</p>
+</div>
+</div>
+</div>
+<div class="p-6 rounded-lg bg-white/10 backdrop-blur-sm flex justify-between items-center">
+<span class="text-white/80 font-bold text-lg">Total Amount</span>
+<div class="flex flex-col items-end">
+<span class="text-3xl font-headline font-extrabold">₹1,200</span>
+<span class="text-[10px] text-white/60">incl. all taxes</span>
+</div>
+</div>
+<div class="space-y-4">
+<button class="w-full py-5 bg-secondary text-white font-bold rounded-lg shadow-lg shadow-secondary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3">
+<span>Confirm Booking</span>
+<span class="material-symbols-outlined" data-icon="rocket_launch">rocket_launch</span>
+</button>
+<p class="text-center text-[10px] text-white/40 px-8 leading-relaxed">
+                                By joining the queue, you agree to our Terms of Service and Privacy Policy. Cancellation fees may apply within 2 hours of slot.
+                            </p>
+</div>
+</div>
+</div>
+<!-- Secondary Support Info -->
+<div class="mt-8 grid grid-cols-2 gap-4">
+<div class="p-6 rounded-lg bg-surface-container-low flex flex-col gap-2">
+<span class="material-symbols-outlined text-primary" data-icon="location_on">location_on</span>
+<h4 class="font-bold text-sm">Find Us</h4>
+<p class="text-xs text-on-surface-variant">Level 2, Premium Arcade, Indiranagar</p>
+</div>
+<div class="p-6 rounded-lg bg-surface-container-low flex flex-col gap-2">
+<span class="material-symbols-outlined text-primary" data-icon="contact_support">contact_support</span>
+<h4 class="font-bold text-sm">Help</h4>
+<p class="text-xs text-on-surface-variant">Chat with us or call +91 80 4432 0000</p>
+</div>
+</div>
+</aside>
+</div>
+</main>
+<!-- Map Section for Context -->
+<section class="mt-12 px-6 md:px-16 max-w-7xl mx-auto pb-24">
+<div class="w-full h-96 rounded-xl overflow-hidden relative grayscale hover:grayscale-0 transition-all duration-700">
+<img alt="Modern minimalist interior of a high-end barbershop with leather chairs and warm ambient lighting" class="w-full h-full object-cover" data-alt="Modern minimalist interior of a luxury barbershop with premium leather chairs, soft golden lighting, and walnut wood accents" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCFqMWtFG18VjjJ6b02-Y1pH4rTItWqZAFwmH8_Mgu1uIfSaDKBdhlITAotinNt0klTiVQXX1F-hEzvcHwjbZE96W1KSUfJLIvrU7-dYdQoVovGoH3r2vvvFtyDNrmBZ-susGqYiiOqaF4FMJYzb9yeVu4QNuqyJgxw-iQfOORJwgYXr10Adrkase5qFCMuc19-PiUqyKAV1q7CLuQdaDJNahsN5XOuRrxbkmV9-KQP0_Mh2XmDd0zDuzk6iP-icpn1boGPVEcSijI"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface to-transparent"></div>
+<div class="absolute bottom-10 left-10 p-6 bg-white shadow-xl rounded-lg max-w-sm">
+<h3 class="font-headline font-bold text-xl mb-1">Luxe Grooming Lounge</h3>
+<p class="text-on-surface-variant text-sm mb-4">Your selected destination for high-end styling.</p>
+<div class="flex items-center gap-2 text-primary font-bold text-sm">
+<span class="material-symbols-outlined" data-icon="directions">directions</span>
+<span>Get Directions</span>
+</div>
+</div>
+</div>
+</section>
+</body></html>

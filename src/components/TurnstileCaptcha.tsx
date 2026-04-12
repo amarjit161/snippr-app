@@ -1,69 +1,7 @@
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, useRef } from "react";
+import { Turnstile } from '@marsidev/react-turnstile';
 
 type TurnstileTheme = "light" | "dark" | "auto";
-
-type TurnstileRenderOptions = {
-  sitekey: string;
-  theme?: TurnstileTheme;
-  callback: (token: string) => void;
-  "expired-callback"?: () => void;
-  "error-callback"?: () => void;
-};
-
-type TurnstileWidgetApi = {
-  render: (container: HTMLElement, options: TurnstileRenderOptions) => string;
-  getResponse: (widgetId?: string) => string;
-  reset: (widgetId?: string) => void;
-  remove?: (widgetId: string) => void;
-};
-
-declare global {
-  interface Window {
-    turnstile?: TurnstileWidgetApi;
-  }
-}
-
-const TURNSTILE_SCRIPT_ID = "snippr-turnstile-script";
-const TURNSTILE_SCRIPT_URL = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-
-let scriptPromise: Promise<void> | null = null;
-
-const loadTurnstileScript = () => {
-  if (typeof window === "undefined") {
-    return Promise.resolve();
-  }
-
-  if (window.turnstile) {
-    return Promise.resolve();
-  }
-
-  if (scriptPromise) {
-    return scriptPromise;
-  }
-
-  scriptPromise = new Promise((resolve, reject) => {
-    const existing = document.getElementById(TURNSTILE_SCRIPT_ID) as HTMLScriptElement | null;
-
-    if (existing) {
-      existing.addEventListener("load", () => resolve(), { once: true });
-      existing.addEventListener("error", () => reject(new Error("Failed to load Turnstile script")), { once: true });
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.id = TURNSTILE_SCRIPT_ID;
-    script.src = TURNSTILE_SCRIPT_URL;
-    script.async = true;
-    script.defer = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Failed to load Turnstile script"));
-    document.head.appendChild(script);
-  }).finally(() => {
-    scriptPromise = null;
-  });
-
-  return scriptPromise;
-};
 
 interface TurnstileCaptchaProps {
   onTokenChange: (token: string | null) => void;
@@ -77,95 +15,56 @@ export interface TurnstileCaptchaHandle {
 }
 
 const TurnstileCaptcha = forwardRef<TurnstileCaptchaHandle, TurnstileCaptchaProps>(function TurnstileCaptcha(
-  { onTokenChange, className, theme = "light" },
+  { onTokenChange, className = "", theme = "light" },
   ref
 ) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const widgetIdRef = useRef<string | null>(null);
-  const [isReady, setIsReady] = useState(false);
+  const turnstileRef = useRef<any>(null);
   const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined;
 
-  const wrapperClassName = useMemo(
-    () => className || "min-h-[82px] w-full overflow-hidden",
-    [className]
-  );
-
-  useEffect(() => {
-    onTokenChange(null);
-  }, [onTokenChange]);
-
-  useImperativeHandle(ref, () => ({
-    getResponse: () => {
-      if (!widgetIdRef.current || !window.turnstile) return "";
-      return window.turnstile.getResponse(widgetIdRef.current) || "";
-    },
-    reset: () => {
-      if (!widgetIdRef.current || !window.turnstile) return;
-      window.turnstile.reset(widgetIdRef.current);
-      onTokenChange(null);
-    },
-  }), [onTokenChange]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const renderWidget = async () => {
-      if (!siteKey || !containerRef.current) return;
-
-      try {
-        await loadTurnstileScript();
-      } catch (error) {
-        console.error("Turnstile script load failed", error);
-        return;
-      }
-
-      if (cancelled || !containerRef.current || !window.turnstile) return;
-
-      containerRef.current.innerHTML = "";
-
-      const widgetId = window.turnstile.render(containerRef.current, {
-        sitekey: siteKey,
-        theme,
-        callback: (token: string) => onTokenChange(token),
-        "expired-callback": () => onTokenChange(null),
-        "error-callback": () => onTokenChange(null),
-      });
-
-      widgetIdRef.current = widgetId;
-      setIsReady(true);
+  // Expose reset and getResponse methods
+  if (ref && typeof ref === 'object' && 'current' in ref) {
+    ref.current = {
+      getResponse: () => {
+        return turnstileRef.current?.getResponse() || "";
+      },
+      reset: () => {
+        turnstileRef.current?.reset();
+        onTokenChange(null);
+      },
     };
-
-    renderWidget();
-
-    return () => {
-      cancelled = true;
-
-      if (widgetIdRef.current && window.turnstile) {
-        if (window.turnstile.remove) {
-          window.turnstile.remove(widgetIdRef.current);
-        } else {
-          window.turnstile.reset(widgetIdRef.current);
-        }
-      }
-
-      widgetIdRef.current = null;
-    };
-  }, [onTokenChange, siteKey, theme]);
+  }
 
   if (!siteKey) {
-    return (
-      <div className={wrapperClassName}>
-        <p className="text-xs text-muted-foreground">Captcha key is not configured.</p>
-      </div>
-    );
+    console.error("VITE_TURNSTILE_SITE_KEY is not configured");
+    return null;
   }
 
   return (
-    <div className={wrapperClassName} aria-live="polite">
-      <div ref={containerRef} />
-      {!isReady ? <p className="mt-2 text-xs text-muted-foreground">Loading verification...</p> : null}
+    <div className={className} style={{ width: "100%", maxWidth: "100%", overflow: "hidden" }}>
+      <Turnstile
+        ref={turnstileRef}
+        siteKey={siteKey}
+        appearance="interaction-only"
+        options={{
+          theme: theme as any,
+          size: "flexible",
+          language: "auto",
+        }}
+        onSuccess={(token) => onTokenChange(token)}
+        onError={() => {
+          onTokenChange(null);
+          turnstileRef.current?.reset();
+        }}
+        onExpire={() => {
+          onTokenChange(null);
+          turnstileRef.current?.reset();
+        }}
+        style={{ width: "100%" }}
+      />
     </div>
   );
 });
+
+TurnstileCaptcha.displayName = "TurnstileCaptcha";
 
 export default TurnstileCaptcha;
