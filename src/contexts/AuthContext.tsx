@@ -47,38 +47,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         try {
           console.log("FETCH_PROFILE: Requesting from database...");
           
-          // Create a promise that times out after 3 seconds
-          const fetchWithTimeout = async () => {
-            return Promise.race([
-              supabase
-                .from("owners")
-                .select("*")
-                .eq("id", s.user.id)
-                .maybeSingle(),
-              new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("Query timeout after 3s")), 3000)
-              ),
-            ]);
-          };
+          const { data, error } = await supabase
+            .from("owners")
+            .select("*")
+            .eq("id", s.user.id)
+            .maybeSingle();
 
-          const { data, error } = await fetchWithTimeout() as any;
-
-          if (error) {
-            console.error("FETCH_PROFILE_ERROR:", error.message);
-            // Use cached profile if error, don't clear it
-            if (cachedProfileRef.current) {
-              setProfile(cachedProfileRef.current);
-            } else {
-              setProfile(null);
-            }
-          } else {
-            console.log("FETCH_PROFILE_COMPLETE:", data);
+          // maybeSingle() returns null if no row found — this is not an error for customers
+          if (!error) {
+            console.log("FETCH_PROFILE_COMPLETE:", data ?? "null (customer user, not owner)");
             cachedProfileRef.current = data ?? null;
             setProfile(data ?? null);
+            setProfileLoading(false);
+            return;
+          }
+
+          // Only retry on actual network/timeout errors
+          console.error("FETCH_PROFILE_ERROR:", error.message);
+          if (cachedProfileRef.current) {
+            setProfile(cachedProfileRef.current);
+          } else {
+            setProfile(null);
           }
         } catch (err: any) {
           console.error("FETCH_PROFILE_EXCEPTION:", err.message || err);
-          // Use cached profile if error, don't clear it
           if (cachedProfileRef.current) {
             console.log("FETCH_PROFILE: Falling back to cached profile");
             setProfile(cachedProfileRef.current);

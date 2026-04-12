@@ -92,7 +92,26 @@ export function useSlotAvailability(
         .eq("booking_date", date)
         .in("status", ["waiting", "confirmed", "in_progress"]);
 
-      const { data: bookedRecords } = await query;
+      const { data: bookedRecords, error: bookingsError } = await query;
+
+      // Handle query errors gracefully
+      if (bookingsError) {
+        console.error('SLOT_FETCH_ERROR:', bookingsError);
+        // Don't crash — just treat as 0 booked slots and show all as available
+        setSlots(
+          generateTimeSlots(FALLBACK_OPEN_TIME, FALLBACK_CLOSE_TIME).map(
+            (timeValue) => ({
+              time: formatTimeDisplay(timeValue),
+              timeValue,
+              available: true,
+              bookedCount: 0,
+              totalBarbers: 1,
+            })
+          )
+        );
+        setLoading(false);
+        return;
+      }
 
       // Fetch barber count if barberId not specified
       let totalBarbers = 1;
