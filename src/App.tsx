@@ -15,6 +15,9 @@ import SalonPage from "./pages/SalonPage.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import { ProtectedRoute } from "./components/ProtectedRoute.tsx";
 import OwnerLogin from "./pages/OwnerLogin.tsx";
+import OwnerSignUp from "./pages/OwnerSignUp.tsx";
+import VerifyEmail from "./pages/VerifyEmail.tsx";
+import Onboarding from "./pages/Onboarding.tsx";
 import RegisterSalon from "./pages/RegisterSalon.tsx";
 import OwnerDashboard from "./pages/OwnerDashboard.tsx";
 import OwnerRegister from "./pages/OwnerRegister.tsx";
@@ -30,7 +33,8 @@ import Privacy from "./pages/Privacy.tsx";
 import { OwnerProtectedRoute } from "./components/OwnerProtectedRoute.tsx";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { ErrorBoundary } from "./components/ErrorBoundary";
+import { ErrorBoundary } from "./components/errors/ErrorBoundary";
+import { OfflineBanner } from "./components/errors/OfflineBanner";
 
 const queryClient = new QueryClient();
 
@@ -55,6 +59,7 @@ const RootLoadingGuard = ({ children }: { children: React.ReactNode }) => {
 
 const App = () => (
   <ErrorBoundary>
+    <OfflineBanner />
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <RootLoadingGuard>
@@ -68,6 +73,9 @@ const App = () => (
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/verify" element={<Verify />} />
                 <Route path="/owner-login" element={<OwnerLogin />} />
+                <Route path="/owner-signup" element={<OwnerSignUp />} />
+                <Route path="/verify-email" element={<VerifyEmail />} />
+                <Route path="/onboarding" element={<Onboarding />} />
                 <Route path="/owner-register" element={<OwnerRegistration />} />
                 <Route path="/careers" element={<Careers />} />
                 <Route path="/how-it-works" element={<HowItWorks />} />

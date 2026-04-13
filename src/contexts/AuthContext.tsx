@@ -139,6 +139,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
         console.log("AUTH_STATE_CHANGED:", event, currentSession?.user?.email || "No session");
+
+        if (event === "TOKEN_REFRESHED") {
+          console.log("AUTH: Token refreshed successfully");
+        }
+
+        if (event === "SIGNED_OUT") {
+          setSession(null);
+          setProfile(null);
+          cachedProfileRef.current = null;
+          localStorage.removeItem("snippr_role");
+          localStorage.removeItem("owner");
+          setLoading(false);
+          return;
+        }
+
+        if (event === "USER_UPDATED") {
+          if (currentSession) {
+            await fetchProfile(currentSession, true);
+          }
+          return;
+        }
+
         setSession(currentSession);
         setLoading(false); // Resolve loading on any state change
         
@@ -156,11 +178,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
         } else if (event === "INITIAL_SESSION" && currentSession) {
           await fetchProfile(currentSession, false); // Use cache for initial session
-        } else if (event === "SIGNED_OUT") {
-          setProfile(null);
-          cachedProfileRef.current = null;
-          localStorage.removeItem("snippr_role");
-          localStorage.removeItem("owner");
         }
         // Don't refetch on TOKEN_REFRESHED or other events - use cached profile
       }

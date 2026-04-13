@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useGeolocation, estimateTravelMinutes } from "@/hooks/useGeolocation";
+import { useErrorHandler } from "@/hooks/useErrorHandler";
 import type { Tables } from "@/integrations/supabase/types";
 import TurnstileCaptcha, { type TurnstileCaptchaHandle } from "@/components/TurnstileCaptcha";
 import { verifyTurnstileToken } from "@/lib/turnstile";
@@ -77,6 +78,7 @@ const EMPTY_PROFILE: CustomerProfile = {
 
 export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProps) {
   const { user } = useAuth();
+  const { handleBookingError } = useErrorHandler();
   const { location } = useGeolocation();
   const [services, setServices] = useState<Tables<"services">[]>([]);
   const [barbers, setBarbers] = useState<BarberRow[]>([]);
@@ -347,6 +349,22 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
     turnstileRef.current?.reset();
   };
 
+  const refreshAvailability = async () => {
+    if (!date || !selectedBarberId) return;
+
+    const { data } = await supabase
+      .from("queue" as any)
+      .select("time_slot")
+      .eq("salon_id", salon.id)
+      .eq("barber_id", selectedBarberId)
+      .eq("booking_date", date)
+      .in("status", ["waiting", "in_progress", "confirmed"]);
+
+    const booked = new Set((data || []).map((b: any) => b.time_slot));
+    setBookedSlots(booked);
+    setLastAvailabilityUpdate(new Date());
+  };
+
   const handleBook = async () => {
     if (booking || verifyingCaptcha) return;
 
@@ -464,7 +482,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       console.log("RLS_AUTH_VERIFIED", currentUser.id);
 
       const { error } = await (supabase.from("queue") as any).insert({
-        user_id: currentUser.id,
+        user_id: user?.id || currentUser.id,
         salon_id: salon.id,
         service_id: selectedService.id,
         barber_id: selectedBarberId,
@@ -480,50 +498,9 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       });
 
       if (error) {
+        handleBookingError(error as any, refreshAvailability);
         setBooking(false);
-        
-        console.error('BOOKING_INSERT_ERROR:', {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint
-        });
-        
-        // Handle unique constraint violation (23505) - slot just booked by someone else
-        if (error.code === '23505' || error.message?.includes('unique_barber_slot')) {
-          toast.error("⏱️ Just missed it! Someone booked this slot. Pick another time.");
-          // Trigger refresh to show updated availability
-          const { data } = await supabase
-            .from("queue" as any)
-            .select("time_slot")
-            .eq("salon_id", salon.id)
-            .eq("barber_id", selectedBarberId)
-            .eq("booking_date", date)
-            .in("status", ["waiting", "in_progress", "confirmed"]);
-          
-          const booked = new Set((data || []).map((b: any) => b.time_slot));
-          setBookedSlots(booked);
-          return;
-        }
-        
-        // Legacy 409 conflict handling
-        if (error.message?.includes('unique_barber_booking') || error.status === 409) {
-          const { data } = await supabase
-            .from("queue" as any)
-            .select("booking_time")
-            .eq("salon_id", salon.id)
-            .eq("barber_id", selectedBarberId)
-            .eq("booking_date", date)
-            .in("status", ["waiting", "in_progress"]);
-          
-          const booked = new Set((data || []).map((b: any) => b.booking_time));
-          setBookedSlots(booked);
-          
-          toast.error(`⏱️ Just missed it! That slot was booked by someone faster. Please pick another time or barber.`);
-          return;
-        }
-        
-        toast.error(error.message || "Failed to book");
+        return;
       } else {
         if (bookingForSomeoneElse) {
           setCustomer((prev) => ({ ...prev, firstName: "", lastName: "", phone: "" }));

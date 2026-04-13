@@ -105,6 +105,23 @@ export default function OwnerRegistration() {
 
   // Auth: Pre-fill and Redirect
   useEffect(() => {
+    const checkVerified = async () => {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+
+      if (!currentUser) {
+        navigate("/owner-signup");
+        return;
+      }
+
+      if (!currentUser.email_confirmed_at) {
+        toast.error("Please verify your email before registering your salon.");
+        navigate("/owner-signup");
+        return;
+      }
+    };
+
+    checkVerified();
+
     if (!authLoading && user && profile) {
       navigate("/owner-dashboard");
     }
@@ -404,8 +421,8 @@ export default function OwnerRegistration() {
           address: address.trim() || null,
           city: city.trim() || null,
           pincode: pincode.trim() || null,
-          open_time: openTime || null,
-          close_time: closeTime || null,
+          open_time: openTime || "09:00",
+          close_time: closeTime || "20:00",
           image_url: imagePath || null,
           location: address.trim() || null,
         })
@@ -484,8 +501,18 @@ export default function OwnerRegistration() {
 
       <main className="mx-auto max-w-3xl space-y-6 px-4 py-8">
         <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h1 className="font-display text-3xl font-bold">Create Owner Account</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Sign up as a salon owner and set up your salon in one flow.</p>
+          <div className="mb-4 flex items-center justify-center gap-2 text-xs font-medium text-muted-foreground">
+            <span className="h-2.5 w-2.5 rounded-full bg-zinc-300" />
+            <span>Create Account</span>
+            <span>→</span>
+            <span className="h-2.5 w-2.5 rounded-full bg-zinc-300" />
+            <span>Verify Email</span>
+            <span>→</span>
+            <span className="h-2.5 w-2.5 rounded-full bg-primary" />
+            <span className="text-foreground">Setup Salon</span>
+          </div>
+          <h1 className="font-display text-3xl font-bold">Setup Your Salon</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Step 3 of 3. Add your salon details to go live on Snippr.</p>
         </section>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -523,8 +550,8 @@ export default function OwnerRegistration() {
           <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
             <h2 className="text-lg font-semibold">Timing</h2>
             <div className="grid gap-4 md:grid-cols-2">
-              <Input type="time" value={openTime} onChange={(e) => setOpenTime(e.target.value)} required />
-              <Input type="time" value={closeTime} onChange={(e) => setCloseTime(e.target.value)} required />
+              <Input type="time" value={openTime || "09:00"} onChange={(e) => setOpenTime(e.target.value)} required />
+              <Input type="time" value={closeTime || "20:00"} onChange={(e) => setCloseTime(e.target.value)} required />
             </div>
           </section>
 

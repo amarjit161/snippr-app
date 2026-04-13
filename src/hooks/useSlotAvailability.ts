@@ -80,10 +80,20 @@ export function useSlotAvailability(
 
       console.log('SALON_FETCH:', { salonId, salon, error: salonError });
 
-      const openTime = salon?.open_time?.trim() || FALLBACK_OPEN_TIME;
-      const closeTime = salon?.close_time?.trim() || FALLBACK_CLOSE_TIME;
+      const openTime = salon?.open_time && salon.open_time.trim() !== ""
+        ? salon.open_time.trim()
+        : FALLBACK_OPEN_TIME;
 
-      console.log('SALON_HOURS:', { openTime, closeTime, hasSalonData: !!salon });
+      const closeTime = salon?.close_time && salon.close_time.trim() !== ""
+        ? salon.close_time.trim()
+        : FALLBACK_CLOSE_TIME;
+
+      console.log("SLOT_HOURS_USED:", {
+        openTime,
+        closeTime,
+        raw_open: salon?.open_time,
+        raw_close: salon?.close_time,
+      });
 
       // Generate all time slots for this date
       const allTimeValues = generateTimeSlots(openTime, closeTime);

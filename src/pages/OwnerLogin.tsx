@@ -188,9 +188,9 @@ export default function OwnerLogin() {
           New salon owner?
           <span
             className="ml-1 cursor-pointer font-medium text-primary"
-            onClick={() => navigate("/owner-register")}
+            onClick={() => navigate("/owner-signup")}
           >
-            Register your salon
+            Create Account
           </span>
         </p>
       </div>
