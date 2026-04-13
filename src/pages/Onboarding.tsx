@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -22,6 +22,59 @@ interface FormData {
   services: Service[];
 }
 
+// ✅ MOVED OUTSIDE: StepBar component (prevents remount on every render)
+const StepBar = ({ currentStep }: { currentStep: number }) => (
+  <div className="flex items-center justify-center gap-2 mb-8">
+    {["Account", "Salon Info", "Services", "Done"].map((label, i) => {
+      const stepNum = i + 1;
+      const isActive = currentStep === stepNum;
+      const isDone = currentStep > stepNum;
+
+      return (
+        <div key={label} className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <div
+              className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
+                isDone
+                  ? "bg-green-500 text-white"
+                  : isActive
+                    ? "bg-purple-600 text-white ring-4 ring-purple-100"
+                    : "bg-gray-100 text-gray-400"
+              }`}
+            >
+              {isDone ? "✓" : stepNum}
+            </div>
+            <span
+              className={`text-xs font-medium hidden sm:block ${
+                isActive ? "text-purple-600" : isDone ? "text-green-600" : "text-gray-400"
+              }`}
+            >
+              {label}
+            </span>
+          </div>
+          {i < 3 && <div className={`w-8 h-0.5 rounded ${isDone ? "bg-green-400" : "bg-gray-200"}`} />}
+        </div>
+      );
+    })}
+  </div>
+);
+
+// ✅ MOVED OUTSIDE: Card component (prevents remount on every render)
+const OnboardingCard = ({ children, currentStep }: { children: React.ReactNode; currentStep: number }) => (
+  <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div className="w-full max-w-lg bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+      <div className="flex items-center gap-2 mb-6">
+        <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
+          <Scissors className="w-4 h-4 text-white" />
+        </div>
+        <span className="font-bold text-gray-900">Snippr</span>
+      </div>
+      {currentStep > 0 && currentStep < 4 && <StepBar currentStep={currentStep} />}
+      {children}
+    </div>
+  </div>
+);
+
 export const Onboarding = () => {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -40,6 +93,11 @@ export const Onboarding = () => {
     closeTime: "20:00",
     services: [{ name: "", price: "", duration: "30" }],
   });
+
+  // ✅ STABLE HANDLER: useCallback prevents function recreation on every render
+  const updateForm = useCallback((key: keyof FormData, value: any) => {
+    setFormData((prev) => ({ ...prev, [key]: value }));
+  }, []);
 
   useEffect(() => {
     const verifyAndLoad = async () => {
@@ -89,10 +147,6 @@ export const Onboarding = () => {
 
     verifyAndLoad();
   }, [navigate]);
-
-  const updateForm = (key: keyof FormData, value: any) => {
-    setFormData((prev) => ({ ...prev, [key]: value }));
-  };
 
   const handleSalonSetup = async () => {
     if (!formData.salonName.trim()) {
@@ -168,57 +222,6 @@ export const Onboarding = () => {
     }
   };
 
-  const StepBar = () => (
-    <div className="flex items-center justify-center gap-2 mb-8">
-      {["Account", "Salon Info", "Services", "Done"].map((label, i) => {
-        const stepNum = i + 1;
-        const isActive = step === stepNum;
-        const isDone = step > stepNum;
-
-        return (
-          <div key={label} className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5">
-              <div
-                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
-                  isDone
-                    ? "bg-green-500 text-white"
-                    : isActive
-                      ? "bg-purple-600 text-white ring-4 ring-purple-100"
-                      : "bg-gray-100 text-gray-400"
-                }`}
-              >
-                {isDone ? "✓" : stepNum}
-              </div>
-              <span
-                className={`text-xs font-medium hidden sm:block ${
-                  isActive ? "text-purple-600" : isDone ? "text-green-600" : "text-gray-400"
-                }`}
-              >
-                {label}
-              </span>
-            </div>
-            {i < 3 && <div className={`w-8 h-0.5 rounded ${isDone ? "bg-green-400" : "bg-gray-200"}`} />}
-          </div>
-        );
-      })}
-    </div>
-  );
-
-  const Card = ({ children }: { children: React.ReactNode }) => (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-lg bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-        <div className="flex items-center gap-2 mb-6">
-          <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
-            <Scissors className="w-4 h-4 text-white" />
-          </div>
-          <span className="font-bold text-gray-900">Snippr</span>
-        </div>
-        {step > 0 && step < 4 && <StepBar />}
-        {children}
-      </div>
-    </div>
-  );
-
   if (step === 0)
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -231,7 +234,7 @@ export const Onboarding = () => {
 
   if (step === 1)
     return (
-      <Card>
+      <OnboardingCard currentStep={step}>
         <div className="text-center mb-6">
           <div className="text-5xl mb-3">🎉</div>
           <h1 className="text-2xl font-bold text-gray-900 mb-1">Email verified!</h1>
@@ -261,12 +264,12 @@ export const Onboarding = () => {
         >
           Let's set up your salon <ChevronRight className="w-4 h-4" />
         </button>
-      </Card>
+      </OnboardingCard>
     );
 
   if (step === 2)
     return (
-      <Card>
+      <OnboardingCard currentStep={step}>
         <div className="mb-6">
           <h1 className="text-xl font-bold text-gray-900 mb-1">Your Salon Details 💈</h1>
           <p className="text-gray-500 text-sm">This is what customers will see when they search for you</p>
@@ -359,12 +362,12 @@ export const Onboarding = () => {
             {loading ? "Saving..." : <><span>Next: Add Services</span> <ChevronRight className="w-4 h-4" /></>}
           </button>
         </div>
-      </Card>
+      </OnboardingCard>
     );
 
   if (step === 3)
     return (
-      <Card>
+      <OnboardingCard currentStep={step}>
         <div className="mb-6">
           <h1 className="text-xl font-bold text-gray-900 mb-1">Add Your Services ✂️</h1>
           <p className="text-gray-500 text-sm">Customers will pick from these when booking</p>
@@ -447,7 +450,7 @@ export const Onboarding = () => {
             {loading ? "Saving..." : <><span>Complete Setup</span> <ChevronRight className="w-4 h-4" /></>}
           </button>
         </div>
-      </Card>
+      </OnboardingCard>
     );
 
   if (step === 4)
