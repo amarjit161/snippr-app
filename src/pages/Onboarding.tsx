@@ -188,6 +188,38 @@ export const Onboarding = () => {
 
       if (salonError) throw salonError;
 
+      // Seed national holidays for the newly created salon.
+      const year = new Date().getFullYear();
+      const { error: holidaySeedError } = await supabase
+        .from("salon_holidays" as any)
+        .insert([
+          {
+            salon_id: salon.id,
+            date: `${year}-01-26`,
+            name: "Republic Day",
+            type: "national",
+            note: "Closed for Republic Day",
+          },
+          {
+            salon_id: salon.id,
+            date: `${year}-08-15`,
+            name: "Independence Day",
+            type: "national",
+            note: "Closed for Independence Day",
+          },
+          {
+            salon_id: salon.id,
+            date: `${year}-10-02`,
+            name: "Gandhi Jayanti",
+            type: "national",
+            note: "Closed for Gandhi Jayanti",
+          },
+        ]);
+
+      if (holidaySeedError) {
+        console.error("HOLIDAY_SEED_ERROR:", holidaySeedError);
+      }
+
       setSalonId(salon.id);
       setStep(3);
     } catch (err: any) {

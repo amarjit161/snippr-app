@@ -134,6 +134,10 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
   }, [bookingForSomeoneElse]);
 
   useEffect(() => {
+    setTime("");
+  }, [date, selectedBarberId]);
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
 
     try {
@@ -743,6 +747,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
                   <label className="block text-sm sm:text-base font-semibold text-[#4f378a]">Select Your Time</label>
                   {date && selectedBarberId ? (
                     <SlotPicker
+                      key={`${selectedBarberId}-${date}`}
                       salonId={salon.id}
                       date={date}
                       barberId={selectedBarberId}

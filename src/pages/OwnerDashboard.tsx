@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { OwnerShell } from "@/components/dashboard/OwnerShell";
+import { HolidayCalendar } from "@/components/dashboard/HolidayCalendar";
 import { toast } from "sonner";
 
 type OwnerRecord = {
@@ -587,6 +588,12 @@ export default function OwnerDashboard() {
             </div>
           )}
         </section>
+
+        {salon && (
+          <div className="mt-8 mb-8">
+            <HolidayCalendar salonId={salon.id} />
+          </div>
+        )}
       </div>
     </OwnerShell>
   );

@@ -22,7 +22,15 @@ export function SlotPicker({
   selectedSlot,
   onSlotSelect,
 }: SlotPickerProps) {
-  const { slots, loading, availableCount, totalCount, lastUpdated, refresh } =
+  const {
+    slots,
+    loading,
+    availableCount,
+    totalCount,
+    holidayInfo,
+    lastUpdated,
+    refresh,
+  } =
     useSlotAvailability(salonId, date, barberId);
 
   console.log('SLOT_PICKER_RENDER:', { 
@@ -165,8 +173,27 @@ export function SlotPicker({
         </span>
       </div>
 
-      {/* Fully booked state */}
-      {isFullyBooked ? (
+      {/* Holiday closed state */}
+      {holidayInfo ? (
+        <div className="text-center py-10 px-4">
+          <div className="text-6xl mb-4">
+            {holidayInfo.type === "national"
+              ? "🇮🇳"
+              : holidayInfo.type === "festival"
+                ? "🎉"
+                : "🔒"}
+          </div>
+          <h3 className="text-xl font-bold text-gray-800 mb-2">
+            {holidayInfo.name}
+          </h3>
+          <p className="text-gray-500 text-sm mb-4">
+            {holidayInfo.note || "Salon is closed on this day"}
+          </p>
+          <div className="inline-flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-full text-sm font-medium">
+            📅 Please select another date
+          </div>
+        </div>
+      ) : isFullyBooked ? (
         <div className="text-center py-12 bg-red-50 border-2 border-red-200 rounded-lg">
           <Calendar className="w-12 h-12 mx-auto mb-3 text-red-500" />
           <p className="text-sm font-semibold text-red-700 mb-1">

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Search } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { publicSupabase } from "@/integrations/supabase/publicClient";
 import { Input } from "@/components/ui/input";
 import Header from "@/components/Header";
 import SalonCard from "@/components/SalonCard";
@@ -12,6 +12,140 @@ import { calculateDistance } from "@/lib/location";
 import { useDebounce } from "@/hooks/useDebounce";
 
 export type SalonWithQueueAndDistance = Tables<"salons"> & { queueCount: number; waitTime: number; distance?: number };
+
+type PlaceSuggestion = {
+  label: string;
+  value: string;
+  category: "city" | "salon" | "famous";
+  subtitle: string;
+};
+
+const INDIA_CITIES = [
+  "Delhi",
+  "Mumbai",
+  "Bengaluru",
+  "Hyderabad",
+  "Chennai",
+  "Kolkata",
+  "Pune",
+  "Ahmedabad",
+  "Jaipur",
+  "Surat",
+  "Lucknow",
+  "Kanpur",
+  "Nagpur",
+  "Indore",
+  "Thane",
+  "Bhopal",
+  "Visakhapatnam",
+  "Patna",
+  "Vadodara",
+  "Ghaziabad",
+  "Ludhiana",
+  "Agra",
+  "Nashik",
+  "Faridabad",
+  "Meerut",
+  "Rajkot",
+  "Varanasi",
+  "Srinagar",
+  "Aurangabad",
+  "Dhanbad",
+  "Amritsar",
+  "Navi Mumbai",
+  "Allahabad",
+  "Howrah",
+  "Ranchi",
+  "Gwalior",
+  "Jabalpur",
+  "Coimbatore",
+  "Vijayawada",
+  "Jodhpur",
+  "Madurai",
+  "Raipur",
+  "Kota",
+  "Guwahati",
+  "Chandigarh",
+  "Solapur",
+  "Hubballi",
+  "Mysuru",
+  "Tiruchirappalli",
+  "Bareilly",
+  "Aligarh",
+  "Tiruppur",
+  "Moradabad",
+  "Jalandhar",
+  "Bhubaneswar",
+  "Salem",
+  "Warangal",
+  "Guntur",
+  "Bhiwandi",
+  "Saharanpur",
+  "Gorakhpur",
+  "Bikaner",
+  "Amravati",
+  "Noida",
+  "Jamshedpur",
+  "Bhilai",
+  "Cuttack",
+  "Firozabad",
+  "Kochi",
+  "Nellore",
+  "Bhavnagar",
+  "Dehradun",
+  "Durgapur",
+  "Asansol",
+  "Rourkela",
+  "Nanded",
+  "Kolhapur",
+  "Ajmer",
+  "Akola",
+  "Mangalore",
+  "Udaipur",
+  "Muzaffarpur",
+  "Jamnagar",
+  "Bokaro",
+  "Kozhikode",
+  "Kurnool",
+  "Tirunelveli",
+  "Mathura",
+  "Ujjain",
+  "Belgaum",
+  "Tirupati",
+  "Siliguri",
+  "Panipat",
+  "Sagar",
+  "Jammu",
+  "Shimla",
+];
+
+const FAMOUS_PLACE_SUGGESTIONS: PlaceSuggestion[] = [
+  { label: "Connaught Place", value: "Connaught Place", category: "famous", subtitle: "Delhi · central market" },
+  { label: "Lajpat Nagar", value: "Lajpat Nagar", category: "famous", subtitle: "Delhi · shopping hub" },
+  { label: "Karol Bagh", value: "Karol Bagh", category: "famous", subtitle: "Delhi · salon-heavy area" },
+  { label: "Saket", value: "Saket", category: "famous", subtitle: "Delhi · malls and cafes" },
+  { label: "Preet Vihar", value: "Preet Vihar", category: "famous", subtitle: "Delhi · East Delhi" },
+  { label: "Nirman Vihar", value: "Nirman Vihar", category: "famous", subtitle: "Delhi · metro station" },
+  { label: "Rajouri Garden", value: "Rajouri Garden", category: "famous", subtitle: "Delhi · popular retail zone" },
+  { label: "Pitampura", value: "Pitampura", category: "famous", subtitle: "Delhi · residential and market area" },
+  { label: "Hauz Khas", value: "Hauz Khas", category: "famous", subtitle: "Delhi · premium neighborhood" },
+  { label: "Khan Market", value: "Khan Market", category: "famous", subtitle: "Delhi · premium shopping" },
+];
+
+const DELHI_LOCALITY_KEYWORDS = [
+  "nirman vihar",
+  "preet vihar",
+  "laxmi nagar",
+  "vikas marg",
+  "connaught place",
+  "karol bagh",
+  "lajpat nagar",
+  "rajouri garden",
+  "hauz khas",
+  "pitampura",
+  "khan market",
+  "saket",
+];
 
 const Salons = () => {
   console.log("SALONS_COMPONENT_RENDER_START");
@@ -26,6 +160,7 @@ const Salons = () => {
   const [userLoc, setUserLoc] = useState<{lat: number, lng: number} | null>(null);
   const [locationDenied, setLocationDenied] = useState(false);
   const [selectedCity, setSelectedCity] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   console.log("SALONS_AUTH_STATE:", { 
     userId: user?.id, 
@@ -74,14 +209,14 @@ const Salons = () => {
     setLoadError(null);
 
     try {
-      const { data: salonData, error: salonError } = await supabase.from("salons").select("*");
+      const { data: salonData, error: salonError } = await publicSupabase.from("salons").select("*");
       if (salonError) throw salonError;
       console.log("FETCH_SALONS_RAW_DATA", salonData?.length);
 
       const enriched: SalonWithQueueAndDistance[] = await Promise.all(
         (salonData ?? []).map(async (salon) => {
            // Optimized nested query: only fetch duration from services
-           const { data: queueData, error: queueError } = await supabase
+           const { data: queueData, error: queueError } = await publicSupabase
             .from("queue")
             .select("services(duration)")
             .eq("salon_id", salon.id)
@@ -131,7 +266,7 @@ const Salons = () => {
   // 2. Real-time Subscriptions for Salon & Queue updates
   useEffect(() => {
     console.log("SALONS_SUBSCRIPTION_INIT");
-    const channel = supabase
+    const channel = publicSupabase
       .channel("salon-updates")
       .on("postgres_changes", { event: "*", schema: "public", table: "queue" }, (payload) => {
         console.log("SALONS_REALTIME: QUEUE_CHANGE_DETECTED");
@@ -147,7 +282,7 @@ const Salons = () => {
       });
     return () => { 
       console.log("SALONS_SUBSCRIPTION_CLEANUP");
-      supabase.removeChannel(channel); 
+      publicSupabase.removeChannel(channel); 
     };
   }, [fetchSalons]);
 
@@ -165,22 +300,105 @@ const Salons = () => {
     };
   }, [fetchSalons]);
 
-  const filteredBySearch = salons.filter(
-    (s) =>
-      s.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-      s.location.toLowerCase().includes(debouncedSearch.toLowerCase())
-  );
+  const normalizedSearch = debouncedSearch.trim().toLowerCase();
+  const isDelhiLocalityQuery =
+    normalizedSearch.length > 0 &&
+    DELHI_LOCALITY_KEYWORDS.some((keyword) => normalizedSearch.includes(keyword));
+
+  const filteredBySearch = salons.filter((s) => {
+    const city = (((s as any).city as string | null) ?? "").toLowerCase();
+    const pincode = String((s as any).pincode ?? "").toLowerCase();
+    const directMatch =
+      s.name.toLowerCase().includes(normalizedSearch) ||
+      (s.location || "").toLowerCase().includes(normalizedSearch) ||
+      city.includes(normalizedSearch) ||
+      (s.address || "").toLowerCase().includes(normalizedSearch) ||
+      pincode.includes(normalizedSearch);
+
+    if (!normalizedSearch) return true;
+    if (directMatch) return true;
+
+    // Landmark fallback: if user searches a well-known Delhi locality,
+    // include Delhi salons to behave more like ride/food apps.
+    if (isDelhiLocalityQuery && city === "delhi") {
+      return true;
+    }
+
+    return false;
+  });
+
+  const suggestionQuery = normalizedSearch;
+  const placeSuggestions: PlaceSuggestion[] = suggestionQuery
+    ? [
+        ...INDIA_CITIES.filter((city) => city.toLowerCase().includes(suggestionQuery))
+          .slice(0, 6)
+          .map((city) => ({
+            label: city,
+            value: city,
+            category: "city" as const,
+            subtitle: "City suggestion",
+          })),
+        ...salons
+          .filter((salon) =>
+            [
+              salon.name,
+              salon.address,
+              (salon as any).city,
+              salon.location,
+              String((salon as any).pincode ?? ""),
+            ]
+              .filter(Boolean)
+              .some((field) => String(field).toLowerCase().includes(suggestionQuery))
+          )
+          .slice(0, 6)
+          .map((salon) => ({
+            label: salon.name,
+            value: salon.name,
+            category: "salon" as const,
+            subtitle:
+              salon.address ||
+              ((salon as any).city
+                ? `${(salon as any).city} · salon`
+                : "Salon result"),
+          })),
+        ...FAMOUS_PLACE_SUGGESTIONS.filter((item) =>
+          item.label.toLowerCase().includes(suggestionQuery) ||
+          item.subtitle.toLowerCase().includes(suggestionQuery)
+        ).slice(0, 6),
+      ]
+    : FAMOUS_PLACE_SUGGESTIONS.slice(0, 6);
+
+  const uniqueSuggestions = Array.from(
+    new Map(placeSuggestions.map((item) => [item.label.toLowerCase(), item])).values()
+  ).slice(0, 8);
 
   const cityOptions = Array.from(
-    new Set(
-      salons
+    new Set([
+      ...INDIA_CITIES,
+      ...salons
         .map((salon) => ((salon as any).city as string | null) ?? "")
         .map((city) => city.trim())
-        .filter(Boolean)
-    )
+        .filter(Boolean),
+    ])
   ).sort((a, b) => a.localeCompare(b));
 
-  const filtered = locationDenied && selectedCity
+  const defaultCity = cityOptions.includes("Delhi")
+    ? "Delhi"
+    : cityOptions[0] || "";
+
+  useEffect(() => {
+    if (locationDenied && !selectedCity && defaultCity) {
+      setSelectedCity(defaultCity);
+    }
+  }, [locationDenied, selectedCity, defaultCity]);
+
+  useEffect(() => {
+    if (!locationDenied && selectedCity) {
+      setSelectedCity("");
+    }
+  }, [locationDenied, selectedCity]);
+
+  const filtered = selectedCity
     ? filteredBySearch.filter((salon) => (((salon as any).city as string | null) ?? "").toLowerCase() === selectedCity.toLowerCase())
     : filteredBySearch;
 
@@ -214,20 +432,71 @@ const Salons = () => {
             </p>
           </section>
 
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search salons or locations…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="ds-input pl-10"
-            />
-          </div>
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search salons, landmarks, addresses…"
+                value={search}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setShowSuggestions(true);
+                }}
+                className="ds-input pl-10"
+              />
+              {showSuggestions && uniqueSuggestions.length > 0 ? (
+                <div className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-2xl border border-border bg-background shadow-xl">
+                  <div className="border-b border-border px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                      Search suggestions
+                    </p>
+                  </div>
+                  <div className="max-h-80 overflow-auto py-2">
+                    {uniqueSuggestions.map((item) => (
+                      <button
+                        key={`${item.category}-${item.label}`}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setSearch(item.value);
+                          if (item.category === "city") {
+                            setSelectedCity(item.value);
+                          } else if (!locationDenied) {
+                            setSelectedCity("");
+                          }
+                          setShowSuggestions(false);
+                        }}
+                        className="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-muted/70"
+                      >
+                        <div className="mt-0.5 rounded-full bg-primary/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-primary">
+                          {item.category}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-foreground">{item.label}</p>
+                          <p className="truncate text-xs text-muted-foreground">{item.subtitle}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
 
-          {locationDenied ? (
             <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
-              <p className="text-sm text-muted-foreground">Location permission is off. Select your city to find nearby salons.</p>
-              <div className="mt-3 max-w-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">City</p>
+                  <p className="text-xs text-muted-foreground">
+                    {locationDenied ? "Location is off, pick a city first" : "Using current location"}
+                  </p>
+                </div>
+                <span className="rounded-full bg-primary/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-primary">
+                  {locationDenied ? "Manual" : "Auto"}
+                </span>
+              </div>
+              <div className="mt-3">
                 <select
                   value={selectedCity}
                   onChange={(e) => setSelectedCity(e.target.value)}
@@ -240,7 +509,7 @@ const Salons = () => {
                 </select>
               </div>
             </section>
-          ) : null}
+          </div>
 
           {userLoc && nearYouSalons.length > 0 ? (
             <section className="space-y-4">
