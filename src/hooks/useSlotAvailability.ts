@@ -27,6 +27,16 @@ const FALLBACK_OPEN_TIME = "09:00";
 const FALLBACK_CLOSE_TIME = "20:00";
 const SLOT_DURATION_MINUTES = 30;
 
+const parseTimeParts = (time: string | null | undefined, fallback: string): [number, number] => {
+  const raw = (time || fallback).trim();
+  const [h, m] = raw.split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) {
+    const [fh, fm] = fallback.split(":").map(Number);
+    return [fh, fm];
+  }
+  return [h, m];
+};
+
 const formatTime = (hours: number, minutes: number): string => {
   const period = hours >= 12 ? "PM" : "AM";
   const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
@@ -94,7 +104,7 @@ export function useSlotAvailability(
     setHolidayInfo(null);
     setSlots([]);
     try {
-      // Fetch salon open/close times
+      // Step 1/2: read salon hours and always apply fallback values.
       const { data: salon, error: salonError } = await supabase
         .from("salons" as any)
         .select("open_time, close_time, is_manual_closed")
@@ -116,45 +126,42 @@ export function useSlotAvailability(
         raw_close: salon?.close_time,
       });
 
-      // Fetch bookings and holiday in parallel
-      const [bookingsResult, holidaysResult] = await Promise.all([
-        supabase
-          .from("queue" as any)
-          .select("time_slot, barber_id, status")
-          .eq("salon_id", salonId)
-          .eq("booking_date", selectedDate)
-          .in("status", ["waiting", "confirmed", "in_progress"]),
-        supabase
-          .from("salon_holidays" as any)
-          .select("date, name, note, type")
-          .eq("salon_id", salonId)
-          .eq("date", selectedDate)
-          .maybeSingle(),
-      ]);
+      // Step 3: holiday check first.
+      const { data: holiday } = await supabase
+        .from("salon_holidays" as any)
+        .select("date, name, note, type")
+        .eq("salon_id", salonId)
+        .eq("date", selectedDate)
+        .maybeSingle();
 
-      const bookedRecords = bookingsResult.data;
-      const bookingsError = bookingsResult.error;
-      const holiday = holidaysResult.data as
-        | { name: string; note?: string; type: string }
-        | null;
-
-      // Holiday blocks the whole day
       if (requestId !== requestSequenceRef.current) {
         return;
       }
 
-      if (holiday) {
-        setHolidayInfo(holiday);
+      const holidayData = holiday as
+        | { name: string; note?: string; type: string }
+        | null;
+
+      if (holidayData) {
+        setHolidayInfo(holidayData);
         setSlots([]);
         setLastUpdated(new Date());
         return;
       }
 
+      setHolidayInfo(null);
+
+      // Step 4: booked slots for the selected day.
+      const { data: bookedRecords, error: bookingsError } = await supabase
+        .from("queue" as any)
+        .select("time_slot, barber_id, status")
+        .eq("salon_id", salonId)
+        .eq("booking_date", selectedDate)
+        .in("status", ["waiting", "confirmed", "in_progress"]);
+
       if (requestId !== requestSequenceRef.current) {
         return;
       }
-
-      setHolidayInfo(null);
 
       console.log('SLOT_QUERY:', { 
         date, 
@@ -185,22 +192,25 @@ export function useSlotAvailability(
         return;
       }
 
-      // Fetch barber count if barberId not specified
+      // Step 5: fetch barber count.
       let totalBarbers = 1;
       if (!barberId) {
-        const { data: barberData } = await supabase
+        const { count: barberCount } = await supabase
           .from("barbers" as any)
-          .select("id")
+          .select("*", { count: "exact", head: true })
           .eq("salon_id", salonId);
-        totalBarbers = barberData?.length || 1;
+        totalBarbers = Math.max(barberCount || 1, 1);
       }
 
       if (requestId !== requestSequenceRef.current) {
         return;
       }
 
-      let [h, m] = openTime.split(":").map(Number);
-      const [closeH, closeM] = closeTime.split(":").map(Number);
+      // Step 6: generate slots for all non-holiday dates.
+      const [openH, openM] = parseTimeParts(openTime, FALLBACK_OPEN_TIME);
+      const [closeH, closeM] = parseTimeParts(closeTime, FALLBACK_CLOSE_TIME);
+      let h = openH;
+      let m = openM;
 
       // Support overnight closing hours by rolling the close boundary to next day.
       let closeBoundary = closeH * 60 + closeM;
@@ -239,7 +249,14 @@ export function useSlotAvailability(
         currentBoundary += SLOT_DURATION_MINUTES;
       }
 
-      console.log('SLOT_DEBUG:', { openTime, closeTime, salonId, date: selectedDate, slotsGenerated: updatedSlots.length });
+      console.log('SLOT_DEBUG:', {
+        salonId,
+        date: selectedDate,
+        openTime,
+        closeTime,
+        is_manual_closed: salon?.is_manual_closed,
+        slotsGenerated: updatedSlots.length,
+      });
 
       console.log('FINAL_SLOTS:', { 
         totalSlots: updatedSlots.length, 
@@ -268,8 +285,10 @@ export function useSlotAvailability(
 
   // Initial fetch
   useEffect(() => {
-    fetchSlots(date);
-  }, [fetchSlots, date]);
+    if (salonId && date) {
+      fetchSlots(date);
+    }
+  }, [fetchSlots, salonId, date]);
 
   // Auto-refresh every 30 seconds
   useEffect(() => {

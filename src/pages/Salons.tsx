@@ -157,9 +157,10 @@ const Salons = () => {
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [userLoc, setUserLoc] = useState<{lat: number, lng: number} | null>(null);
-  const [locationDenied, setLocationDenied] = useState(false);
-  const [selectedCity, setSelectedCity] = useState("");
+  const [locationMode, setLocationMode] = useState<"auto" | "manual">("auto");
+  const [manualCity, setManualCity] = useState("");
+  const [userCoords, setUserCoords] = useState<{lat: number, lng: number} | null>(null);
+  const [locationError, setLocationError] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   console.log("SALONS_AUTH_STATE:", { 
@@ -179,25 +180,29 @@ const Salons = () => {
     console.log("SALONS_GEOLOCATION_INIT");
     if (!navigator.geolocation) {
       console.warn("GEOLOCATION_NOT_SUPPORTED");
-      setLocationDenied(true);
+      setLocationMode("manual");
+      setLocationError(true);
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
         console.log("GEOLOCATION_SUCCESS", position.coords);
-        setUserLoc({
+        setUserCoords({
           lat: position.coords.latitude,
           lng: position.coords.longitude,
         });
+        setLocationMode("auto");
+        setLocationError(false);
       },
       (error) => {
         console.warn("GEOLOCATION_ERROR", error.code, error.message);
-        setLocationDenied(true);
+        setLocationMode("manual");
+        setLocationError(true);
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
+        timeout: 8000,
         maximumAge: 300000,
       }
     );
@@ -232,8 +237,8 @@ const Salons = () => {
            );
 
            let dist = undefined;
-           if (userLoc && salon.lat && salon.lng) {
-               dist = calculateDistance(userLoc.lat, userLoc.lng, salon.lat, salon.lng);
+             if (userCoords && salon.lat && salon.lng) {
+               dist = calculateDistance(userCoords.lat, userCoords.lng, salon.lat, salon.lng);
            }
 
            return { ...salon, queueCount, waitTime, distance: dist };
@@ -255,7 +260,7 @@ const Salons = () => {
     } finally {
       setLoading(false);
     }
-  }, [userLoc]); // Re-fetch only when userLoc changes
+  }, [userCoords]); // Re-fetch only when user coordinates change
 
   // 1. Initial Fetch on Mount
   useEffect(() => {
@@ -382,25 +387,14 @@ const Salons = () => {
     ])
   ).sort((a, b) => a.localeCompare(b));
 
-  const defaultCity = cityOptions.includes("Delhi")
-    ? "Delhi"
-    : cityOptions[0] || "";
-
-  useEffect(() => {
-    if (locationDenied && !selectedCity && defaultCity) {
-      setSelectedCity(defaultCity);
-    }
-  }, [locationDenied, selectedCity, defaultCity]);
-
-  useEffect(() => {
-    if (!locationDenied && selectedCity) {
-      setSelectedCity("");
-    }
-  }, [locationDenied, selectedCity]);
-
-  const filtered = selectedCity
-    ? filteredBySearch.filter((salon) => (((salon as any).city as string | null) ?? "").toLowerCase() === selectedCity.toLowerCase())
-    : filteredBySearch;
+  const filtered = filteredBySearch.filter((salon) => {
+    const city = (((salon as any).city as string | null) ?? "").toLowerCase();
+    const matchesCity =
+      locationMode === "auto" ||
+      !manualCity ||
+      city === manualCity.toLowerCase();
+    return matchesCity;
+  });
 
   const nearYouSalons = filtered
     .filter((salon) => salon.distance !== undefined)
@@ -416,6 +410,8 @@ const Salons = () => {
       <Header
         onSignOut={signOut}
         userName={user.email ?? user.phone ?? "User"}
+        userEmail={user.email || undefined}
+        profileName={profile?.name || undefined}
         onAdminToggle={profile ? () => navigate("/owner-dashboard") : undefined}
         isAdmin={false}
       />
@@ -462,9 +458,11 @@ const Salons = () => {
                         onClick={() => {
                           setSearch(item.value);
                           if (item.category === "city") {
-                            setSelectedCity(item.value);
-                          } else if (!locationDenied) {
-                            setSelectedCity("");
+                            setManualCity(item.value);
+                            setLocationMode("manual");
+                          } else if (!locationError) {
+                            setManualCity("");
+                            setLocationMode("auto");
                           }
                           setShowSuggestions(false);
                         }}
@@ -485,33 +483,54 @@ const Salons = () => {
             </div>
 
             <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">City</p>
-                  <p className="text-xs text-muted-foreground">
-                    {locationDenied ? "Location is off, pick a city first" : "Using current location"}
-                  </p>
-                </div>
-                <span className="rounded-full bg-primary/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-primary">
-                  {locationDenied ? "Manual" : "Auto"}
-                </span>
-              </div>
-              <div className="mt-3">
-                <select
-                  value={selectedCity}
-                  onChange={(e) => setSelectedCity(e.target.value)}
-                  className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:ring-2 focus:ring-primary/30"
+              <div className="mb-4 flex items-center gap-3">
+                <div
+                  className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium ${
+                    locationMode === "auto"
+                      ? "bg-green-100 text-green-700"
+                      : "bg-amber-100 text-amber-700"
+                  }`}
                 >
-                  <option value="">Select city</option>
+                  <span>{locationMode === "auto" ? "📍" : "⚠️"}</span>
+                  <span>{locationMode === "auto" ? "Using current location" : "Location unavailable"}</span>
+                </div>
+
+                <select
+                  value={manualCity}
+                  onChange={(e) => {
+                    setManualCity(e.target.value);
+                    setLocationMode("manual");
+                  }}
+                  className="h-10 flex-1 rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none transition focus:ring-2 focus:ring-primary/40"
+                >
+                  <option value="">All cities</option>
                   {cityOptions.map((city) => (
                     <option key={city} value={city}>{city}</option>
                   ))}
                 </select>
+
+                {locationMode === "manual" && manualCity ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setManualCity("");
+                      setLocationMode("auto");
+                    }}
+                    className="rounded-xl bg-primary/10 px-3 py-2 text-sm font-medium text-primary"
+                  >
+                    Reset
+                  </button>
+                ) : null}
               </div>
+              {locationError ? (
+                <p className="text-xs text-muted-foreground">
+                  Auto location is unavailable right now. Use manual city selection to filter salons.
+                </p>
+              ) : null}
             </section>
           </div>
 
-          {userLoc && nearYouSalons.length > 0 ? (
+          {userCoords && nearYouSalons.length > 0 ? (
             <section className="space-y-4">
               <div>
                 <h2 className="text-xl font-semibold text-foreground">Near you</h2>

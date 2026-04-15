@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import gsap from "gsap";
-import { Loader2, CalendarDays, Activity, Timer, DollarSign, ArrowRight, Plus, Clock3, Users, Sparkles } from "lucide-react";
+import { Loader2, CalendarDays, Activity, Timer, DollarSign, ArrowRight, Plus, Clock3, Users, Sparkles, Check, Phone, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,10 @@ type QueueRow = {
   created_at: string;
   status: string;
   user_id: string;
+  booking_time?: string | null;
+  booking_date?: string | null;
+  barber_id?: string | null;
+  barbers?: { name?: string | null } | null;
   customer_first_name?: string | null;
   customer_last_name?: string | null;
   customer_phone?: string | null;
@@ -440,6 +444,9 @@ export default function OwnerDashboard() {
 
   const queueEmpty = queueItems.length === 0;
   const profileImage = salon?.image_url || "/default-salon.jpg";
+  const activeQueueItems = queueItems
+    .filter((item) => ["waiting", "accepted", "in_service"].includes(item.status))
+    .slice(0, 6);
 
   return (
     <OwnerShell onLogout={() => { signOut(); navigate("/owner-login", { replace: true }); }}>
@@ -523,6 +530,112 @@ export default function OwnerDashboard() {
               <p className="mt-2 text-sm text-[#494551]">Add customers directly to the queue without a pre-booking.</p>
               <Button className="mt-5 h-11 w-full rounded-full bg-[#1f2023] text-white hover:bg-[#2f3033]" onClick={() => navigate("/queue")}>Manual Entry</Button>
               <Button variant="outline" className="mt-3 h-11 w-full rounded-full" onClick={() => navigate("/salons")}>Add Booking</Button>
+            </CardContent>
+          </Card>
+        </section>
+
+        <section className="dashboard-animate grid grid-cols-1 gap-6 xl:grid-cols-3">
+          <Card className="rounded-xl border border-[#e3e2e5] bg-white shadow-sm xl:col-span-2">
+            <CardContent className="p-6">
+              <div className="mb-5 flex items-center justify-between gap-3">
+                <h3 className="font-display text-2xl font-bold">Live Queue</h3>
+                <span className="rounded-full border border-[#1f2023] px-3 py-1 text-xs font-bold">
+                  {activeQueueItems.length} people waiting
+                </span>
+              </div>
+
+              {activeQueueItems.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-[#d9d6df] p-10 text-center text-sm text-[#6b6474]">
+                  No active queue right now.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {activeQueueItems.map((item) => {
+                    const walkinName = (item as any).customer_first_name && (item as any).customer_last_name
+                      ? `${(item as any).customer_first_name} ${(item as any).customer_last_name}`
+                      : (item as any).customer_phone
+                        ? `${(item as any).customer_phone}`
+                        : null;
+                    const customerName = walkinName || profileMap[item.user_id] || `User ${item.user_id.slice(0, 6)}`;
+                    const initials = customerName.split(" ").slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join("");
+                    const serviceName = item.services?.name || "Service";
+                    const barberName = (item as any).barbers?.name || "Not assigned";
+                    const bookingTime = item.booking_time
+                      ? item.booking_time.slice(0, 5)
+                      : new Date(item.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+
+                    return (
+                      <div key={item.id} className="flex flex-col gap-3 rounded-2xl border border-[#eeedf0] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-violet-100 text-lg font-bold text-violet-700">
+                            {initials || "C"}
+                          </div>
+                          <div>
+                            <p className="text-lg font-bold text-[#1a1c1e]">{customerName}</p>
+                            <p className="text-sm text-[#656170]">✂ {serviceName} <span className="mx-1">•</span> Barber: {barberName}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3 sm:justify-end">
+                          <div className="text-right">
+                            <p className="text-2xl font-extrabold leading-none text-[#101828]">{bookingTime}</p>
+                            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6b6474]">Scheduled</p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 rounded-full text-emerald-600 hover:bg-emerald-50"
+                            disabled={updatingQueueId === item.id}
+                            onClick={() => updateQueueStatus(item, "accepted")}
+                            title="Accept"
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 rounded-full text-slate-500 hover:bg-slate-100"
+                            title="Call"
+                          >
+                            <Phone className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 rounded-full text-rose-600 hover:bg-rose-50"
+                            disabled={updatingQueueId === item.id}
+                            onClick={() => updateQueueStatus(item, "rejected")}
+                            title="Reject"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-xl border border-[#e3e2e5] bg-white shadow-sm">
+            <CardContent className="p-6">
+              <h4 className="text-2xl font-bold text-[#1a1c1e]">Barber Status</h4>
+              <div className="mt-4 space-y-3">
+                {[
+                  { name: "Marcus", status: "Busy", tone: "bg-amber-400" },
+                  { name: "Sarah", status: "Available", tone: "bg-emerald-500" },
+                  { name: "David", status: "On Break", tone: "bg-slate-400" },
+                ].map((entry) => (
+                  <div key={entry.name} className="flex items-center justify-between rounded-xl border border-[#eeedf0] px-3 py-2">
+                    <p className="text-lg font-semibold text-[#202328]">{entry.name}</p>
+                    <span className="inline-flex items-center gap-1 rounded-full border border-[#1f2023] px-2 py-1 text-xs font-bold">
+                      <span className={`h-2 w-2 rounded-full ${entry.tone}`} />
+                      {entry.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </section>

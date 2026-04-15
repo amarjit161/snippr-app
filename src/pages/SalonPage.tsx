@@ -8,7 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 export default function SalonPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const [salon, setSalon] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -65,6 +65,8 @@ export default function SalonPage() {
       <Header
         onSignOut={signOut}
         userName={user?.email || "User"}
+        userEmail={user?.email || undefined}
+        profileName={profile?.name || undefined}
         isAdmin={false}
       />
       <main className="container mx-auto mt-8 max-w-3xl px-4">
