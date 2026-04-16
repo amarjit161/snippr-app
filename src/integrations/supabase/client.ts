@@ -28,9 +28,6 @@ const supabaseKey = SUPABASE_PUBLISHABLE_KEY || "missing-supabase-key";
 if (typeof window !== "undefined") {
   console.log(import.meta.env.VITE_SUPABASE_URL);
   console.info("Supabase project URL:", supabaseUrl);
-  if (window.__SNIPPR_SUPABASE__) {
-    delete window.__SNIPPR_SUPABASE__;
-  }
 }
 
 const createSupabaseClient = () => {
@@ -55,6 +52,14 @@ const createSupabaseClient = () => {
   return client;
 };
 
-export const supabase = typeof window !== "undefined"
-  ? (window.__SNIPPR_SUPABASE__ = createSupabaseClient())
-  : createSupabaseClient();
+export const supabase = (() => {
+  if (typeof window === "undefined") {
+    return createSupabaseClient();
+  }
+
+  if (!window.__SNIPPR_SUPABASE__) {
+    window.__SNIPPR_SUPABASE__ = createSupabaseClient();
+  }
+
+  return window.__SNIPPR_SUPABASE__;
+})();
