@@ -150,7 +150,17 @@ const QueueTracker = () => {
 
   const handleCancel = async () => {
     if (!entry) return;
-    await supabase.from("queue").update({ status: "cancelled" } as any).eq("id", entry.id);
+    const { error } = await supabase
+      .from("queue")
+      .update({ status: "cancelled" } as any)
+      .eq("user_id", user?.id)
+      .eq("status", "waiting");
+
+    if (error) {
+      toast.error("Could not cancel queue entry. Please try again.");
+      return;
+    }
+
     toast.info("Queue entry cancelled");
     clearTrackerState();
   };

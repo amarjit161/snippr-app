@@ -394,13 +394,13 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
     const { data } = await supabase
       .from("queue" as any)
-      .select("time_slot")
+      .select("time_slot, booking_time")
       .eq("salon_id", salon.id)
       .eq("barber_id", selectedBarberId)
       .eq("booking_date", date)
       .in("status", ["waiting", "in_progress", "confirmed"]);
 
-    const booked = new Set((data || []).map((b: any) => b.time_slot));
+    const booked = new Set((data || []).map((b: any) => b.time_slot || b.booking_time).filter(Boolean));
     setBookedSlots(booked);
     setLastAvailabilityUpdate(new Date());
   };
@@ -462,19 +462,44 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       console.log("🔒 FINAL_CHECK: Refreshing availability before booking...");
       const { data: latestBookings } = await supabase
         .from("queue" as any)
-        .select("booking_time")
+        .select("time_slot, booking_time")
         .eq("salon_id", salon.id)
         .eq("barber_id", selectedBarberId)
         .eq("booking_date", date)
         .in("status", ["waiting", "in_progress"]);
 
-      const latestBooked = new Set((latestBookings || []).map((b: any) => b.booking_time));
+      const latestBooked = new Set((latestBookings || []).map((b: any) => b.time_slot || b.booking_time).filter(Boolean));
       if (latestBooked.has(time)) {
         console.log("🚫 FINAL_CHECK: Slot was just booked during captcha!");
         setBookedSlots(latestBooked);
         setLastAvailabilityUpdate(new Date());
         setBooking(false);
         toast.error("⏱️ Just missed it! Someone booked this slot during verification. Refreshing available times...");
+        return;
+      }
+
+      // Always resolve authenticated user before queue checks/inserts (RLS-safe).
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+
+      if (!currentUser) {
+        setBooking(false);
+        throw new Error("You must be logged in to join the queue.");
+      }
+
+      console.log("RLS_AUTH_VERIFIED", currentUser.id);
+
+      // Prevent multiple active bookings for the same user across salons.
+      const { data: existingActiveBooking } = await supabase
+        .from("queue" as any)
+        .select("id, salon_id")
+        .eq("user_id", currentUser.id)
+        .in("status", ["waiting", "in_progress"])
+        .limit(1)
+        .maybeSingle();
+
+      if (existingActiveBooking) {
+        setBooking(false);
+        toast.error("You already have an active queue booking. Cancel it before booking again.");
         return;
       }
 
@@ -485,7 +510,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         .eq("salon_id", salon.id)
         .eq("barber_id", selectedBarberId)
         .eq("booking_date", date)
-        .eq("booking_time", time)
+        .or(`time_slot.eq.${time},booking_time.eq.${time}`)
         .in("status", ["waiting", "in_progress"])
         .limit(1)
         .maybeSingle();
@@ -509,18 +534,6 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       const nextPosition = Number(latestQueueEntry?.position || 0) + 1;
       const createdAt = new Date().toISOString();
 
-      // ──────────────────────────────────────────────────────────
-      // ✅ CORRECT — always fetch user and pass user_id for RLS
-      // ──────────────────────────────────────────────────────────
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      
-      if (!currentUser) {
-        setBooking(false);
-        throw new Error("You must be logged in to join the queue.");
-      }
-
-      console.log("RLS_AUTH_VERIFIED", currentUser.id);
-
       const { error } = await (supabase.from("queue") as any).insert({
         user_id: user?.id || currentUser.id,
         salon_id: salon.id,
@@ -535,6 +548,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         notes: customer.notes.trim() || null,
         booking_date: date,
         time_slot: time,
+        booking_time: time,
       });
 
       if (error) {
