@@ -30,33 +30,72 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profileLoading, setProfileLoading] = useState(false);
   const cachedProfileRef = useRef<Tables<"owners"> | null>(null); // Cache profile to avoid re-fetching
   const visibilityChangeTimeRef = useRef(0); // Track when visibility changed
+  const lastProfileFetchSessionIdRef = useRef<string | null>(null);
+  const profileFetchInFlightRef = useRef<string | null>(null);
+
+  const isOwnerIntent = (s: Session | null) => {
+    if (typeof window === "undefined") return false;
+    return (
+      s?.user?.user_metadata?.role === "owner" ||
+      localStorage.getItem("snippr_role") === "owner" ||
+      Boolean(localStorage.getItem("owner"))
+    );
+  };
 
   useEffect(() => {
     const fetchProfile = async (s: Session | null, forceRefresh = false) => {
-      if (s?.user) {
+      const sessionId = s?.user?.id ?? null;
+
+      if (sessionId) {
+        if (profileFetchInFlightRef.current === sessionId) {
+          return;
+        }
+
+        if (!forceRefresh && lastProfileFetchSessionIdRef.current === sessionId) {
+          if (cachedProfileRef.current) {
+            console.log("FETCH_PROFILE: Using cached profile");
+            setProfile(cachedProfileRef.current);
+          }
+          return;
+        }
+
+        profileFetchInFlightRef.current = sessionId;
+
+        if (!isOwnerIntent(s)) {
+          console.log("FETCH_PROFILE_SKIPPED: customer session, not querying owners table");
+          cachedProfileRef.current = null;
+          setProfile(null);
+          lastProfileFetchSessionIdRef.current = sessionId;
+          profileFetchInFlightRef.current = null;
+          setProfileLoading(false);
+          return;
+        }
+
         // If we have a cached profile and not forcing refresh, use cache
         if (cachedProfileRef.current && !forceRefresh) {
           console.log("FETCH_PROFILE: Using cached profile");
           setProfile(cachedProfileRef.current);
+          lastProfileFetchSessionIdRef.current = sessionId;
+          profileFetchInFlightRef.current = null;
           return;
         }
 
-        console.log("FETCH_PROFILE_START", s.user.id);
+        console.log("FETCH_PROFILE_START", sessionId);
         setProfileLoading(true);
         
         try {
           console.log("FETCH_PROFILE: Requesting from database...");
           
-          // Create a promise that times out after 8 seconds (for network issues)
+          // Create a promise that times out after 15 seconds (for network issues)
           const fetchWithTimeout = async () => {
             return Promise.race([
               supabase
                 .from("owners")
                 .select("*")
-                .eq("id", s.user.id)
+                .eq("id", sessionId)
                 .maybeSingle(),
               new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("Query timeout after 8s")), 8000)
+                setTimeout(() => reject(new Error("Query timeout after 15s")), 15000)
               ),
             ]);
           };
@@ -68,6 +107,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             console.log("FETCH_PROFILE_COMPLETE:", data ?? "null (customer user, not owner)");
             cachedProfileRef.current = data ?? null;
             setProfile(data ?? null);
+            lastProfileFetchSessionIdRef.current = sessionId;
             setProfileLoading(false);
             return;
           }
@@ -88,11 +128,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setProfile(null);
           }
         } finally {
+          profileFetchInFlightRef.current = null;
           setProfileLoading(false);
         }
       } else {
         setProfile(null);
         cachedProfileRef.current = null;
+        lastProfileFetchSessionIdRef.current = null;
+        profileFetchInFlightRef.current = null;
         setProfileLoading(false);
       }
     };
@@ -148,6 +191,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setSession(null);
           setProfile(null);
           cachedProfileRef.current = null;
+          lastProfileFetchSessionIdRef.current = null;
+          profileFetchInFlightRef.current = null;
           localStorage.removeItem("snippr_role");
           localStorage.removeItem("owner");
           setLoading(false);
@@ -170,7 +215,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Only fetch/refetch profile on initial sign in, not on every token refresh
         if (event === "SIGNED_IN" && currentSession) {
           // Skip refetch if this was triggered by visibility change & we already have cached profile
-          if (isVisibilityChangeEvent && cachedProfileRef.current) {
+          if ((isVisibilityChangeEvent && cachedProfileRef.current) || lastProfileFetchSessionIdRef.current === currentSession.user.id) {
             console.log("AUTH_STATE: Skipping refetch due to visibility change, using cache");
             setProfile(cachedProfileRef.current);
           } else {
@@ -199,6 +244,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.removeItem("snippr_role");
     localStorage.removeItem("owner");
   };
+
+  useEffect(() => {
+    if (!session?.user || typeof window === "undefined") return;
+
+    const tawk = (window as any).Tawk_API;
+    if (!tawk) return;
+
+    const setVisitor = () => {
+      tawk.setAttributes?.(
+        {
+          name: profile?.name || session.user.email?.split("@")[0] || "Customer",
+          email: session.user.email || "",
+          hash: "",
+        },
+        (error: any) => {
+          if (error) console.log("Tawk setAttributes error:", error);
+        }
+      );
+    };
+
+    if (typeof tawk.setAttributes === "function") {
+      setVisitor();
+    } else {
+      tawk.onLoad = setVisitor;
+    }
+  }, [session?.user, profile]);
 
   return (
     <AuthContext.Provider value={{ session, user: session?.user ?? null, profile, loading, profileLoading, signOut }}>

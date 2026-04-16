@@ -115,26 +115,44 @@ const QueueTracker = () => {
     }
   }, [AVG_SERVICE_TIME, entry, queue]);
 
+  const clearTrackerState = () => {
+    setEntry(null);
+    setQueue([]);
+    setAheadCount(0);
+    setMyPosition(null);
+    setTotalWait(0);
+    prevPosition.current = null;
+  };
+
   useEffect(() => {
     fetchMyQueue();
 
     const channel = supabase
-      .channel("queue-tracker-updates")
-      .on("postgres_changes", { event: "*", schema: "public", table: "queue" }, (payload) => {
-        console.log("Realtime update:", payload);
+      .channel(`queue-tracker-updates-${user?.id ?? "guest"}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "queue", filter: `user_id=eq.${user?.id}` }, (payload) => {
+        const eventType = payload.eventType;
+        const nextStatus = String(((payload as any).new?.status || "")).toLowerCase();
+        const payloadId = (payload as any).new?.id || (payload as any).old?.id;
+
+        if (entry && payloadId === entry.id) {
+          if (eventType === "DELETE" || (nextStatus && !["waiting", "in_progress"].includes(nextStatus))) {
+            clearTrackerState();
+            return;
+          }
+        }
+
         fetchMyQueue();
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [user]);
+  }, [user, entry?.id]);
 
   const handleCancel = async () => {
     if (!entry) return;
-    await supabase.from("queue").delete().eq("id", entry.id);
+    await supabase.from("queue").update({ status: "cancelled" } as any).eq("id", entry.id);
     toast.info("Queue entry cancelled");
-    setEntry(null);
-    prevPosition.current = null;
+    clearTrackerState();
   };
 
   if (!entry) return null;
@@ -245,7 +263,7 @@ const QueueTracker = () => {
         <span>•</span>
         <span>{service.duration} min</span>
         <span>•</span>
-        <span>${service.price}</span>
+        <span>₹{service.price?.toLocaleString("en-IN")}</span>
       </div>
 
       <p className="text-xs text-muted-foreground">

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
+import { cardFloat } from "@/lib/motion";
 
 import salon1 from "@/assets/salon-1.jpg";
 import salon2 from "@/assets/salon-2.jpg";
@@ -93,10 +94,11 @@ const SalonCard = ({ salon, index, onSelect }: SalonCardProps) => {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, delay: index * 0.08 }}
-      className="group cursor-pointer overflow-hidden rounded-2xl bg-white shadow-md transition hover:shadow-xl"
+      custom={index}
+      initial="hidden"
+      animate="visible"
+      variants={cardFloat}
+      className="group cursor-pointer overflow-hidden rounded-2xl bg-white shadow-md transition-all duration-150 ease-out hover:-translate-y-px hover:shadow-md"
       onClick={() => onSelect(salon)}
     >
       <div className="relative h-48 overflow-hidden">

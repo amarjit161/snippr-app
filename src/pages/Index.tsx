@@ -1,7 +1,6 @@
 import {
   Apple,
   ArrowRight,
-  Bell,
   CalendarDays,
   CheckCircle,
   Clock3,
@@ -10,7 +9,6 @@ import {
   MapPin,
   Scissors,
   Search,
-  Settings,
   Share2,
   ShoppingBag,
   Star,
@@ -19,6 +17,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import gsap from "gsap";
 import salon2 from "@/assets/salon-2.jpg";
 import salon3 from "@/assets/salon-3.jpg";
 import salon4 from "@/assets/salon-4.jpg";
@@ -32,6 +31,7 @@ export default function Index() {
   const { user, profile } = useAuth();
   const userLabel = profile?.name?.trim() || user?.email || user?.phone || "U";
   const avatarInitial = userLabel.charAt(0).toUpperCase();
+  const [transitioning, setTransitioning] = useState(false);
 
   const salons = useMemo(
     () => [
@@ -102,28 +102,56 @@ export default function Index() {
   const activeSalon = salons[activeSalonIndex];
   const nextSalons = salons.filter((_, index) => index !== activeSalonIndex).slice(0, 2);
 
+  const goToBookings = () => {
+    if (transitioning) return;
+
+    setTransitioning(true);
+    const curtain = document.createElement("div");
+    curtain.setAttribute("data-booking-curtain", "true");
+    curtain.style.position = "fixed";
+    curtain.style.inset = "0";
+    curtain.style.zIndex = "9999";
+    curtain.style.pointerEvents = "none";
+    curtain.style.background = "linear-gradient(135deg, rgba(79,55,138,0.98), rgba(103,80,164,0.88) 45%, rgba(255,255,255,0.96) 100%)";
+    curtain.style.transformOrigin = "left center";
+    curtain.style.transform = "scaleX(0)";
+    curtain.style.filter = "blur(0px)";
+    curtain.style.opacity = "0";
+    document.body.appendChild(curtain);
+
+    const timeline = gsap.timeline({
+      defaults: { duration: 0.16, ease: "power2.out" },
+      onComplete: () => {
+        navigate("/bookings", { state: { transitionFrom: "landing" } });
+        window.setTimeout(() => curtain.remove(), 250);
+      },
+    });
+
+    timeline
+      .to("[data-landing-header]", { y: -2, opacity: 0.96 })
+      .to("[data-landing-hero]", { y: 6, opacity: 0.94, scale: 0.995 }, "<")
+      .to("[data-landing-feature]", { y: 4, opacity: 0.95, scale: 0.996 }, "<0.01")
+      .to("[data-landing-cta]", { y: 4, opacity: 0.95, scale: 0.996 }, "<0.02")
+      .to(curtain, { scaleX: 1, opacity: 0.35, duration: 0.12, ease: "power2.inOut" }, "<0.01")
+      .to(curtain, { opacity: 0, duration: 0.1 }, ">-0.01");
+  };
+
   return (
     <div className="min-h-screen bg-[#faf9fc] text-[#1a1c1e] antialiased">
-      <header className="sticky top-0 z-50 mx-auto flex w-full items-center justify-between bg-[rgba(250,249,252,0.8)] px-6 py-4 shadow-sm backdrop-blur-xl">
+      <header data-landing-header className="sticky top-0 z-50 mx-auto flex w-full items-center justify-between bg-[rgba(250,249,252,0.8)] px-6 py-4 shadow-sm backdrop-blur-xl">
         <div className="flex items-center gap-8">
           <span className="text-2xl font-extrabold tracking-tight text-violet-900">snippr</span>
           <nav className="hidden items-center gap-6 md:flex">
             <button className="border-b-2 border-violet-700 font-bold text-violet-700" onClick={() => navigate("/salons")}>Explore</button>
-            <button className={navLinkClass} onClick={() => navigate("/bookings")}>Bookings</button>
+            <button className={navLinkClass} onClick={goToBookings}>Bookings</button>
             <button className={navLinkClass} onClick={() => navigate("/queue")}>Live Queue</button>
           </nav>
         </div>
 
         <div className="flex items-center gap-4">
-          <button className="p-2 text-slate-600 transition-colors hover:text-violet-600" aria-label="Notifications">
-            <Bell className="h-5 w-5" />
-          </button>
-          <button className="p-2 text-slate-600 transition-colors hover:text-violet-600" aria-label="Settings">
-            <Settings className="h-5 w-5" />
-          </button>
           {user ? (
             <button
-              onClick={() => navigate("/bookings")}
+              onClick={goToBookings}
               className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border-2 border-[#6750a4]/20 bg-[#e8e8eb] text-sm font-bold text-[#4f378a]"
               aria-label="User profile"
             >
@@ -143,7 +171,7 @@ export default function Index() {
       </header>
 
       <main>
-        <section className="mx-auto flex max-w-7xl flex-col items-center gap-12 px-6 pb-16 pt-24 lg:flex-row lg:px-16">
+        <section data-landing-hero className="mx-auto flex max-w-7xl flex-col items-center gap-12 px-6 pb-16 pt-24 lg:flex-row lg:px-16">
           <div className="flex-1 space-y-8">
             <div className="flex flex-wrap gap-3">
               <span className="rounded-full bg-[#e9ddff] px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-[#4f378a]">AI Wait Time</span>
@@ -193,7 +221,7 @@ export default function Index() {
           </div>
         </section>
 
-        <section className="mx-auto max-w-7xl px-6 py-24 lg:px-16">
+        <section data-landing-feature className="mx-auto max-w-7xl px-6 py-24 lg:px-16">
           <div className="mb-12 flex items-end justify-between">
             <div>
               <h2 className="text-3xl font-bold">Explore Salons</h2>
@@ -273,7 +301,7 @@ export default function Index() {
           </div>
         </section>
 
-        <section className="px-6 py-24">
+        <section data-landing-cta className="px-6 py-24">
           <div className="relative mx-auto max-w-4xl overflow-hidden rounded-3xl bg-gradient-to-br from-[#4f378a] to-[#6750a4] p-12 text-center text-white">
             <div className="absolute -right-32 -top-32 h-64 w-64 rounded-full bg-white/5 blur-3xl" />
             <div className="absolute -bottom-32 -left-32 h-64 w-64 rounded-full bg-[#cfbcff]/20 blur-3xl" />

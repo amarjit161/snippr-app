@@ -14,6 +14,8 @@ interface AdminDashboardProps {
   onBack: () => void;
 }
 
+const formatPrice = (amount: number) => `₹${amount.toLocaleString("en-IN")}`;
+
 const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
   const { user } = useAuth();
   const [salons, setSalons] = useState<Tables<"salons">[]>([]);
@@ -169,7 +171,7 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
         </div>
         <div className="rounded-lg bg-card shadow-elevation-1 p-4 space-y-1">
           <DollarSign className="h-5 w-5 text-warning" />
-          <p className="font-display text-2xl font-bold text-card-foreground">${analytics.totalEarnings}</p>
+          <p className="font-display text-2xl font-bold text-card-foreground">{formatPrice(analytics.totalEarnings)}</p>
           <p className="text-xs text-muted-foreground">Total Earnings</p>
         </div>
       </div>
@@ -219,7 +221,7 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
                 <div>
                   <p className="font-medium text-foreground">{entry.services.name}</p>
                   <p className="text-sm text-muted-foreground">
-                    {entry.profileName ?? "Customer"} • {entry.services.duration} min • ${entry.services.price}
+                    {entry.profileName ?? "Customer"} • {entry.services.duration} min • {formatPrice(entry.services.price)}
                   </p>
                 </div>
               </div>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Calendar, Check, Clock, DollarSign, Loader2, MapPin, Navigation, Star, UserRound } from "lucide-react";
+import { ChevronLeft, Calendar, Check, Clock, DollarSign, Loader2, MapPin, Navigation, Star, UserRound } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useGeolocation, estimateTravelMinutes } from "@/hooks/useGeolocation";
 import { useErrorHandler } from "@/hooks/useErrorHandler";
+import { pageFade, modalMotion } from "@/lib/motion";
 import type { Tables } from "@/integrations/supabase/types";
 import TurnstileCaptcha, { type TurnstileCaptchaHandle } from "@/components/TurnstileCaptcha";
 import { verifyTurnstileToken } from "@/lib/turnstile";
@@ -77,6 +79,7 @@ const EMPTY_PROFILE: CustomerProfile = {
 };
 
 export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProps) {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { handleBookingError } = useErrorHandler();
   const { location } = useGeolocation();
@@ -105,6 +108,15 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
   const turnstileRef = useRef<TurnstileCaptchaHandle | null>(null);
   const firstNameInputRef = useRef<HTMLInputElement | null>(null);
 
+  const handleBack = () => {
+    const salonId = salon?.id;
+    if (salonId) {
+      navigate(`/salon/${salonId}`);
+      return;
+    }
+    onBack();
+  };
+
   useEffect(() => {
     supabase
       .from("services")
@@ -112,6 +124,30 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       .eq("salon_id", salon.id)
       .then(({ data }) => setServices(data || []));
   }, [salon.id]);
+
+  useEffect(() => {
+    const checkOwnerBooking = async () => {
+      const salonId = salon?.id;
+      if (!salonId) return;
+
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) return;
+
+      const { data: ownedSalon } = await supabase
+        .from("salons")
+        .select("id")
+        .eq("owner_id", currentUser.id)
+        .eq("id", salonId)
+        .maybeSingle();
+
+      if (ownedSalon) {
+        toast.error("You can't book your own salon 😄");
+        navigate(`/salon/${salonId}`);
+      }
+    };
+
+    checkOwnerBooking();
+  }, [salon?.id, navigate]);
 
   useEffect(() => {
     const loadBarbers = async () => {
@@ -535,7 +571,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
   };
 
   return (
-    <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="min-h-screen bg-[#faf9fc] text-[#1a1c1e]">
+    <motion.div initial="hidden" animate="visible" variants={pageFade} className="min-h-screen bg-[#faf9fc] text-[#1a1c1e]">
       <div className="mx-auto w-full px-3 pb-20 pt-12 sm:px-4 md:px-6 lg:px-8 xl:px-0 xl:max-w-7xl">
         <div className="grid grid-cols-1 items-start gap-4 md:gap-6 lg:gap-8 lg:grid-cols-12">
           {/* FORM SECTION */}
@@ -543,10 +579,11 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
             {/* HEADER */}
             <header className="space-y-2 sm:space-y-3 md:space-y-4">
               <button
-                onClick={onBack}
-                className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-[#e9ddff] text-[#4f378a] transition-transform active:scale-90"
+                onClick={handleBack}
+                className="mb-4 flex items-center gap-1.5 text-sm font-medium text-gray-500 transition-colors hover:text-gray-900"
               >
-                <ArrowLeft className="h-4 sm:h-5 w-4 sm:w-5" />
+                <ChevronLeft className="h-4 w-4" />
+                Back to salon
               </button>
               <div className="space-y-1 sm:space-y-2">
                 <h1 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.05] tracking-tight">
@@ -901,7 +938,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       {/* Profile Modal */}
       {profileModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl">
+          <motion.div initial="hidden" animate="visible" variants={modalMotion} className="w-full max-w-md rounded-2xl bg-white p-8 shadow-lg">
             <h3 className="text-2xl font-bold text-gray-900">Create your profile</h3>
             <p className="mt-2 text-gray-600">Save your details once for faster booking next time.</p>
 

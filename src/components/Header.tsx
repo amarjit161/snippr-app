@@ -86,7 +86,7 @@ const Header = ({ onSignOut, userName, userEmail, profileName, onAdminToggle, is
           onClick={() => setProfileOpen(false)}
         />
 
-        <div className="fixed right-0 top-0 z-50 flex h-full w-72 animate-[slideIn_0.25s_ease-out] flex-col bg-white shadow-2xl">
+        <div className="fixed right-0 top-0 z-50 flex h-full w-72 animate-[slideIn_0.14s_cubic-bezier(0.16,1,0.3,1)] flex-col bg-white shadow-lg">
           <button
             onClick={() => setProfileOpen(false)}
             className="absolute right-4 top-4 rounded-full p-2 hover:bg-gray-100"

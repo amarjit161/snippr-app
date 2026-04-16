@@ -22,6 +22,7 @@ export const publicSupabase = createClient<Database>(
     },
     auth: {
       storage,
+      storageKey: "snippr-public-auth-token",
       persistSession: false,
       autoRefreshToken: false,
       detectSessionInUrl: false,

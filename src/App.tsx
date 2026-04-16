@@ -16,6 +16,7 @@ import NotFound from "./pages/NotFound.tsx";
 import { ProtectedRoute } from "./components/ProtectedRoute.tsx";
 import OwnerLogin from "./pages/OwnerLogin.tsx";
 import OwnerSignUp from "./pages/OwnerSignUp.tsx";
+import OwnerResetPassword from "./pages/OwnerResetPassword.tsx";
 import VerifyEmail from "./pages/VerifyEmail.tsx";
 import Onboarding from "./pages/Onboarding.tsx";
 import RegisterSalon from "./pages/RegisterSalon.tsx";
@@ -35,6 +36,7 @@ import { OwnerProtectedRoute } from "./components/OwnerProtectedRoute.tsx";
 import { useAuth } from "@/contexts/AuthContext";
 import { ErrorBoundary } from "./components/errors/ErrorBoundary";
 import { OfflineBanner } from "./components/errors/OfflineBanner";
+import { useTawkTo } from "@/hooks/useTawkTo";
 
 const queryClient = new QueryClient();
 
@@ -57,6 +59,49 @@ const RootLoadingGuard = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+const AppRoutes = () => {
+  useTawkTo();
+
+  return (
+    <Routes>
+      <Route path="/" element={<Index />} />
+      <Route path="/login" element={<Auth />} />
+      <Route path="/auth" element={<Auth />} />
+      <Route path="/verify" element={<Verify />} />
+      <Route path="/owner-login" element={<OwnerLogin />} />
+      <Route path="/owner-signup" element={<OwnerSignUp />} />
+      <Route path="/owner-reset-password" element={<OwnerResetPassword />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
+      <Route path="/onboarding" element={<Onboarding />} />
+      <Route path="/owner-register" element={<OwnerRegistration />} />
+      <Route path="/careers" element={<Careers />} />
+      <Route path="/how-it-works" element={<HowItWorks />} />
+      <Route path="/support" element={<Support />} />
+      <Route path="/privacy" element={<Privacy />} />
+
+      <Route path="/register-salon" element={<OwnerProtectedRoute><RegisterSalon /></OwnerProtectedRoute>} />
+      <Route path="/owner-dashboard" element={<OwnerProtectedRoute><OwnerDashboard /></OwnerProtectedRoute>} />
+      <Route path="/dashboard" element={<OwnerProtectedRoute><OwnerDashboard /></OwnerProtectedRoute>} />
+      <Route path="/queue" element={<OwnerProtectedRoute><Queue /></OwnerProtectedRoute>} />
+      <Route path="/services" element={<OwnerProtectedRoute><Services /></OwnerProtectedRoute>} />
+      <Route path="/team" element={<OwnerProtectedRoute><Team /></OwnerProtectedRoute>} />
+      <Route path="/salon-profile" element={<OwnerProtectedRoute><SalonProfile /></OwnerProtectedRoute>} />
+      <Route path="/settings" element={<OwnerProtectedRoute><Settings /></OwnerProtectedRoute>} />
+      <Route path="/edit-salon" element={<OwnerProtectedRoute><SalonProfile /></OwnerProtectedRoute>} />
+
+      <Route element={<ProtectedRoute />}>
+        <Route path="/register" element={<OwnerRegistration />} />
+        <Route path="/salons" element={<Salons />} />
+        <Route path="/salon/:id" element={<SalonPage />} />
+        <Route path="/admin" element={<Admin />} />
+        <Route path="/bookings" element={<Dashboard />} />
+      </Route>
+
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+};
+
 const App = () => (
   <ErrorBoundary>
     <OfflineBanner />
@@ -66,42 +111,8 @@ const App = () => (
           <TooltipProvider>
             <Toaster />
             <Sonner />
-            <BrowserRouter>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/login" element={<Auth />} />
-                <Route path="/auth" element={<Auth />} />
-                <Route path="/verify" element={<Verify />} />
-                <Route path="/owner-login" element={<OwnerLogin />} />
-                <Route path="/owner-signup" element={<OwnerSignUp />} />
-                <Route path="/verify-email" element={<VerifyEmail />} />
-                <Route path="/onboarding" element={<Onboarding />} />
-                <Route path="/owner-register" element={<OwnerRegistration />} />
-                <Route path="/careers" element={<Careers />} />
-                <Route path="/how-it-works" element={<HowItWorks />} />
-                <Route path="/support" element={<Support />} />
-                <Route path="/privacy" element={<Privacy />} />
-
-                <Route path="/register-salon" element={<OwnerProtectedRoute><RegisterSalon /></OwnerProtectedRoute>} />
-                <Route path="/owner-dashboard" element={<OwnerProtectedRoute><OwnerDashboard /></OwnerProtectedRoute>} />
-                <Route path="/dashboard" element={<OwnerProtectedRoute><OwnerDashboard /></OwnerProtectedRoute>} />
-                <Route path="/queue" element={<OwnerProtectedRoute><Queue /></OwnerProtectedRoute>} />
-                <Route path="/services" element={<OwnerProtectedRoute><Services /></OwnerProtectedRoute>} />
-                <Route path="/team" element={<OwnerProtectedRoute><Team /></OwnerProtectedRoute>} />
-                <Route path="/salon-profile" element={<OwnerProtectedRoute><SalonProfile /></OwnerProtectedRoute>} />
-                <Route path="/settings" element={<OwnerProtectedRoute><Settings /></OwnerProtectedRoute>} />
-                <Route path="/edit-salon" element={<OwnerProtectedRoute><SalonProfile /></OwnerProtectedRoute>} />
-                
-                <Route element={<ProtectedRoute />}>
-                  <Route path="/register" element={<OwnerRegistration />} />
-                  <Route path="/salons" element={<Salons />} />
-                  <Route path="/salon/:id" element={<SalonPage />} />
-                  <Route path="/admin" element={<Admin />} />
-                  <Route path="/bookings" element={<Dashboard />} />
-                </Route>
-                
-                <Route path="*" element={<NotFound />} />
-              </Routes>
+            <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+              <AppRoutes />
             </BrowserRouter>
           </TooltipProvider>
         </RootLoadingGuard>

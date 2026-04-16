@@ -1,12 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/Header";
 import { Loader2, Clock3, MapPin, Scissors, CalendarDays, ChevronLeft } from "lucide-react";
+import { toast } from "sonner";
+import gsap from "gsap";
+import { CancelConfirmation } from "@/components/CancelConfirmation";
+import { CancelPopup, CompletionCelebration } from "@/components/CancelConfirmationPage";
+import { RescheduleModal } from "@/components/RescheduleModal";
 
 type BookingTab = "upcoming" | "past" | "cancelled";
+const RESCHEDULE_LOCKED_STATUSES = new Set(["accepted", "confirmed", "in_progress", "done", "completed"]);
+
+const isRescheduleLocked = (status?: string) => RESCHEDULE_LOCKED_STATUSES.has(String(status || "").toLowerCase());
 
 const toDateLabel = (date?: string) => {
   if (!date) return "Date TBD";
@@ -37,14 +46,204 @@ const isPastDate = (date?: string) => {
   return date < nowDate;
 };
 
+type BookingCardProps = {
+  booking: any;
+  onCancel: (id: string) => void;
+  onManage: (booking: any) => void;
+  showActions: boolean;
+  updatingId: string | null;
+};
+
+const BookingCard = ({ booking: b, onCancel, onManage, showActions, updatingId }: BookingCardProps) => {
+  const cardRef = useRef<HTMLElement | null>(null);
+
+  const handleMove = (event: React.MouseEvent<HTMLElement>) => {
+    if (!cardRef.current) return;
+
+    const rect = cardRef.current.getBoundingClientRect();
+    const x = (event.clientX - rect.left) / rect.width - 0.5;
+    const y = (event.clientY - rect.top) / rect.height - 0.5;
+
+    gsap.to(cardRef.current, {
+      rotateY: x * 5,
+      rotateX: y * -5,
+      x: x * 4,
+      y: y * 3,
+      scale: 1.006,
+      duration: 0.22,
+      ease: "power2.out",
+      transformPerspective: 1200,
+      transformOrigin: "center center",
+    });
+  };
+
+  const resetCard = () => {
+    if (!cardRef.current) return;
+
+    gsap.to(cardRef.current, {
+      rotateY: 0,
+      rotateX: 0,
+      x: 0,
+      y: 0,
+      scale: 1,
+      duration: 0.28,
+      ease: "power3.out",
+      clearProps: "transform",
+    });
+  };
+
+  const salonName = b.salons?.name || "Salon";
+  const serviceName = b.services?.name || "Service";
+  const price = b.services?.price || 0;
+  const salonImage = b.salons?.image_url || "/default-salon.jpg";
+  const status = String(b.status || "pending").toLowerCase();
+  const rescheduleLocked = isRescheduleLocked(status);
+
+  return (
+    <article
+      ref={cardRef}
+      data-booking-card
+      className="overflow-hidden rounded-3xl border border-[#e5e2ea] bg-white shadow-sm will-change-transform"
+      onMouseMove={handleMove}
+      onMouseEnter={() => {
+        if (!cardRef.current) return;
+        gsap.to(cardRef.current, { boxShadow: "0 18px 42px rgba(79,55,138,0.12)", duration: 0.18 });
+      }}
+      onMouseLeave={() => {
+        resetCard();
+        if (!cardRef.current) return;
+        gsap.to(cardRef.current, { boxShadow: "0 10px 20px rgba(15,23,42,0.05)", duration: 0.2 });
+      }}
+    >
+      <div className="grid gap-0 md:grid-cols-[190px_1fr]">
+        <div className="h-52 w-full overflow-hidden md:h-full">
+          <img src={salonImage} alt={salonName} className="h-full w-full object-cover" />
+        </div>
+
+        <div className="p-6 sm:p-7">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-4xl font-extrabold tracking-tight text-[#111525]">{salonName}</h2>
+              <p className="mt-1 text-lg text-[#6b6474]">
+                📍 {[b.salons?.city, b.salons?.address || b.salons?.location].filter(Boolean).join(", ") || "Address unavailable"}
+              </p>
+            </div>
+            <span className="rounded-full bg-[#7a43e9] px-3 py-1 text-sm font-bold text-white">
+              {status === "accepted" || status === "confirmed" ? "Confirmed" : status}
+            </span>
+          </div>
+
+          <div className="grid gap-4 border-y border-[#ece9f0] py-5 sm:grid-cols-2">
+            <div className="space-y-3">
+              <p className="flex items-center gap-2 text-xl font-semibold text-[#171a27]">
+                <Scissors className="h-5 w-5 text-[#7a43e9]" /> {serviceName}
+              </p>
+              <p className="flex items-center gap-2 text-xl text-[#3d3f49]">
+                <Clock3 className="h-5 w-5 text-[#7a43e9]" /> {formatTimeSlot(b.time_slot || b.booking_time)}
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <p className="flex items-center gap-2 text-xl text-[#3d3f49]">
+                <CalendarDays className="h-5 w-5 text-[#7a43e9]" /> {toDateLabel(b.booking_date)}
+              </p>
+              <p className="flex items-center gap-2 text-xl text-[#3d3f49]">
+                <MapPin className="h-5 w-5 text-[#7a43e9]" /> {b.salons?.city || "Location unavailable"}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-4xl font-extrabold text-[#7a43e9]">{formatPrice(price)}</p>
+
+            {showActions ? (
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="h-11 rounded-full border-rose-300 px-6 text-rose-600 hover:bg-rose-50"
+                  disabled={updatingId === b.id}
+                  onClick={() => onCancel(b.id)}
+                >
+                  {updatingId === b.id ? "Cancelling..." : "Cancel"}
+                </Button>
+                <Button
+                  className="h-11 rounded-full px-6"
+                  disabled={updatingId === b.id || rescheduleLocked}
+                  onClick={() => onManage(b)}
+                >
+                  {rescheduleLocked ? "Locked" : "Manage"}
+                </Button>
+              </div>
+            ) : null}
+          </div>
+          {showActions && rescheduleLocked && (
+            <p className="mt-2 text-xs text-amber-700">Reschedule is disabled after barber accepts the booking.</p>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+};
+
 export default function Dashboard() {
   const { user, signOut, profile } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   
   const [bookings, setBookings] = useState<any[]>([]);
   const [fetching, setFetching] = useState(true);
   const [activeTab, setActiveTab] = useState<BookingTab>("upcoming");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [cancelPendingId, setCancelPendingId] = useState<string | null>(null);
+  const [showCancelPopup, setShowCancelPopup] = useState(false);
+  const [cancelledBooking, setCancelledBooking] = useState<any>(null);
+  const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false);
+  const [rescheduleTarget, setRescheduleTarget] = useState<any>(null);
+  const [showCompletionCelebration, setShowCompletionCelebration] = useState(false);
+
+  useEffect(() => {
+    const fromLanding = (location.state as { transitionFrom?: string } | null)?.transitionFrom === "landing";
+
+    const ctx = gsap.context(() => {
+      const base = "[data-bookings-shell]";
+      gsap.fromTo(
+        base,
+        fromLanding
+          ? { opacity: 0, y: 10, scale: 0.992 }
+          : { opacity: 0, y: 10, scale: 0.992 },
+        {
+          opacity: 1,
+          x: 0,
+          y: 0,
+          scale: 1,
+          duration: fromLanding ? 0.22 : 0.18,
+          ease: "power2.out",
+          clearProps: "transform",
+        }
+      );
+
+      gsap.fromTo(
+        "[data-bookings-shell] > *",
+        { opacity: 0, y: 8 },
+        { opacity: 1, y: 0, duration: 0.18, stagger: 0.02, ease: "power2.out", delay: 0.02 }
+      );
+    });
+
+    return () => ctx.revert();
+  }, [location.state]);
+
+  useEffect(() => {
+    if (fetching || bookings.length === 0) return;
+
+    const cards = gsap.utils.toArray<HTMLElement>("[data-booking-card]");
+    if (cards.length === 0) return;
+
+    const ctx = gsap.context(() => {
+      gsap.fromTo(cards, { opacity: 0, y: 12, scale: 0.992 }, { opacity: 1, y: 0, scale: 1, duration: 0.26, stagger: 0.05, ease: "power2.out", delay: 0.04 });
+    });
+
+    return () => ctx.revert();
+  }, [fetching, bookings.length, activeTab]);
 
   const fetchBookings = async () => {
     if (!user) return;
@@ -74,17 +273,134 @@ export default function Dashboard() {
     });
   }, [activeTab, bookings]);
 
-  const cancelBooking = async (id: string) => {
-    setUpdatingId(id);
+  const handleCancelClick = (id: string) => {
+    setCancelPendingId(id);
+  };
+
+  const handleCancelConfirm = async () => {
+    if (!cancelPendingId || !user?.id) {
+      toast.error("Unable to cancel booking.");
+      return;
+    }
+
+    setUpdatingId(cancelPendingId);
     try {
+      // Get booking details before cancelling
+      const booking = bookings.find((b) => b.id === cancelPendingId);
+      if (!booking) {
+        toast.error("Booking not found.");
+        setCancelPendingId(null);
+        return;
+      }
+
+      // Update booking status to cancelled
       const { error } = await supabase
         .from("queue")
-        .update({ status: "rejected" } as any)
-        .eq("id", id)
-        .eq("user_id", user?.id as string);
-      if (!error) {
-        await fetchBookings();
+        .update({ status: "cancelled" } as any)
+        .eq("id", cancelPendingId)
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("CANCEL_BOOKING_ERROR", error);
+        toast.error("Unable to cancel booking right now.");
+        setCancelPendingId(null);
+        return;
       }
+
+      // Immediately update local state to remove from upcoming
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.id === cancelPendingId ? { ...b, status: "cancelled" } : b
+        )
+      );
+
+      // Show cancel popup with sad animation
+      setCancelledBooking({
+        id: booking.id,
+        salon_name: booking.salons?.name || "Salon",
+        service_name: booking.services?.name || "Service",
+        current_date: booking.booking_date,
+        current_time: booking.booking_time,
+        previous_status: String(booking.status || "").toLowerCase(),
+      });
+      setShowCancelPopup(true);
+      setCancelPendingId(null);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const handleRescheduleFromCancel = () => {
+    setShowCancelPopup(false);
+    if (cancelledBooking?.id) {
+      if (isRescheduleLocked(cancelledBooking.previous_status)) {
+        toast.error("Reschedule is not allowed after barber acceptance.");
+        setCancelledBooking(null);
+        return;
+      }
+      const target = bookings.find((b) => b.id === cancelledBooking.id);
+      setRescheduleTarget(target || cancelledBooking);
+      setRescheduleModalOpen(true);
+    }
+  };
+
+  const handleManageClick = (booking: any) => {
+    if (isRescheduleLocked(booking?.status)) {
+      toast.error("Reschedule is not allowed after barber acceptance.");
+      return;
+    }
+    setRescheduleTarget(booking);
+    setRescheduleModalOpen(true);
+  };
+
+  const handleRescheduleConfirm = async (newDate: string, newTime: string) => {
+    if (!rescheduleTarget || !user?.id) {
+      toast.error("Unable to reschedule.");
+      return;
+    }
+
+    if (isRescheduleLocked(rescheduleTarget.status)) {
+      toast.error("Reschedule is not allowed after barber acceptance.");
+      return;
+    }
+
+    setUpdatingId(rescheduleTarget.id);
+    try {
+      const { data, error } = await supabase
+        .from("queue")
+        .update({
+          booking_date: newDate,
+          booking_time: newTime,
+        } as any)
+        .eq("id", rescheduleTarget.id)
+        .eq("user_id", user.id)
+        .not("status", "in", '("accepted","confirmed","in_progress","done","completed")')
+        .select("id")
+        .maybeSingle();
+
+      if (error) {
+        console.error("RESCHEDULE_ERROR", error);
+        toast.error("Unable to reschedule booking.");
+        return;
+      }
+
+      if (!data) {
+        toast.error("Reschedule blocked. This booking is already accepted by barber.");
+        return;
+      }
+
+      // Update local state
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.id === rescheduleTarget.id
+            ? { ...b, booking_date: newDate, booking_time: newTime }
+            : b
+        )
+      );
+
+      toast.success("Booking rescheduled successfully!");
+      setRescheduleModalOpen(false);
+      setRescheduleTarget(null);
     } finally {
       setUpdatingId(null);
     }
@@ -114,10 +430,48 @@ export default function Dashboard() {
         userName={profile?.name || user?.email || "Customer"}
         userEmail={user?.email || undefined}
         profileName={profile?.name || undefined}
-        onAdminToggle={() => navigate("/owner-dashboard")}
+        onAdminToggle={profile ? () => navigate("/owner-dashboard") : undefined}
       />
 
-      <div className="mx-auto max-w-5xl px-4 pb-12 pt-10 sm:px-6">
+      {/* Cancellation Confirmation Modal */}
+      {cancelPendingId && (
+        <CancelConfirmation
+          open={!!cancelPendingId}
+          onClose={() => setCancelPendingId(null)}
+          onConfirm={handleCancelConfirm}
+          isLoading={updatingId === cancelPendingId}
+          salonName={bookings.find((b) => b.id === cancelPendingId)?.salons?.name || "Salon"}
+          serviceName={bookings.find((b) => b.id === cancelPendingId)?.services?.name || "Service"}
+        />
+      )}
+
+      {/* Confirmation Page with Barber Animation */}
+      {showCancelPopup && cancelledBooking && (
+        <CancelPopup
+          booking={cancelledBooking}
+          canReschedule={!isRescheduleLocked(cancelledBooking.previous_status)}
+          onReschedule={handleRescheduleFromCancel}
+          onClose={() => {
+            setShowCancelPopup(false);
+            setCancelledBooking(null);
+            toast.success("Booking cancelled successfully.");
+          }}
+        />
+      )}
+
+      {/* Reschedule Modal */}
+      <RescheduleModal
+        open={rescheduleModalOpen}
+        onClose={() => {
+          setRescheduleModalOpen(false);
+          setRescheduleTarget(null);
+        }}
+        onConfirm={handleRescheduleConfirm}
+        booking={rescheduleTarget}
+        isLoading={rescheduleTarget && updatingId === rescheduleTarget.id}
+      />
+
+      <div data-bookings-shell className="mx-auto max-w-5xl px-4 pb-12 pt-10 sm:px-6">
         <button
           onClick={() => navigate(-1)}
           className="mb-6 flex items-center gap-2 text-gray-600 transition-colors hover:text-gray-900"
@@ -160,78 +514,15 @@ export default function Dashboard() {
         ) : (
           <div className="space-y-5">
             {filteredBookings.map((b) => {
-              const salonName = b.salons?.name || "Salon";
-              const serviceName = b.services?.name || "Service";
-              const price = b.services?.price || 0;
-              const salonImage = b.salons?.image_url || "/default-salon.jpg";
-              const status = String(b.status || "pending").toLowerCase();
-              const showActions = activeTab === "upcoming";
-
               return (
-                <article key={b.id} className="overflow-hidden rounded-3xl border border-[#e5e2ea] bg-white shadow-sm">
-                  <div className="grid gap-0 md:grid-cols-[190px_1fr]">
-                    <div className="h-52 w-full overflow-hidden md:h-full">
-                      <img src={salonImage} alt={salonName} className="h-full w-full object-cover" />
-                    </div>
-
-                    <div className="p-6 sm:p-7">
-                      <div className="mb-3 flex items-start justify-between gap-3">
-                        <div>
-                          <h2 className="text-4xl font-extrabold tracking-tight text-[#111525]">{salonName}</h2>
-                          <p className="mt-1 text-lg text-[#6b6474]">
-                            📍 {[b.salons?.city, b.salons?.address || b.salons?.location].filter(Boolean).join(", ") || "Address unavailable"}
-                          </p>
-                        </div>
-                        <span className="rounded-full bg-[#7a43e9] px-3 py-1 text-sm font-bold text-white">
-                          {status === "accepted" || status === "confirmed" ? "Confirmed" : status}
-                        </span>
-                      </div>
-
-                      <div className="grid gap-4 border-y border-[#ece9f0] py-5 sm:grid-cols-2">
-                        <div className="space-y-3">
-                          <p className="flex items-center gap-2 text-xl font-semibold text-[#171a27]">
-                            <Scissors className="h-5 w-5 text-[#7a43e9]" /> {serviceName}
-                          </p>
-                          <p className="flex items-center gap-2 text-xl text-[#3d3f49]">
-                            <Clock3 className="h-5 w-5 text-[#7a43e9]" /> {formatTimeSlot(b.time_slot || b.booking_time)}
-                          </p>
-                        </div>
-
-                        <div className="space-y-3">
-                          <p className="flex items-center gap-2 text-xl text-[#3d3f49]">
-                            <CalendarDays className="h-5 w-5 text-[#7a43e9]" /> {toDateLabel(b.booking_date)}
-                          </p>
-                          <p className="flex items-center gap-2 text-xl text-[#3d3f49]">
-                            <MapPin className="h-5 w-5 text-[#7a43e9]" /> {b.salons?.city || "Location unavailable"}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-                        <p className="text-4xl font-extrabold text-[#7a43e9]">{formatPrice(price)}</p>
-
-                        {showActions ? (
-                          <div className="flex gap-3">
-                            <Button
-                              variant="outline"
-                              className="h-11 rounded-full border-rose-300 px-6 text-rose-600 hover:bg-rose-50"
-                              disabled={updatingId === b.id}
-                              onClick={() => cancelBooking(b.id)}
-                            >
-                              {updatingId === b.id ? "Cancelling..." : "Cancel"}
-                            </Button>
-                            <Button
-                              className="h-11 rounded-full px-6"
-                              onClick={() => navigate(`/salon/${b.salon_id}`)}
-                            >
-                              Manage
-                            </Button>
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                </article>
+                <BookingCard
+                  key={b.id}
+                  booking={b}
+                  onCancel={handleCancelClick}
+                  onManage={() => handleManageClick(b)}
+                  showActions={activeTab === "upcoming"}
+                  updatingId={updatingId}
+                />
               );
             })}
           </div>
