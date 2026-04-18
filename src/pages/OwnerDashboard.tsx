@@ -65,11 +65,13 @@ export default function OwnerDashboard() {
   const navigate = useNavigate();
   const { signOut } = useAuth();
   const supabaseAny = supabase as any;
+  const ACCEPT_WINDOW_MS = 15000;
   const pageRef = useRef<HTMLDivElement | null>(null);
   const headerRef = useRef<HTMLElement | null>(null);
   const queueRef = useRef<HTMLElement | null>(null);
   const hasFetchedRef = useRef(false);
   const isVisibleRef = useRef(true);
+  const acceptTimersRef = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
 
   // Track tab visibility to prevent refresh on tab switch
   useEffect(() => {
@@ -89,6 +91,7 @@ export default function OwnerDashboard() {
   const [profileMap, setProfileMap] = useState<Record<string, string>>({});
   const [queueDatePreset, setQueueDatePreset] = useState<QueueDatePreset>("today");
   const [customQueueDate, setCustomQueueDate] = useState(todayISO());
+  const [pendingAccepts, setPendingAccepts] = useState<Record<string, number>>({});
   
   const [loadingSalon, setLoadingSalon] = useState(true);
   const [loadingData, setLoadingData] = useState(true);
@@ -389,12 +392,93 @@ export default function OwnerDashboard() {
     () => queueItems.filter((item) => getQueueDate(item) === selectedQueueDate),
     [queueItems, selectedQueueDate]
   );
+  const canAcceptSelectedDate = selectedQueueDate === todayISO();
 
-  const updateQueueStatus = async (item: QueueRow, nextStatus: "accepted" | "rejected" | "in_service" | "done") => {
+  const clearAcceptTimer = useCallback((queueId: string) => {
+    const timer = acceptTimersRef.current[queueId];
+    if (timer) {
+      clearTimeout(timer);
+    }
+    delete acceptTimersRef.current[queueId];
+    setPendingAccepts((prev) => {
+      if (!prev[queueId]) return prev;
+      const next = { ...prev };
+      delete next[queueId];
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    const acceptedIds = new Set(queueItems.filter((item) => item.status === "accepted").map((item) => item.id));
+    setPendingAccepts((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      Object.keys(next).forEach((queueId) => {
+        if (!acceptedIds.has(queueId)) {
+          changed = true;
+          delete next[queueId];
+          const timer = acceptTimersRef.current[queueId];
+          if (timer) clearTimeout(timer);
+          delete acceptTimersRef.current[queueId];
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [queueItems]);
+
+  const beginAccept = useCallback(async (item: QueueRow) => {
+    if (!salon?.id) return;
+    setUpdatingQueueId(item.id);
+    try {
+      clearAcceptTimer(item.id);
+      const { error } = await supabaseAny.from("queue").update({ status: "accepted", started_at: null }).eq("id", item.id);
+      if (error) throw error;
+
+      const expiresAt = Date.now() + ACCEPT_WINDOW_MS;
+      const timer = setTimeout(async () => {
+        delete acceptTimersRef.current[item.id];
+        setPendingAccepts((prev) => {
+          const next = { ...prev };
+          delete next[item.id];
+          return next;
+        });
+        await supabaseAny.from("queue").update({ status: "in_progress", started_at: new Date().toISOString() }).eq("id", item.id);
+      }, ACCEPT_WINDOW_MS);
+
+      acceptTimersRef.current[item.id] = timer;
+      setPendingAccepts((prev) => ({ ...prev, [item.id]: expiresAt }));
+      setQueueItems((prev) => prev.map((row) => (row.id === item.id ? { ...row, status: "accepted", started_at: null } : row)));
+    } catch (error: any) {
+      console.error("QUEUE_ACCEPT_ERROR:", error.message || error);
+      toast.error(error.message || "Failed to accept queue item");
+    } finally {
+      setUpdatingQueueId(null);
+    }
+  }, [ACCEPT_WINDOW_MS, clearAcceptTimer, salon?.id, supabaseAny]);
+
+  const undoAccept = useCallback(async (queueId: string) => {
+    if (!salon?.id) return;
+    setUpdatingQueueId(queueId);
+    try {
+      clearAcceptTimer(queueId);
+      const { error } = await supabaseAny.from("queue").update({ status: "waiting", started_at: null }).eq("id", queueId);
+      if (error) throw error;
+      setQueueItems((prev) => prev.map((row) => (row.id === queueId ? { ...row, status: "waiting", started_at: null } : row)));
+      toast.success("Accept undone");
+    } catch (error: any) {
+      console.error("QUEUE_UNDO_ERROR:", error.message || error);
+      toast.error(error.message || "Failed to undo accept");
+    } finally {
+      setUpdatingQueueId(null);
+    }
+  }, [clearAcceptTimer, salon?.id, supabaseAny]);
+
+  const updateQueueStatus = async (item: QueueRow, nextStatus: "accepted" | "rejected" | "in_service" | "done" | "waiting") => {
     if (!salon?.id) return;
     setUpdatingQueueId(item.id);
     try {
       const payload: Record<string, unknown> = { status: nextStatus };
+      if (nextStatus === "waiting" || nextStatus === "accepted") payload.started_at = null;
       const { error } = await supabaseAny.from("queue").update(payload).eq("id", item.id);
       
       if (error) throw error;
@@ -603,9 +687,14 @@ export default function OwnerDashboard() {
                     const bookingTime = item.time_slot
                       ? item.time_slot.slice(0, 5)
                       : new Date(item.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+                    const isPendingAccept = !!pendingAccepts[item.id];
+                    const remainingMs = pendingAccepts[item.id] ? Math.max(0, pendingAccepts[item.id] - Date.now()) : 0;
+                    const remainingSeconds = Math.ceil(remainingMs / 1000);
+                    const progressPercent = pendingAccepts[item.id] ? (remainingMs / ACCEPT_WINDOW_MS) * 100 : 0;
 
                     return (
-                      <div key={item.id} className="flex flex-col gap-3 rounded-2xl border border-[#eeedf0] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <>
+                        <div key={item.id} className="flex flex-col gap-3 rounded-2xl border border-[#eeedf0] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex items-center gap-4">
                           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-violet-100 text-lg font-bold text-violet-700">
                             {initials || "C"}
@@ -621,16 +710,29 @@ export default function OwnerDashboard() {
                             <p className="text-2xl font-extrabold leading-none text-[#101828]">{bookingTime}</p>
                             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6b6474]">Scheduled</p>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-9 w-9 rounded-full text-emerald-600 hover:bg-emerald-50"
-                            disabled={updatingQueueId === item.id}
-                            onClick={() => updateQueueStatus(item, "accepted")}
-                            title="Accept"
-                          >
-                            <Check className="h-4 w-4" />
-                          </Button>
+                          {item.status === "waiting" && canAcceptSelectedDate ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-9 w-9 rounded-full text-emerald-600 hover:bg-emerald-50"
+                              disabled={updatingQueueId === item.id}
+                              onClick={() => beginAccept(item)}
+                              title="Accept"
+                            >
+                              <Check className="h-4 w-4" />
+                            </Button>
+                          ) : null}
+                          {isPendingAccept ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="rounded-full border-amber-300 text-amber-700 hover:bg-amber-50"
+                              disabled={updatingQueueId === item.id}
+                              onClick={() => undoAccept(item.id)}
+                            >
+                              Undo {remainingSeconds}s
+                            </Button>
+                          ) : null}
                           <Button
                             variant="ghost"
                             size="icon"
@@ -651,6 +753,15 @@ export default function OwnerDashboard() {
                           </Button>
                         </div>
                       </div>
+                      {isPendingAccept ? (
+                        <div className="mt-3 space-y-1">
+                          <div className="h-1 overflow-hidden rounded-full bg-amber-100">
+                            <div className="h-full rounded-full bg-amber-500 transition-all duration-200" style={{ width: `${progressPercent}%` }} />
+                          </div>
+                          <p className="text-[11px] text-amber-700">Accepting in {remainingSeconds}s. Undo if needed.</p>
+                        </div>
+                      ) : null}
+                      </>
                     );
                   })}
                 </div>
@@ -748,7 +859,14 @@ export default function OwnerDashboard() {
                         <td className="px-6 py-4"><span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase transition-colors ${statusClass[status] || "bg-slate-100 text-slate-700"}`}>{formatStatus(status)}</span></td>
                         <td className="px-6 py-4">
                           <div className="flex gap-2">
-                            <Button size="sm" className="h-8 rounded-xl" disabled={updatingQueueId === item.id || status !== "waiting"} onClick={() => updateQueueStatus(item, "accepted")}>Accept</Button>
+                              {status === "waiting" && canAcceptSelectedDate ? (
+                                <Button size="sm" className="h-8 rounded-xl" disabled={updatingQueueId === item.id} onClick={() => beginAccept(item)}>Accept</Button>
+                              ) : null}
+                              {pendingAccepts[item.id] ? (
+                                <Button size="sm" variant="outline" className="h-8 rounded-xl border-amber-300 text-amber-700 hover:bg-amber-50" disabled={updatingQueueId === item.id} onClick={() => undoAccept(item.id)}>
+                                  Undo {Math.ceil(Math.max(0, pendingAccepts[item.id] - Date.now()) / 1000)}s
+                                </Button>
+                              ) : null}
                             <Button size="sm" variant="outline" className="h-8 rounded-xl" disabled={updatingQueueId === item.id || !["waiting", "accepted"].includes(status)} onClick={() => updateQueueStatus(item, "rejected")}>Reject</Button>
                           </div>
                         </td>

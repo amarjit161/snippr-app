@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -30,7 +30,7 @@ type BarberRow = {
 type QueueItem = {
   id: string;
   created_at: string;
-  status: "waiting" | "in_progress" | "completed" | "cancelled";
+  status: "waiting" | "accepted" | "in_progress" | "completed" | "cancelled";
   user_id: string | null;
   service_id: string;
   barber_id: string | null;
@@ -57,6 +57,7 @@ type WalkInPayload = {
 
 export function useQueue(navigate: (path: string, options?: { replace?: boolean }) => void) {
   const supabaseAny = supabase as any;
+  const ACCEPT_WINDOW_MS = 15000;
 
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -65,6 +66,8 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [barbers, setBarbers] = useState<BarberRow[]>([]);
   const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
+  const [pendingAccepts, setPendingAccepts] = useState<Record<string, number>>({});
+  const acceptTimersRef = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
 
   const sortedQueue = useMemo(() => {
     return [...queueItems].sort((a, b) => {
@@ -98,6 +101,38 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
     console.log("FETCH_QUEUE_SUCCESS", data?.length, "items:", data?.map((item: any) => ({ id: item.id, status: item.status })));
     setQueueItems((data as QueueItem[]) || []);
   }, [supabaseAny]);
+
+  const clearAcceptTimer = useCallback((queueId: string) => {
+    const timer = acceptTimersRef.current[queueId];
+    if (timer) {
+      clearTimeout(timer);
+    }
+    delete acceptTimersRef.current[queueId];
+    setPendingAccepts((prev) => {
+      if (!prev[queueId]) return prev;
+      const next = { ...prev };
+      delete next[queueId];
+      return next;
+    });
+  }, [acceptTimersRef]);
+
+  useEffect(() => {
+    const acceptedIds = new Set(queueItems.filter((item) => item.status === "accepted").map((item) => item.id));
+    setPendingAccepts((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      Object.keys(next).forEach((queueId) => {
+        if (!acceptedIds.has(queueId)) {
+          changed = true;
+          delete next[queueId];
+          const timer = acceptTimersRef.current[queueId];
+          if (timer) clearTimeout(timer);
+          delete acceptTimersRef.current[queueId];
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [acceptTimersRef, queueItems]);
 
   const bootstrap = useCallback(async () => {
     setLoading(true);
@@ -284,7 +319,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
     toast.success("Barber updated");
   }, [queueItems, supabaseAny]);
 
-  const updateStatus = useCallback(async (queueId: string, status: "in_progress" | "cancelled" | "rejected" | "completed") => {
+  const updateStatus = useCallback(async (queueId: string, status: "waiting" | "accepted" | "in_progress" | "cancelled" | "rejected" | "completed") => {
     console.log("UPDATE_STATUS_START", queueId, status);
     const previous = queueItems;
     const now = new Date().toISOString();
@@ -296,7 +331,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
         return {
           ...item,
           status,
-          started_at: status === "in_progress" ? now : item.started_at,
+          started_at: status === "in_progress" ? now : status === "waiting" || status === "accepted" ? null : item.started_at,
           completed_at: status === "completed" ? now : item.completed_at,
         };
       });
@@ -307,6 +342,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
     const payload: Record<string, unknown> = { status };
     if (status === "in_progress") payload.started_at = now;
     if (status === "completed") payload.completed_at = now;
+    if (status === "waiting" || status === "accepted") payload.started_at = null;
 
     setActionLoading(queueId);
     const { error } = await supabaseAny.from("queue").update(payload).eq("id", queueId);
@@ -332,6 +368,30 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
       }
     }, 300);
   }, [queueItems, supabaseAny, salon?.id, fetchQueue]);
+
+  const startAccept = useCallback(async (queueId: string) => {
+    await updateStatus(queueId, "accepted");
+    clearAcceptTimer(queueId);
+
+    const expiresAt = Date.now() + ACCEPT_WINDOW_MS;
+    const timer = setTimeout(async () => {
+      delete acceptTimersRef.current[queueId];
+      setPendingAccepts((prev) => {
+        const next = { ...prev };
+        delete next[queueId];
+        return next;
+      });
+      await updateStatus(queueId, "in_progress");
+    }, ACCEPT_WINDOW_MS);
+
+    acceptTimersRef.current[queueId] = timer;
+    setPendingAccepts((prev) => ({ ...prev, [queueId]: expiresAt }));
+  }, [ACCEPT_WINDOW_MS, acceptTimersRef, clearAcceptTimer, updateStatus]);
+
+  const undoAccept = useCallback(async (queueId: string) => {
+    clearAcceptTimer(queueId);
+    await updateStatus(queueId, "waiting");
+  }, [clearAcceptTimer, updateStatus]);
 
   const addWalkIn = useCallback(async (payload: WalkInPayload) => {
     if (!salon) {
@@ -441,6 +501,9 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
     barbers,
     queueItems: sortedQueue,
     grouped,
+    pendingAccepts,
+    startAccept,
+    undoAccept,
     fetchQueue,
     addWalkIn,
     updateStatus,

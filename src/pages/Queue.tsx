@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, Plus } from "lucide-react";
 import { OwnerShell } from "@/components/dashboard/OwnerShell";
@@ -24,7 +24,13 @@ export default function Queue() {
   const [modalOpen, setModalOpen] = useState(false);
   const [queueDatePreset, setQueueDatePreset] = useState<QueueDatePreset>("today");
   const [customQueueDate, setCustomQueueDate] = useState(todayISO());
-  const { loading, actionLoading, owner, salon, services, barbers, grouped, addWalkIn, updateStatus, updateBarber } = useQueue(navigate);
+  const [now, setNow] = useState(Date.now());
+  const { loading, actionLoading, owner, salon, services, barbers, grouped, pendingAccepts, startAccept, undoAccept, addWalkIn, updateStatus, updateBarber } = useQueue(navigate);
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(timer);
+  }, []);
 
   console.log("QUEUE_COMPONENT_RENDER", { waiting: grouped.waiting.length, inProgress: grouped.inProgress.length, completed: grouped.completed.length, cancelled: grouped.cancelled.length });
 
@@ -52,6 +58,7 @@ export default function Queue() {
   );
 
   const totalFiltered = filteredSections.reduce((sum, section) => sum + section.items.length, 0);
+  const canAcceptSelectedDate = selectedQueueDate === todayISO();
 
   if (loading) return <div className="mx-auto h-72 max-w-4xl rounded-xl bg-gray-200/70 animate-pulse" />;
   if (!owner || !salon) return null;
@@ -119,6 +126,10 @@ export default function Queue() {
                         const customerLabel = item.customer_first_name && item.customer_last_name 
                           ? `${item.customer_first_name} ${item.customer_last_name}` 
                           : (item.customer_phone ? item.customer_phone : "Walk-in Customer");
+                        const isPendingAccept = !!pendingAccepts[item.id];
+                        const remainingMs = pendingAccepts[item.id] ? Math.max(0, pendingAccepts[item.id] - now) : 0;
+                        const remainingSeconds = Math.ceil(remainingMs / 1000);
+                        const progressPercent = pendingAccepts[item.id] ? (remainingMs / 15000) * 100 : 0;
                         return (
                           <div key={item.id} className="rounded-xl border border-[#e3e2e5] p-4">
                             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -147,14 +158,16 @@ export default function Queue() {
                               <div className="flex flex-wrap gap-2">
                                 {item.status === "waiting" ? (
                                   <>
-                                    <Button
-                                      size="sm"
-                                      className="rounded-xl"
-                                      disabled={actionLoading === item.id}
-                                      onClick={() => updateStatus(item.id, "in_progress")}
-                                    >
-                                      {actionLoading === item.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Accept"}
-                                    </Button>
+                                    {canAcceptSelectedDate ? (
+                                      <Button
+                                        size="sm"
+                                        className="rounded-xl"
+                                        disabled={actionLoading === item.id}
+                                        onClick={() => startAccept(item.id)}
+                                      >
+                                        {actionLoading === item.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Accept"}
+                                      </Button>
+                                    ) : null}
                                     <Button
                                       size="sm"
                                       variant="outline"
@@ -167,7 +180,19 @@ export default function Queue() {
                                   </>
                                 ) : null}
 
-                                {(item.status === "in_progress" || item.status === "accepted") ? (
+                                {isPendingAccept ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="rounded-xl border-amber-300 text-amber-700 hover:bg-amber-50"
+                                    disabled={actionLoading === item.id}
+                                    onClick={() => undoAccept(item.id)}
+                                  >
+                                    Undo {remainingSeconds}s
+                                  </Button>
+                                ) : null}
+
+                                {(item.status === "in_progress" || item.status === "accepted") && !isPendingAccept ? (
                                   <Button
                                     size="sm"
                                     className="rounded-xl"
@@ -179,6 +204,18 @@ export default function Queue() {
                                 ) : null}
                               </div>
                             </div>
+
+                            {isPendingAccept ? (
+                              <div className="mt-3 space-y-1">
+                                <div className="h-1 overflow-hidden rounded-full bg-amber-100">
+                                  <div
+                                    className="h-full rounded-full bg-amber-500 transition-all duration-200"
+                                    style={{ width: `${progressPercent}%` }}
+                                  />
+                                </div>
+                                <p className="text-[11px] text-amber-700">Accepting in {remainingSeconds}s. Undo if this was a mistake.</p>
+                              </div>
+                            ) : null}
                           </div>
                         );
                       })
