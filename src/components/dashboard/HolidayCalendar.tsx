@@ -20,6 +20,7 @@ type Holiday = {
 type Booking = {
   id: string;
   booking_date: string | null;
+  created_at?: string | null;
   time_slot: string | null;
   status: string | null;
   customer_first_name?: string | null;
@@ -91,6 +92,12 @@ export function HolidayCalendar({ salonId }: HolidayCalendarProps) {
   const monthStart = startOfMonth(monthCursor);
   const monthEnd = endOfMonth(monthCursor);
 
+  const getEffectiveBookingDate = (booking: Booking) => {
+    if (booking.booking_date) return booking.booking_date;
+    if (booking.created_at) return booking.created_at.slice(0, 10);
+    return null;
+  };
+
   const formatTime = (timeSlot?: string | null) => {
     if (!timeSlot) return "";
     const [h, m] = timeSlot.split(":").map(Number);
@@ -124,18 +131,39 @@ export function HolidayCalendar({ salonId }: HolidayCalendarProps) {
     if (!salonId) return;
     setBookingsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("queue")
-        .select(
-          "id, booking_date, time_slot, status, customer_first_name, customer_last_name, customer_phone, services(name), barbers(name)"
-        )
-        .eq("salon_id", salonId)
-        .gte("booking_date", dateToISO(new Date(monthStart.getFullYear(), monthStart.getMonth(), 1)))
-        .lte("booking_date", dateToISO(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 31)))
-        .order("time_slot", { ascending: true });
+      const monthStartIso = dateToISO(new Date(monthStart.getFullYear(), monthStart.getMonth(), 1));
+      const monthEndIso = dateToISO(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 31));
+      const createdStartIso = `${monthStartIso}T00:00:00.000Z`;
+      const createdEndIso = `${monthEndIso}T23:59:59.999Z`;
 
-      if (error) throw error;
-      setBookings((data || []) as Booking[]);
+      const [scheduledRes, walkInRes] = await Promise.all([
+        supabase
+          .from("queue")
+          .select(
+            "id, booking_date, created_at, time_slot, status, customer_first_name, customer_last_name, customer_phone, services(name), barbers(name)"
+          )
+          .eq("salon_id", salonId)
+          .gte("booking_date", monthStartIso)
+          .lte("booking_date", monthEndIso)
+          .order("time_slot", { ascending: true }),
+        supabase
+          .from("queue")
+          .select(
+            "id, booking_date, created_at, time_slot, status, customer_first_name, customer_last_name, customer_phone, services(name), barbers(name)"
+          )
+          .eq("salon_id", salonId)
+          .is("booking_date", null)
+          .gte("created_at", createdStartIso)
+          .lte("created_at", createdEndIso)
+          .order("created_at", { ascending: true }),
+      ]);
+
+      if (scheduledRes.error) throw scheduledRes.error;
+      if (walkInRes.error) throw walkInRes.error;
+
+      const merged = [...(scheduledRes.data || []), ...(walkInRes.data || [])] as Booking[];
+      const uniqueById = Array.from(new Map(merged.map((item) => [item.id, item])).values());
+      setBookings(uniqueById);
     } catch (error: any) {
       toast.error(error.message || "Failed to load bookings");
     } finally {
@@ -157,13 +185,40 @@ export function HolidayCalendar({ salonId }: HolidayCalendarProps) {
   const bookingsByDate = useMemo(() => {
     const map = new Map<string, Booking[]>();
     bookings.forEach((b) => {
-      if (!b.booking_date) return;
-      const existing = map.get(b.booking_date) || [];
+      const effectiveDate = getEffectiveBookingDate(b);
+      if (!effectiveDate) return;
+      const existing = map.get(effectiveDate) || [];
       existing.push(b);
-      map.set(b.booking_date, existing);
+      map.set(effectiveDate, existing);
     });
     return map;
   }, [bookings]);
+
+  useEffect(() => {
+    if (!salonId) return;
+
+    const channel = supabase
+      .channel(`dashboard-cal-${salonId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "queue", filter: `salon_id=eq.${salonId}` },
+        () => {
+          fetchBookings();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "salon_holidays", filter: `salon_id=eq.${salonId}` },
+        () => {
+          fetchHolidays();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [salonId, monthCursor]);
 
   const selectedDateHoliday = selectedDate ? holidayMap.get(selectedDate) : undefined;
   const selectedDateBookings = selectedDate ? bookingsByDate.get(selectedDate) || [] : [];

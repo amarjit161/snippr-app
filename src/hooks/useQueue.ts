@@ -359,6 +359,8 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
 
       const nextPosition = ((positionRows?.[0]?.position as number | undefined) || 0) + 1;
       const createdAt = new Date().toISOString();
+      const todayBookingDate = createdAt.slice(0, 10);
+      const bookingTimeSlot = createdAt.slice(11, 16);
       const tempId = `temp-${Date.now()}`;
 
       const selectedService = services.find((service) => service.id === payload.serviceId) || null;
@@ -378,6 +380,8 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
         customer_first_name: payload.customerFirstName.trim(),
         customer_last_name: payload.customerLastName.trim(),
         customer_phone: payload.phoneNumber.trim(),
+        booking_date: todayBookingDate,
+        time_slot: bookingTimeSlot,
         services: selectedService,
         barbers: selectedBarber,
       };
@@ -396,6 +400,8 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
           customer_first_name: payload.customerFirstName.trim(),
           customer_last_name: payload.customerLastName.trim(),
           customer_phone: payload.phoneNumber.trim(),
+          booking_date: todayBookingDate,
+          time_slot: bookingTimeSlot,
         })
         .select("*")
         .single();
