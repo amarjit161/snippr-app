@@ -17,6 +17,18 @@ type Holiday = {
   note?: string | null;
 };
 
+type Booking = {
+  id: string;
+  booking_date: string | null;
+  time_slot: string | null;
+  status: string | null;
+  customer_first_name?: string | null;
+  customer_last_name?: string | null;
+  customer_phone?: string | null;
+  services?: { name?: string | null } | null;
+  barbers?: { name?: string | null } | null;
+};
+
 type HolidayCalendarProps = {
   salonId: string;
 };
@@ -64,7 +76,10 @@ const dateToISO = (date: Date) => {
 export function HolidayCalendar({ salonId }: HolidayCalendarProps) {
   const [monthCursor, setMonthCursor] = useState(() => new Date());
   const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
   const [openAdd, setOpenAdd] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -75,6 +90,14 @@ export function HolidayCalendar({ salonId }: HolidayCalendarProps) {
 
   const monthStart = startOfMonth(monthCursor);
   const monthEnd = endOfMonth(monthCursor);
+
+  const formatTime = (timeSlot?: string | null) => {
+    if (!timeSlot) return "";
+    const [h, m] = timeSlot.split(":").map(Number);
+    const period = h >= 12 ? "PM" : "AM";
+    const hour = h > 12 ? h - 12 : h === 0 ? 12 : h;
+    return `${hour}:${String(m).padStart(2, "0")} ${period}`;
+  };
 
   const fetchHolidays = async () => {
     if (!salonId) return;
@@ -97,8 +120,32 @@ export function HolidayCalendar({ salonId }: HolidayCalendarProps) {
     }
   };
 
+  const fetchBookings = async () => {
+    if (!salonId) return;
+    setBookingsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("queue")
+        .select(
+          "id, booking_date, time_slot, status, customer_first_name, customer_last_name, customer_phone, services(name), barbers(name)"
+        )
+        .eq("salon_id", salonId)
+        .gte("booking_date", dateToISO(new Date(monthStart.getFullYear(), monthStart.getMonth(), 1)))
+        .lte("booking_date", dateToISO(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 31)))
+        .order("time_slot", { ascending: true });
+
+      if (error) throw error;
+      setBookings((data || []) as Booking[]);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load bookings");
+    } finally {
+      setBookingsLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchHolidays();
+    fetchBookings();
   }, [salonId, monthCursor]);
 
   const holidayMap = useMemo(() => {
@@ -106,6 +153,20 @@ export function HolidayCalendar({ salonId }: HolidayCalendarProps) {
     holidays.forEach((h) => map.set(h.date, h));
     return map;
   }, [holidays]);
+
+  const bookingsByDate = useMemo(() => {
+    const map = new Map<string, Booking[]>();
+    bookings.forEach((b) => {
+      if (!b.booking_date) return;
+      const existing = map.get(b.booking_date) || [];
+      existing.push(b);
+      map.set(b.booking_date, existing);
+    });
+    return map;
+  }, [bookings]);
+
+  const selectedDateHoliday = selectedDate ? holidayMap.get(selectedDate) : undefined;
+  const selectedDateBookings = selectedDate ? bookingsByDate.get(selectedDate) || [] : [];
 
   const monthCells = useMemo(() => {
     const firstWeekDay = monthStart.getDay();
@@ -265,6 +326,7 @@ export function HolidayCalendar({ salonId }: HolidayCalendarProps) {
         <div className="grid grid-cols-7 gap-2">
           {monthCells.map((cell, idx) => {
             const holiday = cell.iso ? holidayMap.get(cell.iso) : undefined;
+            const dayBookings = cell.iso ? bookingsByDate.get(cell.iso) || [] : [];
             const holidayClass = holiday
               ? holiday.type === "national"
                 ? "bg-indigo-50 border-indigo-200 text-indigo-700"
@@ -274,24 +336,86 @@ export function HolidayCalendar({ salonId }: HolidayCalendarProps) {
               : "bg-white border-[#eeedf0]";
 
             return (
-              <div
+              <button
                 key={`${cell.iso}-${idx}`}
+                type="button"
+                onClick={() => (cell.iso ? setSelectedDate(cell.iso === selectedDate ? null : cell.iso) : null)}
                 className={`h-16 rounded-lg border p-2 text-xs ${
                   cell.inMonth ? holidayClass : "bg-[#f8f7fa] border-transparent"
-                }`}
+                } ${cell.inMonth ? "text-left" : "cursor-default"} ${selectedDate === cell.iso ? "ring-2 ring-purple-500" : ""}`}
               >
                 {cell.inMonth ? (
                   <>
-                    <p className="font-semibold">{cell.day}</p>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-semibold">{cell.day}</p>
+                      {dayBookings.length > 0 ? (
+                        <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-bold text-purple-700">
+                          {dayBookings.length}
+                        </span>
+                      ) : null}
+                    </div>
                     {holiday ? (
                       <p className="mt-1 line-clamp-2 text-[10px] font-medium">{holiday.name}</p>
                     ) : null}
+                    {!holiday && dayBookings.length > 0 ? (
+                      <p className="mt-1 text-[10px] font-medium text-purple-700">Bookings available</p>
+                    ) : null}
                   </>
                 ) : null}
-              </div>
+              </button>
             );
           })}
         </div>
+
+        {selectedDate ? (
+          <div className="rounded-xl border border-[#eeedf0] p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-semibold text-[#494551]">
+                {new Date(`${selectedDate}T00:00:00`).toLocaleDateString("en-IN", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </p>
+              <Button variant="ghost" size="sm" onClick={() => setSelectedDate(null)}>
+                Close
+              </Button>
+            </div>
+
+            {selectedDateHoliday ? (
+              <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-2">
+                <p className="text-xs font-semibold text-amber-800">Holiday: {selectedDateHoliday.name}</p>
+                <p className="text-xs text-amber-700">Salon closed for booking on this date.</p>
+              </div>
+            ) : null}
+
+            {bookingsLoading ? (
+              <p className="text-sm text-[#6b6474]">Loading bookings...</p>
+            ) : selectedDateBookings.length === 0 ? (
+              <p className="text-sm text-[#6b6474]">No bookings for this day.</p>
+            ) : (
+              <div className="space-y-2">
+                {selectedDateBookings.map((booking) => {
+                  const fullName = [booking.customer_first_name, booking.customer_last_name]
+                    .filter(Boolean)
+                    .join(" ")
+                    .trim();
+                  const customerName = fullName || booking.customer_phone || "Customer";
+                  return (
+                    <div key={booking.id} className="rounded-lg border border-[#eeedf0] p-2">
+                      <p className="text-sm font-semibold text-[#494551]">{customerName}</p>
+                      <p className="text-xs text-[#6b6474]">
+                        {(booking.services as any)?.name || "Service"} • {formatTime(booking.time_slot)} • Barber: {(booking.barbers as any)?.name || "Any"}
+                      </p>
+                      <p className="mt-1 text-[11px] uppercase tracking-wide text-[#6b6474]">Status: {booking.status || "waiting"}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : null}
 
         <div>
           <p className="mb-2 text-sm font-semibold text-[#494551]">Quick National/Festival Suggestions</p>
