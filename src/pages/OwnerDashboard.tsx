@@ -27,6 +27,9 @@ type SalonRow = {
 type QueueRow = {
   id: string;
   created_at: string;
+  updated_at?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
   status: string;
   user_id: string;
   time_slot?: string | null;
@@ -60,6 +63,33 @@ const statusClass: Record<string, string> = {
 };
 
 const formatStatus = (value: string) => (value === "in_service" ? "In Service" : value.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" "));
+
+const minutesBetween = (from: string, to: string) => {
+  const diff = Math.floor((new Date(to).getTime() - new Date(from).getTime()) / 60000);
+  return Math.max(0, diff);
+};
+
+const computeQueueWaitMinutes = (item: QueueRow) => {
+  const nowIso = new Date().toISOString();
+
+  if (["waiting", "accepted"].includes(item.status)) {
+    return minutesBetween(item.created_at, nowIso);
+  }
+
+  if (["in_service", "in_progress"].includes(item.status)) {
+    return minutesBetween(item.created_at, item.started_at || nowIso);
+  }
+
+  if (["done", "completed"].includes(item.status)) {
+    return minutesBetween(item.created_at, item.completed_at || item.started_at || item.updated_at || item.created_at);
+  }
+
+  if (["rejected", "cancelled"].includes(item.status)) {
+    return minutesBetween(item.created_at, item.updated_at || item.created_at);
+  }
+
+  return minutesBetween(item.created_at, nowIso);
+};
 
 export default function OwnerDashboard() {
   const navigate = useNavigate();
@@ -846,7 +876,7 @@ export default function OwnerDashboard() {
                     const initials = customerName.split(" ").slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join("");
                     const serviceName = item.services?.name || "Service";
                     const status = item.status || "waiting";
-                    const waitTime = Math.max(1, Math.floor((Date.now() - new Date(item.created_at).getTime()) / 60000));
+                    const waitTime = computeQueueWaitMinutes(item);
 
                     return (
                       <tr key={item.id} className="animate-in fade-in duration-500 transition-all hover:bg-slate-50">
