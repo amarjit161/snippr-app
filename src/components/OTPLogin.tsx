@@ -72,11 +72,21 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
   // Re-initialize phone.email widget when mode changes
   useEffect(() => {
     if (mode === "phone.email") {
+      console.log("[phone.email] Mode activated, container:", phoneEmailContainerRef.current);
+      console.log("[phone.email] Window.phoneEmailSignInButton:", (window as any).phoneEmailSignInButton);
+      
       // Wait a brief moment for the DOM to update, then try to render the widget
       const timer = setTimeout(() => {
         const pe = (window as any).phoneEmailSignInButton;
+        console.log("[phone.email] Attempting render...");
+        
         if (pe && typeof pe.render === "function" && phoneEmailContainerRef.current) {
+          console.log("[phone.email] Calling render function");
           pe.render(phoneEmailContainerRef.current);
+        } else {
+          console.log("[phone.email] Render not available, checking for auto-initialization");
+          // The script might auto-detect pe_signin_button class
+          // Sometimes widgets auto-init when they become visible
         }
       }, 100);
 
