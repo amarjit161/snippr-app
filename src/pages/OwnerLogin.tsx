@@ -142,21 +142,46 @@ export default function OwnerLogin() {
         throw profileError;
       }
 
+      let finalOwnerProfile = ownerProfile;
+
       if (!ownerProfile) {
-        console.log("PROFILE_NOT_FOUND - Transitioning to Register");
-        toast.info("Profile setup incomplete. Redirecting...");
-        navigate("/owner-register", { replace: true });
-        return;
+        console.log("PROFILE_NOT_FOUND - Creating auto-profile for returning user");
+        
+        // Auto-create basic owner record for users returning after password reset
+        const { data: createdProfile, error: createError } = await supabase
+          .from("owners")
+          .insert({
+            id: authData.user!.id,
+            email: trimmedEmail,
+            name: trimmedEmail.split("@")[0], // Use email prefix as default name
+            is_verified: true,
+            is_active: true,
+          })
+          .select("*")
+          .maybeSingle();
+
+        if (createError) {
+          console.warn("AUTO_PROFILE_CREATE_FAILED:", createError.message);
+          // If creation fails, don't block login - try to proceed anyway
+          finalOwnerProfile = { 
+            id: authData.user!.id, 
+            email: trimmedEmail,
+            name: trimmedEmail.split("@")[0]
+          } as any;
+        } else {
+          finalOwnerProfile = createdProfile;
+          console.log("AUTO_PROFILE_CREATED_SUCCESS");
+        }
       }
 
-      console.log("PROFILE_FETCH_SUCCESS", ownerProfile.id);
-      localStorage.setItem("owner", JSON.stringify(ownerProfile));
+      console.log("PROFILE_FETCH_SUCCESS", finalOwnerProfile.id);
+      localStorage.setItem("owner", JSON.stringify(finalOwnerProfile));
 
       console.log("SALON_FETCH_START");
       const { data: existingSalon } = await supabase
         .from("salons")
         .select("*")
-        .eq("owner_id", ownerProfile.id)
+        .eq("owner_id", finalOwnerProfile.id)
         .maybeSingle();
 
       console.log("LOGIN_COMPLETE", { hasSalon: !!existingSalon });
