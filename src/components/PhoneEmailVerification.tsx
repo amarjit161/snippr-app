@@ -1,60 +1,62 @@
 import { useEffect, useRef, useState } from "react";
 import { Phone, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
 interface PhoneEmailVerificationProps {
+  clientId?: string;
   onSuccess?: (phoneData: any) => void;
   onError?: (error: string) => void;
+  autoRedirect?: boolean;
 }
 
-export const PhoneEmailVerification = ({ onSuccess, onError }: PhoneEmailVerificationProps) => {
+export const PhoneEmailVerification = ({
+  clientId = "15695407177920574360",
+  onSuccess,
+  onError,
+  autoRedirect = true
+}: PhoneEmailVerificationProps) => {
   const navigate = useNavigate();
   const [verificationStatus, setVerificationStatus] = useState<"idle" | "verifying" | "success" | "error">("idle");
   const [verifiedPhone, setVerifiedPhone] = useState("");
-  const buttonRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!containerRef.current) return;
+
     // Load the external phone.email script
     const script = document.createElement("script");
     script.src = "https://www.phone.email/sign_in_button_v1.js";
     script.async = true;
-    
-    // Define the callback function
+
+    // Define the callback function BEFORE appending script
     (window as any).phoneEmailListener = function(userObj: any) {
       const user_json_url = userObj.user_json_url;
-      
-      // Insert the debug message
-      console.log("Phone Verification Successful!");
+
+      console.log("✅ Phone Verification Successful!");
       console.log("User JSON URL:", user_json_url);
 
-      // Fetch authenticated country code and phone number from the backend
+      // Fetch authenticated phone data from backend
       fetchPhoneData(user_json_url);
-
-      // Remove debug message after 3 seconds (optional)
-      setTimeout(() => {
-        const debugMsg = document.querySelector("[class*='Phone Verification Successful']");
-        if (debugMsg) debugMsg.remove();
-      }, 3000);
     };
 
-    if (buttonRef.current) {
-      buttonRef.current.appendChild(script);
-    }
+    // Append script to container
+    containerRef.current.appendChild(script);
 
+    // Cleanup
     return () => {
-      if (buttonRef.current && script.parentNode === buttonRef.current) {
-        buttonRef.current.removeChild(script);
+      if (containerRef.current && script.parentNode === containerRef.current) {
+        containerRef.current.removeChild(script);
       }
+      // Keep listener for potential re-mount scenarios
     };
   }, []);
 
   const fetchPhoneData = async (user_json_url: string) => {
     try {
       setVerificationStatus("verifying");
-      
-      // Call your backend to fetch authenticated phone data
+
+      // Call backend to fetch authenticated phone data
       const response = await fetch("/api/verify-phone-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -62,26 +64,31 @@ export const PhoneEmailVerification = ({ onSuccess, onError }: PhoneEmailVerific
       });
 
       if (!response.ok) {
-        throw new Error("Failed to verify phone");
+        const error = await response.json();
+        throw new Error(error.error || "Failed to verify phone");
       }
 
       const data = await response.json();
-      
+
       if (data.phone_number) {
         setVerifiedPhone(data.phone_number);
         setVerificationStatus("success");
-        toast.success(`Phone verified: ${data.phone_number}`);
         
         // Store phone and country code
         localStorage.setItem("snippr_verified_phone", data.phone_number);
         localStorage.setItem("snippr_country_code", data.country_code || "");
-        
+
+        toast.success(`Phone verified: ${data.phone_number}`);
         onSuccess?.(data);
-        
-        // Redirect after 2 seconds
-        setTimeout(() => {
-          navigate("/dashboard");
-        }, 2000);
+
+        // Auto-redirect after 2 seconds if enabled
+        if (autoRedirect) {
+          setTimeout(() => {
+            navigate("/dashboard");
+          }, 2000);
+        }
+      } else {
+        throw new Error("No phone number received");
       }
     } catch (error) {
       setVerificationStatus("error");
@@ -102,7 +109,7 @@ export const PhoneEmailVerification = ({ onSuccess, onError }: PhoneEmailVerific
           Verify Your Phone
         </h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Click below to securely verify your phone number
+          Securely verify your phone number with phone.email
         </p>
       </div>
 
@@ -111,7 +118,7 @@ export const PhoneEmailVerification = ({ onSuccess, onError }: PhoneEmailVerific
           <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0" />
           <div>
             <p className="font-medium text-green-900 dark:text-green-100">
-              Phone verified successfully!
+              ✓ Phone verified successfully!
             </p>
             <p className="text-sm text-green-800 dark:text-green-200">
               {verifiedPhone}
@@ -124,7 +131,7 @@ export const PhoneEmailVerification = ({ onSuccess, onError }: PhoneEmailVerific
         <div className="mb-6 flex items-center gap-3 rounded-lg bg-red-50 dark:bg-red-950 p-4 border border-red-200 dark:border-red-800">
           <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0" />
           <p className="text-sm font-medium text-red-900 dark:text-red-100">
-            Verification failed. Please try again.
+            Phone verification failed. Please try again.
           </p>
         </div>
       )}
@@ -136,17 +143,16 @@ export const PhoneEmailVerification = ({ onSuccess, onError }: PhoneEmailVerific
         </div>
       )}
 
-      {/* Phone.email Sign-in Button Container */}
-      <div 
-        ref={buttonRef}
-        className="flex justify-center mb-6 min-h-[70px]"
-      >
-        {/* Button will be inserted here by phone.email script */}
-      </div>
+      {/* Phone.email Sign-in Button Container - Required div with class 'pe_signin_button' */}
+      <div
+        ref={containerRef}
+        className="pe_signin_button flex justify-center mb-6 min-h-[70px]"
+        data-client-id={clientId}
+      />
 
       <div className="text-center text-xs text-muted-foreground">
         <p>Your phone number will be securely verified</p>
-        <p className="mt-2">by phone.email</p>
+        <p className="mt-1">using phone.email verification</p>
       </div>
     </div>
   );
