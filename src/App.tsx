@@ -33,6 +33,7 @@ import HowItWorks from "./pages/HowItWorks.tsx";
 import Support from "./pages/Support.tsx";
 import Privacy from "./pages/Privacy.tsx";
 import { OwnerProtectedRoute } from "./components/OwnerProtectedRoute.tsx";
+import TestPhoneVerification from "./pages/TestPhoneVerification.tsx";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { ErrorBoundary } from "./components/errors/ErrorBoundary";
@@ -99,6 +100,9 @@ const AppRoutes = () => {
         <Route path="/admin" element={<Admin />} />
         <Route path="/bookings" element={<Dashboard />} />
       </Route>
+
+      {/* Test Routes - Remove before production */}
+      <Route path="/test-phone" element={<TestPhoneVerification />} />
 
       <Route path="*" element={<NotFound />} />
     </Routes>
