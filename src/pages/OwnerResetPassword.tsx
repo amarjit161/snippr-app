@@ -18,8 +18,15 @@ export default function OwnerResetPassword() {
   const [verificationCode, setVerificationCode] = useState("");
   const [email, setEmail] = useState("");
   const [codeRequired, setCodeRequired] = useState(false);
+  const [minOtpLength] = useState(6);
+  const [maxOtpLength] = useState(10);
 
   useEffect(() => {
+    const rememberedEmail = localStorage.getItem("snippr_reset_email");
+    if (rememberedEmail) {
+      setEmail(rememberedEmail);
+    }
+
     const initRecoverySession = async () => {
       const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
       const searchParams = new URLSearchParams(window.location.search);
@@ -101,22 +108,28 @@ export default function OwnerResetPassword() {
     e.preventDefault();
     if (saving) return;
 
-    // If code is required, verify code and email first
-    if (codeRequired && verificationCode) {
+    // If code is required, verify code and email first.
+    // Do not continue to password update until OTP verification succeeds.
+    if (codeRequired) {
       if (!email) {
         toast.error("Please enter your email address.");
         return;
       }
 
-      if (verificationCode.length !== 6 || !/^\d+$/.test(verificationCode)) {
-        toast.error("Please enter a valid 6-digit code.");
+      const normalizedCode = verificationCode.trim();
+      if (
+        normalizedCode.length < minOtpLength ||
+        normalizedCode.length > maxOtpLength ||
+        !/^\d+$/.test(normalizedCode)
+      ) {
+        toast.error(`Please enter a valid ${minOtpLength}-${maxOtpLength} digit code.`);
         return;
       }
 
       setSaving(true);
       const { error } = await supabase.auth.verifyOtp({
         email,
-        token: verificationCode,
+        token: normalizedCode,
         type: "recovery",
       });
 
@@ -184,7 +197,7 @@ export default function OwnerResetPassword() {
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
                 {codeRequired
-                  ? "Enter the 6-digit code from your reset email"
+                  ? "Enter the OTP code from your reset email"
                   : "Choose a strong password for your owner account."}
               </p>
             </div>
@@ -208,16 +221,24 @@ export default function OwnerResetPassword() {
                     <Input
                       type="text"
                       value={verificationCode}
-                      onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                      placeholder="000000"
-                      maxLength={6}
+                      onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, maxOtpLength))}
+                      placeholder="Enter OTP"
+                      maxLength={maxOtpLength}
                       className="text-center font-mono text-lg tracking-widest"
                       required
                     />
-                    <p className="mt-1 text-xs text-muted-foreground">Enter the 6-digit code from your email</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Enter the OTP from your email</p>
                   </div>
 
-                  <Button type="submit" disabled={saving || verificationCode.length !== 6} className="h-11 w-full rounded-xl">
+                  <Button
+                    type="submit"
+                    disabled={
+                      saving ||
+                      verificationCode.trim().length < minOtpLength ||
+                      verificationCode.trim().length > maxOtpLength
+                    }
+                    className="h-11 w-full rounded-xl"
+                  >
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify Code"}
                   </Button>
                 </>

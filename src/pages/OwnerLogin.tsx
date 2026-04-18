@@ -209,6 +209,7 @@ export default function OwnerLogin() {
         return;
       }
 
+      localStorage.setItem("snippr_reset_email", requestedEmail);
       setForgotSentTo(requestedEmail);
       toast.success("Password reset link sent to your email.");
     } finally {

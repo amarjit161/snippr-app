@@ -321,7 +321,18 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
             </AnimatePresence>
 
             <div className="mt-3 flex items-center justify-between text-xs text-zinc-500">
-              <button onClick={() => navigate("/reset-password")} className="font-medium text-primary hover:underline">Forgot password?</button>
+              <button
+                onClick={() => {
+                  const rememberedEmail = email.trim().toLowerCase();
+                  if (/^\S+@\S+\.\S+$/.test(rememberedEmail)) {
+                    localStorage.setItem("snippr_reset_email", rememberedEmail);
+                  }
+                  navigate("/reset-password");
+                }}
+                className="font-medium text-primary hover:underline"
+              >
+                Forgot password?
+              </button>
               <Link to="/owner-register" className="font-medium text-primary hover:underline">Register</Link>
             </div>
 
