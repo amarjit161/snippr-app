@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Mail, Phone, Loader2, CheckCircle2, AlertCircle, Smartphone } from "lucide-react";
+import { Mail, Phone, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -15,15 +15,15 @@ interface OTPLoginProps {
 
 const OTPLogin = ({ initialError }: OTPLoginProps) => {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"email" | "phone" | "phone.email">("email");
+  const [mode, setMode] = useState<"email" | "phone">("email");
   const [emailSent, setEmailSent] = useState(false);
   const [authError, setAuthError] = useState<string | null>(initialError || null);
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState("+91");
   const [loading, setLoading] = useState(false);
   const [verifyingCaptcha, setVerifyingCaptcha] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
-  const [phoneEmailVerifying, setPhoneEmailVerifying] = useState(false);
+  const [usingPhoneEmail, setUsingPhoneEmail] = useState(false);
   const turnstileRef = useRef<TurnstileCaptchaHandle | null>(null);
   const phoneEmailContainerRef = useRef<HTMLDivElement>(null);
 
@@ -47,7 +47,7 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
   useEffect(() => {
     (window as any).phoneEmailListener = async function(userObj: any) {
       const user_json_url = userObj.user_json_url;
-      setPhoneEmailVerifying(true);
+      setUsingPhoneEmail(true);
 
       try {
         const response = await fetch(user_json_url);
@@ -64,35 +64,28 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
         console.error("phone.email verification error:", error);
         toast.error("Verification failed");
       } finally {
-        setPhoneEmailVerifying(false);
+        setUsingPhoneEmail(false);
       }
     };
   }, [navigate]);
 
-  // Re-initialize phone.email widget when mode changes
+  // Initialize phone.email widget when user switches to phone mode
   useEffect(() => {
-    if (mode === "phone.email") {
-      console.log("[phone.email] Mode activated, container:", phoneEmailContainerRef.current);
-      console.log("[phone.email] Window.phoneEmailSignInButton:", (window as any).phoneEmailSignInButton);
-      
-      // Wait a brief moment for the DOM to update, then try to render the widget
+    if (mode === "phone" && !usingPhoneEmail && phoneEmailContainerRef.current) {
       const timer = setTimeout(() => {
         const pe = (window as any).phoneEmailSignInButton;
-        console.log("[phone.email] Attempting render...");
-        
-        if (pe && typeof pe.render === "function" && phoneEmailContainerRef.current) {
-          console.log("[phone.email] Calling render function");
-          pe.render(phoneEmailContainerRef.current);
-        } else {
-          console.log("[phone.email] Render not available, checking for auto-initialization");
-          // The script might auto-detect pe_signin_button class
-          // Sometimes widgets auto-init when they become visible
+        if (pe && typeof pe.render === "function") {
+          try {
+            pe.render(phoneEmailContainerRef.current);
+          } catch (error) {
+            console.log("[phone.email] Widget render attempted");
+          }
         }
       }, 100);
 
       return () => clearTimeout(timer);
     }
-  }, [mode]);
+  }, [mode, usingPhoneEmail]);
 
   const resetToLogin = () => {
     setAuthError(null);
@@ -157,22 +150,41 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
   };
 
   const handlePhoneOTP = async () => {
-    if (!phone || phone.length < 10) {
-      toast.error("Please enter a valid phone number");
+    // Validate Indian phone number
+    const cleanPhone = phone.replace(/\D/g, "");
+    
+    // Check if it's a valid Indian number
+    if (!cleanPhone || cleanPhone.length < 10) {
+      toast.error("Please enter a valid Indian phone number");
+      return;
+    }
+
+    // Ensure it starts with 91 (India country code)
+    let formattedPhone = cleanPhone;
+    if (!formattedPhone.startsWith("91")) {
+      if (formattedPhone.length === 10) {
+        formattedPhone = "91" + formattedPhone;
+      } else {
+        toast.error("Please enter a valid Indian phone number (+91XXXXXXXXXX)");
+        return;
+      }
+    } else if (formattedPhone.length !== 12) {
+      toast.error("Please enter a valid Indian phone number");
       return;
     }
 
     if (!(await ensureCaptcha())) return;
 
     setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({ phone });
+    const phoneWithPlus = "+" + formattedPhone;
+    const { error } = await supabase.auth.signInWithOtp({ phone: phoneWithPlus });
     setLoading(false);
     
     if (error) {
       toast.error(error.message);
     } else {
       toast.success("OTP sent to your phone");
-      localStorage.setItem("snippr_auth_phone", phone);
+      localStorage.setItem("snippr_auth_phone", phoneWithPlus);
       navigate("/verify");
     }
   };
@@ -349,64 +361,68 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
                   exit={{ opacity: 0, x: -10 }}
                   className="space-y-4 sm:space-y-5"
                 >
-                  <Input
-                    autoFocus
-                    placeholder="Enter your phone number"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="h-11 sm:h-12 rounded-xl text-sm sm:text-base"
-                    type="tel"
-                    onKeyDown={(e) => e.key === "Enter" && handlePhoneOTP()}
-                  />
-                  <div className="rounded-xl sm:rounded-2xl bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-900 dark:to-zinc-800 p-4 sm:p-5 border border-zinc-200 dark:border-zinc-700 shadow-sm">
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-xs sm:text-sm font-semibold text-zinc-700 dark:text-zinc-300">🔒 Security Verification</p>
-                      {captchaToken && (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 dark:bg-green-950 text-xs font-medium text-green-700 dark:text-green-200">
-                          <span className="w-2 h-2 rounded-full bg-green-600 dark:bg-green-400 animate-pulse"></span>
-                          Verified
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex justify-center">
-                      <TurnstileCaptcha ref={turnstileRef} onTokenChange={setCaptchaToken} theme="light" className="w-full min-h-[85px] sm:min-h-[100px]" />
-                    </div>
+                  <div className="text-center mb-3">
+                    <p className="text-sm text-zinc-600 dark:text-zinc-400">Choose your verification method:</p>
                   </div>
-                  <Button
-                    onClick={handlePhoneOTP}
-                    disabled={loading || verifyingCaptcha || phone.length < 5 || !captchaToken}
-                    className="h-11 sm:h-12 w-full rounded-xl bg-gradient-to-r from-primary to-indigo-500 text-sm sm:text-base font-semibold text-primary-foreground shadow-md hover:brightness-110 disabled:opacity-50 transition-all"
-                  >
-                    {!captchaToken && "✓ Complete security check"}
-                    {captchaToken && loading && <><Loader2 className="h-4 w-4 animate-spin mr-2" />Sending...</>}
-                    {captchaToken && !loading && "✓ Get Started"}
-                  </Button>
-                </motion.div>
-              ) : mode === "phone.email" ? (
-                <motion.div
-                  key="phone-email-input"
-                  initial={{ opacity: 0, x: 10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
-                  className="space-y-4 sm:space-y-5"
-                >
-                  <div className="text-center mb-4">
-                    <p className="text-sm text-zinc-600 dark:text-zinc-400">Click the button below to verify your phone number</p>
-                  </div>
-                  
-                  {/* phone.email widget container */}
-                  <div 
-                    ref={phoneEmailContainerRef}
-                    className="pe_signin_button w-full flex justify-center"
-                    data-client-id={import.meta.env.VITE_PHONE_EMAIL_CLIENT_ID || "15695407177920574360"}
-                  />
 
-                  {phoneEmailVerifying && (
-                    <div className="flex items-center justify-center gap-2 text-sm text-zinc-600">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Verifying phone...
+                  {/* phone.email widget - Fast verification with phone.email */}
+                  <div className="rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20 p-4 border border-amber-200 dark:border-amber-800/50 shadow-sm">
+                    <p className="text-xs sm:text-sm font-semibold text-amber-900 dark:text-amber-100 mb-3">⚡ Fast Verification (phone.email):</p>
+                    <div 
+                      ref={phoneEmailContainerRef}
+                      className="pe_signin_button flex justify-center"
+                      data-client-id={import.meta.env.VITE_PHONE_EMAIL_CLIENT_ID || "15695407177920574360"}
+                    />
+                    {usingPhoneEmail && (
+                      <div className="flex items-center justify-center gap-2 text-sm text-amber-700 dark:text-amber-200 mt-3">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Verifying...
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700"></div>
+                    <span className="text-xs text-zinc-500">or</span>
+                    <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700"></div>
+                  </div>
+
+                  {/* Manual OTP entry */}
+                  <div className="space-y-4">
+                    <p className="text-xs sm:text-sm font-semibold text-zinc-700 dark:text-zinc-300">Manual Verification:</p>
+                    <Input
+                      autoFocus
+                      placeholder="Enter your phone number (e.g., +911234567890)"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="h-11 sm:h-12 rounded-xl text-sm sm:text-base"
+                      type="tel"
+                      onKeyDown={(e) => e.key === "Enter" && handlePhoneOTP()}
+                    />
+                    <div className="rounded-xl sm:rounded-2xl bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-900 dark:to-zinc-800 p-4 sm:p-5 border border-zinc-200 dark:border-zinc-700 shadow-sm">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-xs sm:text-sm font-semibold text-zinc-700 dark:text-zinc-300">🔒 Security Verification</p>
+                        {captchaToken && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 dark:bg-green-950 text-xs font-medium text-green-700 dark:text-green-200">
+                            <span className="w-2 h-2 rounded-full bg-green-600 dark:bg-green-400 animate-pulse"></span>
+                            Verified
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex justify-center">
+                        <TurnstileCaptcha ref={turnstileRef} onTokenChange={setCaptchaToken} theme="light" className="w-full min-h-[85px] sm:min-h-[100px]" />
+                      </div>
                     </div>
-                  )}
+                    <Button
+                      onClick={handlePhoneOTP}
+                      disabled={loading || verifyingCaptcha || phone.length < 5 || !captchaToken}
+                      className="h-11 sm:h-12 w-full rounded-xl bg-gradient-to-r from-primary to-indigo-500 text-sm sm:text-base font-semibold text-primary-foreground shadow-md hover:brightness-110 disabled:opacity-50 transition-all"
+                    >
+                      {!captchaToken && "✓ Complete security check"}
+                      {captchaToken && loading && <><Loader2 className="h-4 w-4 animate-spin mr-2" />Sending...</>}
+                      {captchaToken && !loading && "✓ Get OTP"}
+                    </Button>
+                  </div>
                 </motion.div>
               ) : null}
             </AnimatePresence>
@@ -434,27 +450,17 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
             </div>
 
             <div className="space-y-3 sm:space-y-3.5">
-              {mode === "phone" && (
-                <>
-                  <button
-                    onClick={() => setMode("email")}
-                    className="flex h-11 sm:h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm sm:text-base font-medium text-foreground transition-all hover:bg-muted"
-                  >
-                    <Mail className="h-4 w-4 text-zinc-500" />
-                    Continue with Email
-                  </button>
-
-                  <button
-                    onClick={() => setMode("phone.email")}
-                    className="flex h-11 sm:h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm sm:text-base font-medium text-foreground transition-all hover:bg-muted"
-                  >
-                    <Smartphone className="h-4 w-4 text-zinc-500" />
-                    Verify with Phone.email
-                  </button>
-                </>
+              {mode === "email" && (
+                <button
+                  onClick={() => setMode("phone")}
+                  className="flex h-11 sm:h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm sm:text-base font-medium text-foreground transition-all hover:bg-muted"
+                >
+                  <Phone className="h-4 w-4 text-zinc-500" />
+                  Continue with Phone
+                </button>
               )}
 
-              {mode === "phone.email" && (
+              {mode === "phone" && (
                 <button
                   onClick={() => setMode("email")}
                   className="flex h-11 sm:h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm sm:text-base font-medium text-foreground transition-all hover:bg-muted"
@@ -462,26 +468,6 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
                   <Mail className="h-4 w-4 text-zinc-500" />
                   Continue with Email
                 </button>
-              )}
-              
-              {mode === "email" && (
-                <>
-                  <button
-                    onClick={() => setMode("phone")}
-                    className="flex h-11 sm:h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm sm:text-base font-medium text-foreground transition-all hover:bg-muted"
-                  >
-                    <Phone className="h-4 w-4 text-zinc-500" />
-                    Continue with Phone
-                  </button>
-
-                  <button
-                    onClick={() => setMode("phone.email")}
-                    className="flex h-11 sm:h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-sm sm:text-base font-semibold text-white shadow-md hover:brightness-110 transition-all"
-                  >
-                    <Smartphone className="h-4 w-4" />
-                    ⚡ Verify with Phone.email
-                  </button>
-                </>
               )}
 
               <button
