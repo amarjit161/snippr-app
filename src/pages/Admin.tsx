@@ -157,7 +157,7 @@ export default function Admin() {
                               {booking.status}
                             </Badge>
                           </div>
-                          <p className="text-sm text-muted-foreground">{booking.service} • {booking.booking_date} at {booking.booking_time}</p>
+                          <p className="text-sm text-muted-foreground">{booking.service} • {booking.booking_date} at {booking.time_slot}</p>
                         </div>
 
                         <div className="flex items-center gap-2">

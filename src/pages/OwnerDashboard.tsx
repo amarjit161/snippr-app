@@ -29,7 +29,7 @@ type QueueRow = {
   created_at: string;
   status: string;
   user_id: string;
-  booking_time?: string | null;
+  time_slot?: string | null;
   booking_date?: string | null;
   barber_id?: string | null;
   barbers?: { name?: string | null } | null;
@@ -560,8 +560,8 @@ export default function OwnerDashboard() {
                     const initials = customerName.split(" ").slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join("");
                     const serviceName = item.services?.name || "Service";
                     const barberName = (item as any).barbers?.name || "Not assigned";
-                    const bookingTime = item.booking_time
-                      ? item.booking_time.slice(0, 5)
+                    const bookingTime = item.time_slot
+                      ? item.time_slot.slice(0, 5)
                       : new Date(item.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
 
                     return (

@@ -139,7 +139,7 @@ const BookingCard = ({ booking: b, onCancel, onManage, showActions, updatingId }
                 <Scissors className="h-5 w-5 text-[#7a43e9]" /> {serviceName}
               </p>
               <p className="flex items-center gap-2 text-xl text-[#3d3f49]">
-                <Clock3 className="h-5 w-5 text-[#7a43e9]" /> {formatTimeSlot(b.time_slot || b.booking_time)}
+                <Clock3 className="h-5 w-5 text-[#7a43e9]" /> {formatTimeSlot(b.time_slot)}
               </p>
             </div>
 
@@ -320,7 +320,7 @@ export default function Dashboard() {
         salon_name: booking.salons?.name || "Salon",
         service_name: booking.services?.name || "Service",
         current_date: booking.booking_date,
-        current_time: booking.booking_time,
+        current_time: booking.time_slot,
         previous_status: String(booking.status || "").toLowerCase(),
       });
       setShowCancelPopup(true);
@@ -370,7 +370,7 @@ export default function Dashboard() {
         .from("queue")
         .update({
           booking_date: newDate,
-          booking_time: newTime,
+          time_slot: newTime,
         } as any)
         .eq("id", rescheduleTarget.id)
         .eq("user_id", user.id)
@@ -393,7 +393,7 @@ export default function Dashboard() {
       setBookings((prev) =>
         prev.map((b) =>
           b.id === rescheduleTarget.id
-            ? { ...b, booking_date: newDate, booking_time: newTime }
+            ? { ...b, booking_date: newDate, time_slot: newTime }
             : b
         )
       );

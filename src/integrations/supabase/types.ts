@@ -21,7 +21,7 @@ export type Database = {
           email: string
           service: string
           booking_date: string
-          booking_time: string
+          time_slot: string
           status: string
           created_at: string
         }
@@ -31,7 +31,7 @@ export type Database = {
           email: string
           service: string
           booking_date: string
-          booking_time: string
+          time_slot: string
           status?: string
           created_at?: string
         }
@@ -41,7 +41,7 @@ export type Database = {
           email?: string
           service?: string
           booking_date?: string
-          booking_time?: string
+          time_slot?: string
           status?: string
           created_at?: string
         }
@@ -89,7 +89,7 @@ export type Database = {
         Row: {
           barber_id: string | null
           booking_date: string | null
-          booking_time: string | null
+          time_slot: string | null
           completed_at: string | null
           created_at: string
           customer_first_name: string | null
@@ -107,7 +107,7 @@ export type Database = {
         Insert: {
           barber_id?: string | null
           booking_date?: string | null
-          booking_time?: string | null
+          time_slot?: string | null
           completed_at?: string | null
           created_at?: string
           customer_first_name?: string | null
@@ -125,7 +125,7 @@ export type Database = {
         Update: {
           barber_id?: string | null
           booking_date?: string | null
-          booking_time?: string | null
+          time_slot?: string | null
           completed_at?: string | null
           created_at?: string
           customer_first_name?: string | null

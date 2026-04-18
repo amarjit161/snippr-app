@@ -243,13 +243,13 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       try {
         const { data } = await supabase
           .from("queue" as any)
-          .select("booking_time")
+          .select("time_slot")
           .eq("salon_id", salon.id)
           .eq("barber_id", selectedBarberId)
           .eq("booking_date", date)
           .in("status", ["waiting", "in_progress"]);
 
-        const booked = new Set((data || []).map((b: any) => b.booking_time));
+        const booked = new Set((data || []).map((b: any) => b.time_slot));
         console.log(`✅ AVAILABILITY_CHECK: ${TIME_SLOTS.length - booked.size}/${TIME_SLOTS.length} slots available for ${date}`, {
           bookedSlots: Array.from(booked),
           barber: selectedBarberId
@@ -313,13 +313,13 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       try {
         const { data } = await supabase
           .from("queue" as any)
-          .select("booking_time")
+          .select("time_slot")
           .eq("salon_id", salon.id)
           .eq("barber_id", selectedBarberId)
           .eq("booking_date", date)
           .in("status", ["waiting", "in_progress"]);
 
-        const booked = new Set((data || []).map((b: any) => b.booking_time));
+        const booked = new Set((data || []).map((b: any) => b.time_slot));
         
         // If availability changed, update silently (don't spam logs)
         if (booked.size !== bookedSlots.size) {
@@ -394,13 +394,13 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
     const { data } = await supabase
       .from("queue" as any)
-      .select("time_slot, booking_time")
+      .select("time_slot")
       .eq("salon_id", salon.id)
       .eq("barber_id", selectedBarberId)
       .eq("booking_date", date)
       .in("status", ["waiting", "in_progress", "confirmed"]);
 
-    const booked = new Set((data || []).map((b: any) => b.time_slot || b.booking_time).filter(Boolean));
+    const booked = new Set((data || []).map((b: any) => b.time_slot).filter(Boolean));
     setBookedSlots(booked);
     setLastAvailabilityUpdate(new Date());
   };
@@ -462,13 +462,13 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       console.log("🔒 FINAL_CHECK: Refreshing availability before booking...");
       const { data: latestBookings } = await supabase
         .from("queue" as any)
-        .select("time_slot, booking_time")
+        .select("time_slot")
         .eq("salon_id", salon.id)
         .eq("barber_id", selectedBarberId)
         .eq("booking_date", date)
         .in("status", ["waiting", "in_progress"]);
 
-      const latestBooked = new Set((latestBookings || []).map((b: any) => b.time_slot || b.booking_time).filter(Boolean));
+      const latestBooked = new Set((latestBookings || []).map((b: any) => b.time_slot).filter(Boolean));
       if (latestBooked.has(time)) {
         console.log("🚫 FINAL_CHECK: Slot was just booked during captcha!");
         setBookedSlots(latestBooked);
@@ -510,7 +510,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         .eq("salon_id", salon.id)
         .eq("barber_id", selectedBarberId)
         .eq("booking_date", date)
-        .or(`time_slot.eq.${time},booking_time.eq.${time}`)
+        .eq("time_slot", time)
         .in("status", ["waiting", "in_progress"])
         .limit(1)
         .maybeSingle();
@@ -548,7 +548,6 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         notes: customer.notes.trim() || null,
         booking_date: date,
         time_slot: time,
-        booking_time: time,
       });
 
       if (error) {

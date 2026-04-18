@@ -41,7 +41,7 @@ type QueueItem = {
   customer_last_name?: string | null;
   customer_phone?: string | null;
   booking_date?: string | null;
-  booking_time?: string | null;
+  time_slot?: string | null;
   notes?: string | null;
   services?: ServiceRow | null;
   barbers?: BarberRow | null;
