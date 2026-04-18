@@ -741,16 +741,18 @@ export default function OwnerDashboard() {
                           >
                             <Phone className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-9 w-9 rounded-full text-rose-600 hover:bg-rose-50"
-                            disabled={updatingQueueId === item.id}
-                            onClick={() => updateQueueStatus(item, "rejected")}
-                            title="Reject"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
+                          {canAcceptSelectedDate ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-9 w-9 rounded-full text-rose-600 hover:bg-rose-50"
+                              disabled={updatingQueueId === item.id}
+                              onClick={() => updateQueueStatus(item, "rejected")}
+                              title="Reject"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          ) : null}
                         </div>
                       </div>
                       {isPendingAccept ? (
@@ -867,7 +869,9 @@ export default function OwnerDashboard() {
                                   Undo {Math.ceil(Math.max(0, pendingAccepts[item.id] - Date.now()) / 1000)}s
                                 </Button>
                               ) : null}
-                            <Button size="sm" variant="outline" className="h-8 rounded-xl" disabled={updatingQueueId === item.id || !["waiting", "accepted"].includes(status)} onClick={() => updateQueueStatus(item, "rejected")}>Reject</Button>
+                              {canAcceptSelectedDate ? (
+                                <Button size="sm" variant="outline" className="h-8 rounded-xl" disabled={updatingQueueId === item.id || !["waiting", "accepted"].includes(status)} onClick={() => updateQueueStatus(item, "rejected")}>Reject</Button>
+                              ) : null}
                           </div>
                         </td>
                       </tr>
