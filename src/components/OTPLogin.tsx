@@ -69,6 +69,21 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
     };
   }, [navigate]);
 
+  // Re-initialize phone.email widget when mode changes
+  useEffect(() => {
+    if (mode === "phone.email") {
+      // Wait a brief moment for the DOM to update, then try to render the widget
+      const timer = setTimeout(() => {
+        const pe = (window as any).phoneEmailSignInButton;
+        if (pe && typeof pe.render === "function" && phoneEmailContainerRef.current) {
+          pe.render(phoneEmailContainerRef.current);
+        }
+      }, 100);
+
+      return () => clearTimeout(timer);
+    }
+  }, [mode]);
+
   const resetToLogin = () => {
     setAuthError(null);
     setEmailSent(false);
