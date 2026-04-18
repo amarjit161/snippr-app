@@ -186,6 +186,11 @@ export default function OwnerLogin() {
 
       console.log("LOGIN_COMPLETE", { hasSalon: !!existingSalon });
       toast.success("Welcome back");
+      
+      // Store owner info in localStorage and set owner role so AuthContext knows
+      localStorage.setItem("owner", JSON.stringify(finalOwnerProfile));
+      localStorage.setItem("snippr_role", "owner");
+      
       navigate(existingSalon ? "/owner-dashboard" : "/register-salon", { replace: true });
     } catch (error: any) {
       console.error("LOGIN_PIPELINE_ERROR:", error.message || error);

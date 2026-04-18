@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -9,11 +9,25 @@ interface OwnerProtectedRouteProps {
 const OwnerProtectedRoute: React.FC<OwnerProtectedRouteProps> = ({ children }) => {
   const { user, profile, loading, profileLoading } = useAuth();
 
+  // Check localStorage as fallback while AuthContext is syncing
+  const localStorageProfile = useMemo(() => {
+    try {
+      const stored = localStorage.getItem("owner");
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const hasProfile = profile || localStorageProfile;
+
   console.log('OWNER_PROTECTED_ROUTE', {
     loading,
     profileLoading,
     user: user?.email,
     profile: !!profile,
+    localStorageProfile: !!localStorageProfile,
+    hasProfile: !!hasProfile,
   });
 
   // Wait for BOTH session loading AND profile fetching to complete
@@ -33,7 +47,7 @@ const OwnerProtectedRoute: React.FC<OwnerProtectedRouteProps> = ({ children }) =
     return <Navigate to="/owner-login" replace />;
   }
 
-  if (!profile) {
+  if (!hasProfile) {
     console.log('OWNER_PROTECTED_ROUTE: No owner profile found, redirecting to registration');
     return <Navigate to="/owner-register" replace />;
   }
