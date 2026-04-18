@@ -397,9 +397,8 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
                   {/* phone.email widget container */}
                   <div 
                     ref={phoneEmailContainerRef}
-                    className="pe_signin_button flex justify-center"
+                    className="pe_signin_button w-full flex justify-center"
                     data-client-id={import.meta.env.VITE_PHONE_EMAIL_CLIENT_ID || "15695407177920574360"}
-                    style={{ minHeight: "70px", display: "flex", alignItems: "center", justifyContent: "center" }}
                   />
 
                   {phoneEmailVerifying && (
