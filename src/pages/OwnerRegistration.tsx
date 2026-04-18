@@ -105,26 +105,26 @@ export default function OwnerRegistration() {
 
   // Auth: Pre-fill and Redirect
   useEffect(() => {
-    const checkVerified = async () => {
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-
-      if (!currentUser) {
-        navigate("/owner-signup");
-        return;
-      }
-
-      if (!currentUser.email_confirmed_at) {
-        toast.error("Please verify your email before registering your salon.");
-        navigate("/owner-signup");
-        return;
-      }
-    };
-
-    checkVerified();
-
-    if (!authLoading && user && profile) {
-      navigate("/owner-dashboard");
+    if (authLoading) {
+      return;
     }
+
+    if (!user) {
+      navigate("/owner-signup");
+      return;
+    }
+
+    if (!user.email_confirmed_at) {
+      toast.error("Please verify your email before registering your salon.");
+      navigate("/owner-signup");
+      return;
+    }
+
+    if (profile) {
+      navigate("/owner-dashboard");
+      return;
+    }
+
     if (user && !name) setName(user.user_metadata?.full_name || "");
     if (user && !email) setEmail(user.email || "");
   }, [user, profile, authLoading, navigate]);

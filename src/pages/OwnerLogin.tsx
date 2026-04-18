@@ -36,12 +36,24 @@ export default function OwnerLogin() {
   const loginCardRef = useRef<HTMLDivElement | null>(null);
   const flipInnerRef = useRef<HTMLDivElement | null>(null);
 
+  const readStoredOwner = () => {
+    try {
+      const raw = localStorage.getItem("owner");
+      return raw ? (JSON.parse(raw) as OwnerRecord) : null;
+    } catch {
+      return null;
+    }
+  };
+
   useEffect(() => {
     if (!authLoading && user) {
-      if (profile) {
+      const storedOwner = readStoredOwner();
+      const hasOwnerSession = Boolean(profile || storedOwner?.id === user.id);
+
+      if (hasOwnerSession) {
         console.log("OWNER_LOGIN: User already authenticated with profile, redirecting to Dashboard");
         navigate("/owner-dashboard", { replace: true });
-      } else if (!profileLoading && !profile) {
+      } else if (!profileLoading && !profile && !storedOwner) {
         console.log("OWNER_LOGIN: User authenticated but NO profile found, redirecting to Registration to resume setup");
         navigate("/owner-register", { replace: true });
       }
