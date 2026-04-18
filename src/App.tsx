@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Index from "./pages/Index.tsx";
 import Auth from "./pages/Auth.tsx";
+import AuthCallback from "./pages/AuthCallback.tsx";
 import Verify from "./pages/Verify.tsx";
 import Salons from "./pages/Salons.tsx";
 import Admin from "./pages/Admin.tsx";
@@ -67,10 +68,12 @@ const AppRoutes = () => {
       <Route path="/" element={<Index />} />
       <Route path="/login" element={<Auth />} />
       <Route path="/auth" element={<Auth />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/verify" element={<Verify />} />
       <Route path="/owner-login" element={<OwnerLogin />} />
       <Route path="/owner-signup" element={<OwnerSignUp />} />
       <Route path="/owner-reset-password" element={<OwnerResetPassword />} />
+      <Route path="/reset-password" element={<OwnerResetPassword />} />
       <Route path="/verify-email" element={<VerifyEmail />} />
       <Route path="/onboarding" element={<Onboarding />} />
       <Route path="/owner-register" element={<OwnerRegistration />} />

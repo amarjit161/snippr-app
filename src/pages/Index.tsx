@@ -33,6 +33,28 @@ export default function Index() {
   const avatarInitial = userLabel.charAt(0).toUpperCase();
   const [transitioning, setTransitioning] = useState(false);
 
+  useEffect(() => {
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const searchParams = new URLSearchParams(window.location.search);
+
+    const hasRecoveryInHash = hashParams.get("type") === "recovery";
+    const hasRecoveryInQuery = searchParams.get("type") === "recovery";
+    const hasRecoveryPayload =
+      Boolean(hashParams.get("access_token") && hashParams.get("refresh_token")) ||
+      Boolean(searchParams.get("token_hash")) ||
+      Boolean(searchParams.get("code"));
+
+    if ((hasRecoveryInHash || hasRecoveryInQuery) && hasRecoveryPayload) {
+      const nextUrl = `/auth/callback${window.location.search}${window.location.hash}`;
+      console.log("RECOVERY_REDIRECT_FROM_ROOT", {
+        hasRecoveryInHash,
+        hasRecoveryInQuery,
+        nextUrl,
+      });
+      navigate(nextUrl, { replace: true });
+    }
+  }, [navigate]);
+
   const salons = useMemo(
     () => [
       {

@@ -79,7 +79,7 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
     setLoading(true);
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth` }
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` }
     });
     setLoading(false);
     
@@ -118,7 +118,7 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth`
+          redirectTo: `${window.location.origin}/auth/callback`
         }
       });
 
@@ -321,7 +321,7 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
             </AnimatePresence>
 
             <div className="mt-3 flex items-center justify-between text-xs text-zinc-500">
-              <button onClick={() => toast.info("Password reset is coming soon")}>Forgot password?</button>
+              <button onClick={() => navigate("/reset-password")} className="font-medium text-primary hover:underline">Forgot password?</button>
               <Link to="/owner-register" className="font-medium text-primary hover:underline">Register</Link>
             </div>
 

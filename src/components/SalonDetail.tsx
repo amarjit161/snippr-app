@@ -558,7 +558,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         const customerEmail = currentUser.email || user?.email;
         if (customerEmail) {
           try {
-            await supabase.functions.invoke("send-booking-email", {
+            const { error: emailInvokeError } = await supabase.functions.invoke("send-booking-email", {
               body: {
                 type: "confirmed",
                 bookingId: null,
@@ -571,6 +571,10 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
                 amount: selectedService.price,
               },
             });
+
+            if (emailInvokeError) {
+              throw emailInvokeError;
+            }
           } catch (emailErr) {
             console.warn("BOOKING_EMAIL_FAILED", emailErr);
           }

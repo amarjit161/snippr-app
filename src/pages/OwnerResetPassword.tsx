@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { AlertCircle, CheckCircle2, Loader2, Lock } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, Lock, Mail } from "lucide-react";
 import { toast } from "sonner";
 
 type Status = "loading" | "ready" | "success" | "error";
@@ -15,6 +15,9 @@ export default function OwnerResetPassword() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [email, setEmail] = useState("");
+  const [codeRequired, setCodeRequired] = useState(false);
 
   useEffect(() => {
     const initRecoverySession = async () => {
@@ -44,19 +47,22 @@ export default function OwnerResetPassword() {
         return;
       }
 
-      // New token_hash recovery link format
+      // New token_hash recovery link format - try it first
       if (queryType === "recovery" && tokenHash) {
         const { error } = await supabase.auth.verifyOtp({
           type: "recovery",
           token_hash: tokenHash,
         });
 
-        if (error) {
-          setErrorMessage(error.message || "Recovery link is invalid or expired.");
-          setStatus("error");
+        if (!error) {
+          setStatus("ready");
           return;
         }
-
+        
+        // Token expired or invalid - ask user to enter code manually
+        // The code is still in the email, user just needs to copy-paste it
+        console.warn("Token hash verification failed, switching to manual code entry");
+        setCodeRequired(true);
         setStatus("ready");
         return;
       }
@@ -83,8 +89,9 @@ export default function OwnerResetPassword() {
         return;
       }
 
-      setErrorMessage("Recovery link is invalid or expired.");
-      setStatus("error");
+      // No active session and no recovery link - show manual code entry option
+      setCodeRequired(true);
+      setStatus("ready");
     };
 
     initRecoverySession();
@@ -93,6 +100,38 @@ export default function OwnerResetPassword() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (saving) return;
+
+    // If code is required, verify code and email first
+    if (codeRequired && verificationCode) {
+      if (!email) {
+        toast.error("Please enter your email address.");
+        return;
+      }
+
+      if (verificationCode.length !== 6 || !/^\d+$/.test(verificationCode)) {
+        toast.error("Please enter a valid 6-digit code.");
+        return;
+      }
+
+      setSaving(true);
+      const { error } = await supabase.auth.verifyOtp({
+        email,
+        token: verificationCode,
+        type: "recovery",
+      });
+
+      if (error) {
+        toast.error(error.message || "Invalid verification code.");
+        setSaving(false);
+        return;
+      }
+
+      // Code verified! Clear it so form can proceed to password reset
+      setVerificationCode("");
+      setCodeRequired(false);
+      setSaving(false);
+      return;
+    }
 
     if (password.length < 8) {
       toast.error("Password must be at least 8 characters.");
@@ -140,38 +179,81 @@ export default function OwnerResetPassword() {
               <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-green-50 text-green-600">
                 <Lock className="h-6 w-6" />
               </div>
-              <h1 className="font-display text-2xl font-bold">Set new password</h1>
-              <p className="mt-1 text-sm text-muted-foreground">Choose a strong password for your owner account.</p>
+              <h1 className="font-display text-2xl font-bold">
+                {codeRequired ? "Verify your email" : "Set new password"}
+              </h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {codeRequired
+                  ? "Enter the 6-digit code from your reset email"
+                  : "Choose a strong password for your owner account."}
+              </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="relative">
-                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="New password"
-                  className="pl-10"
-                  required
-                />
-              </div>
+              {codeRequired && (
+                <>
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="your-email@example.com"
+                      className="pl-10"
+                      required
+                    />
+                  </div>
 
-              <div className="relative">
-                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm new password"
-                  className="pl-10"
-                  required
-                />
-              </div>
+                  <div className="relative">
+                    <Input
+                      type="text"
+                      value={verificationCode}
+                      onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      placeholder="000000"
+                      maxLength={6}
+                      className="text-center font-mono text-lg tracking-widest"
+                      required
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">Enter the 6-digit code from your email</p>
+                  </div>
 
-              <Button type="submit" disabled={saving} className="h-11 w-full rounded-xl">
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update Password"}
-              </Button>
+                  <Button type="submit" disabled={saving || verificationCode.length !== 6} className="h-11 w-full rounded-xl">
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify Code"}
+                  </Button>
+                </>
+              )}
+
+              {!codeRequired && (
+                <>
+                  <div className="relative">
+                    <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="New password"
+                      className="pl-10"
+                      required
+                    />
+                  </div>
+
+                  <div className="relative">
+                    <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Confirm new password"
+                      className="pl-10"
+                      required
+                    />
+                  </div>
+
+                  <Button type="submit" disabled={saving} className="h-11 w-full rounded-xl">
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update Password"}
+                  </Button>
+                </>
+              )}
             </form>
           </>
         )}

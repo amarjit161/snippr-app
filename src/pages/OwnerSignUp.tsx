@@ -53,7 +53,7 @@ export const OwnerSignUp = () => {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/onboarding`,
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding&flow=signup`,
         data: { role: "owner" },
       },
     });

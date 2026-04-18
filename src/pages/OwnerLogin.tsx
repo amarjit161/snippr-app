@@ -201,7 +201,7 @@ export default function OwnerLogin() {
       }
 
       const { error } = await supabase.auth.resetPasswordForEmail(requestedEmail, {
-        redirectTo: `${window.location.origin}/owner-reset-password`,
+        redirectTo: `${window.location.origin}/auth/callback?flow=recovery`,
       });
 
       if (error) {

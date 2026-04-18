@@ -15,7 +15,13 @@ import { RescheduleModal } from "@/components/RescheduleModal";
 type BookingTab = "upcoming" | "past" | "cancelled";
 const RESCHEDULE_LOCKED_STATUSES = new Set(["accepted", "confirmed", "in_progress", "done", "completed"]);
 
-const isRescheduleLocked = (status?: string) => RESCHEDULE_LOCKED_STATUSES.has(String(status || "").toLowerCase());
+const normalizeStatus = (status?: string) => {
+  const normalized = String(status || "").trim().toLowerCase().replace(/\s+/g, "_");
+  if (normalized === "canceled") return "cancelled";
+  return normalized;
+};
+
+const isRescheduleLocked = (status?: string) => RESCHEDULE_LOCKED_STATUSES.has(normalizeStatus(status));
 
 const toDateLabel = (date?: string) => {
   if (!date) return "Date TBD";
@@ -96,7 +102,7 @@ const BookingCard = ({ booking: b, onCancel, onManage, showActions, updatingId }
   const serviceName = b.services?.name || "Service";
   const price = b.services?.price || 0;
   const salonImage = b.salons?.image_url || "/default-salon.jpg";
-  const status = String(b.status || "pending").toLowerCase();
+  const status = normalizeStatus(b.status || "pending");
   const rescheduleLocked = isRescheduleLocked(status);
 
   return (
@@ -259,7 +265,7 @@ export default function Dashboard() {
 
   const filteredBookings = useMemo(() => {
     return bookings.filter((b) => {
-      const status = String(b.status || "").toLowerCase();
+      const status = normalizeStatus(b.status);
 
       if (activeTab === "cancelled") {
         return ["cancelled", "rejected"].includes(status);
@@ -283,22 +289,30 @@ export default function Dashboard() {
       return;
     }
 
+    console.log("CANCEL_BOOKING_START", {
+      bookingId: cancelPendingId,
+      userId: user.id,
+    });
+
     setUpdatingId(cancelPendingId);
     try {
       // Get booking details before cancelling
       const booking = bookings.find((b) => b.id === cancelPendingId);
       if (!booking) {
+        console.warn("CANCEL_BOOKING_NOT_FOUND", { bookingId: cancelPendingId });
         toast.error("Booking not found.");
         setCancelPendingId(null);
         return;
       }
 
       // Update booking status to cancelled
-      const { error } = await supabase
+      const { data: updatedBooking, error } = await supabase
         .from("queue")
         .update({ status: "cancelled" } as any)
         .eq("id", cancelPendingId)
-        .eq("user_id", user.id);
+        .eq("user_id", user.id)
+        .select("id, status")
+        .maybeSingle();
 
       if (error) {
         console.error("CANCEL_BOOKING_ERROR", error);
@@ -307,9 +321,24 @@ export default function Dashboard() {
         return;
       }
 
+      if (!updatedBooking) {
+        console.warn("CANCEL_BOOKING_NO_ROW_UPDATED", {
+          bookingId: cancelPendingId,
+          userId: user.id,
+        });
+        toast.error("Unable to cancel this booking right now. Please refresh and try again.");
+        setCancelPendingId(null);
+        return;
+      }
+
+      console.log("CANCEL_BOOKING_DB_UPDATED", {
+        bookingId: cancelPendingId,
+        nextStatus: updatedBooking.status,
+      });
+
       if (user?.email) {
         try {
-          await supabase.functions.invoke("send-booking-email", {
+          const { error: emailInvokeError } = await supabase.functions.invoke("send-booking-email", {
             body: {
               type: "cancelled",
               bookingId: booking.id,
@@ -321,6 +350,15 @@ export default function Dashboard() {
               timeSlot: booking.time_slot,
               amount: booking.services?.price || 0,
             },
+          });
+
+          if (emailInvokeError) {
+            throw emailInvokeError;
+          }
+
+          console.log("CANCEL_BOOKING_EMAIL_INVOKED", {
+            bookingId: booking.id,
+            userEmail: user.email,
           });
         } catch (emailErr) {
           console.warn("CANCEL_EMAIL_FAILED", emailErr);
@@ -341,10 +379,11 @@ export default function Dashboard() {
         service_name: booking.services?.name || "Service",
         current_date: booking.booking_date,
         current_time: booking.time_slot,
-        previous_status: String(booking.status || "").toLowerCase(),
+        previous_status: normalizeStatus(booking.status),
       });
       setShowCancelPopup(true);
       setCancelPendingId(null);
+      console.log("CANCEL_BOOKING_SUCCESS", { bookingId: booking.id });
     } finally {
       setUpdatingId(null);
     }
