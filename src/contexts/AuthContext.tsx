@@ -33,6 +33,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const lastProfileFetchSessionIdRef = useRef<string | null>(null);
   const profileFetchInFlightRef = useRef<string | null>(null);
 
+  const readStoredOwnerProfile = () => {
+    if (typeof window === "undefined") return null;
+
+    try {
+      const raw = localStorage.getItem("owner");
+      if (!raw) return null;
+
+      return JSON.parse(raw) as Tables<"owners">;
+    } catch {
+      return null;
+    }
+  };
+
   const isOwnerIntent = (s: Session | null) => {
     if (typeof window === "undefined") return false;
     return (
@@ -82,6 +95,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         console.log("FETCH_PROFILE_START", sessionId);
         setProfileLoading(true);
+
+        const storedOwner = readStoredOwnerProfile();
+        if (storedOwner?.id === sessionId) {
+          console.log("FETCH_PROFILE: Using stored owner profile as immediate bootstrap");
+          cachedProfileRef.current = storedOwner;
+          setProfile(storedOwner);
+        }
         
         try {
           console.log("FETCH_PROFILE: Requesting from database...");
@@ -105,8 +125,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           // maybeSingle() returns null if no row found — this is not an error for customers
           if (!error) {
             console.log("FETCH_PROFILE_COMPLETE:", data ?? "null (customer user, not owner)");
-            cachedProfileRef.current = data ?? null;
-            setProfile(data ?? null);
+            const resolvedProfile = data ?? storedOwner ?? null;
+            cachedProfileRef.current = resolvedProfile;
+            setProfile(resolvedProfile);
             lastProfileFetchSessionIdRef.current = sessionId;
             setProfileLoading(false);
             return;
@@ -116,6 +137,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           console.error("FETCH_PROFILE_ERROR:", error.message);
           if (cachedProfileRef.current) {
             setProfile(cachedProfileRef.current);
+          } else if (storedOwner?.id === sessionId) {
+            console.log("FETCH_PROFILE: Falling back to stored owner profile after error");
+            cachedProfileRef.current = storedOwner;
+            setProfile(storedOwner);
           } else {
             setProfile(null);
           }
@@ -124,6 +149,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           if (cachedProfileRef.current) {
             console.log("FETCH_PROFILE: Falling back to cached profile");
             setProfile(cachedProfileRef.current);
+          } else if (storedOwner?.id === sessionId) {
+            console.log("FETCH_PROFILE: Falling back to stored owner profile after exception");
+            cachedProfileRef.current = storedOwner;
+            setProfile(storedOwner);
           } else {
             setProfile(null);
           }
@@ -146,6 +175,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.log("SESSION_ON_LOAD:", initialSession ? "Active" : "None");
         setSession(initialSession);
         if (initialSession) {
+          const storedOwner = readStoredOwnerProfile();
+          if (storedOwner?.id === initialSession.user.id) {
+            cachedProfileRef.current = storedOwner;
+            setProfile(storedOwner);
+          }
           await fetchProfile(initialSession);
         }
       } catch (err) {
