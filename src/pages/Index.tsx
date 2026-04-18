@@ -37,12 +37,22 @@ export default function Index() {
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     const searchParams = new URLSearchParams(window.location.search);
 
+    const hashErrorCode = hashParams.get("error_code");
+    const hashError = hashParams.get("error");
+
     const hasRecoveryInHash = hashParams.get("type") === "recovery";
     const hasRecoveryInQuery = searchParams.get("type") === "recovery";
     const hasRecoveryPayload =
       Boolean(hashParams.get("access_token") && hashParams.get("refresh_token")) ||
       Boolean(searchParams.get("token_hash")) ||
       Boolean(searchParams.get("code"));
+
+    // Expired reset links can land on site root with hash errors only.
+    // Send users directly to reset page where OTP code fallback is available.
+    if (hashErrorCode === "otp_expired" || hashError === "access_denied") {
+      navigate("/reset-password?expired=1", { replace: true });
+      return;
+    }
 
     if ((hasRecoveryInHash || hasRecoveryInQuery) && hasRecoveryPayload) {
       const nextUrl = `/auth/callback${window.location.search}${window.location.hash}`;
