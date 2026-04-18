@@ -11,6 +11,7 @@ import gsap from "gsap";
 import { CancelConfirmation } from "@/components/CancelConfirmation";
 import { CancelPopup, CompletionCelebration } from "@/components/CancelConfirmationPage";
 import { RescheduleModal } from "@/components/RescheduleModal";
+import { sendBookingEmail } from "@/services/emailService";
 
 type BookingTab = "upcoming" | "past" | "cancelled";
 const RESCHEDULE_LOCKED_STATUSES = new Set(["accepted", "confirmed", "in_progress", "done", "completed"]);
@@ -338,30 +339,40 @@ export default function Dashboard() {
 
       if (user?.email) {
         try {
-          const { error: emailInvokeError } = await supabase.functions.invoke("send-booking-email", {
-            body: {
-              type: "cancelled",
-              bookingId: booking.id,
-              userEmail: user.email,
-              userName: (profile?.name || user.email.split("@")[0] || "Customer"),
-              salonName: booking.salons?.name || "Salon",
-              serviceName: booking.services?.name || "Service",
-              bookingDate: booking.booking_date,
-              timeSlot: booking.time_slot,
-              amount: booking.services?.price || 0,
-            },
+          // Get owner email
+          const { data: ownerData } = await supabase
+            .from("owners")
+            .select("email")
+            .eq("id", booking.salons?.owner_id)
+            .maybeSingle();
+
+          const [h, m] = (booking.time_slot || "").split(":").map(Number);
+          const period = h >= 12 ? "PM" : "AM";
+          const hour = h > 12 ? h - 12 : h === 0 ? 12 : h;
+          const displayTime = `${hour}:${String(m).padStart(2, "0")} ${period}`;
+
+          await sendBookingEmail('booking_cancelled', {
+            bookingId: booking.id,
+            salonId: booking.salon_id,
+            salonName: booking.salons?.name || "Salon",
+            salonAddress: booking.salons?.address || booking.salons?.location || '',
+            customerName: `${booking.customer_first_name || ''} ${booking.customer_last_name || ''}`.trim() || 'Customer',
+            customerEmail: user.email,
+            customerPhone: booking.customer_phone,
+            ownerEmail: ownerData?.email || '',
+            serviceName: booking.services?.name || "Service",
+            barberName: '',
+            bookingDate: booking.booking_date,
+            timeSlot: displayTime,
+            amount: booking.services?.price || 0,
           });
 
-          if (emailInvokeError) {
-            throw emailInvokeError;
-          }
-
-          console.log("CANCEL_BOOKING_EMAIL_INVOKED", {
+          console.log("CANCEL_BOOKING_EMAIL_SENT", {
             bookingId: booking.id,
             userEmail: user.email,
           });
         } catch (emailErr) {
-          console.warn("CANCEL_EMAIL_FAILED", emailErr);
+          console.warn("❌ CANCEL_EMAIL_FAILED", emailErr);
         }
       }
 
@@ -446,6 +457,49 @@ export default function Dashboard() {
       if (!data) {
         toast.error("Reschedule blocked. This booking is already accepted by barber.");
         return;
+      }
+
+      // Send reschedule email
+      if (user?.email && rescheduleTarget) {
+        try {
+          const { data: ownerData } = await supabase
+            .from("owners")
+            .select("email")
+            .eq("id", rescheduleTarget.salons?.owner_id)
+            .maybeSingle();
+
+          const [oldH, oldM] = (rescheduleTarget.time_slot || "").split(":").map(Number);
+          const oldPeriod = oldH >= 12 ? "PM" : "AM";
+          const oldHour = oldH > 12 ? oldH - 12 : oldH === 0 ? 12 : oldH;
+          const oldDisplayTime = `${oldHour}:${String(oldM).padStart(2, "0")} ${oldPeriod}`;
+
+          const [h, m] = (newTime || "").split(":").map(Number);
+          const period = h >= 12 ? "PM" : "AM";
+          const hour = h > 12 ? h - 12 : h === 0 ? 12 : h;
+          const displayTime = `${hour}:${String(m).padStart(2, "0")} ${period}`;
+
+          await sendBookingEmail('booking_rescheduled', {
+            bookingId: rescheduleTarget.id,
+            salonId: rescheduleTarget.salon_id,
+            salonName: rescheduleTarget.salons?.name || "Salon",
+            salonAddress: rescheduleTarget.salons?.address || rescheduleTarget.salons?.location || '',
+            customerName: `${rescheduleTarget.customer_first_name || ''} ${rescheduleTarget.customer_last_name || ''}`.trim() || 'Customer',
+            customerEmail: user.email,
+            customerPhone: rescheduleTarget.customer_phone,
+            ownerEmail: ownerData?.email || '',
+            serviceName: rescheduleTarget.services?.name || "Service",
+            barberName: '',
+            bookingDate: newDate,
+            timeSlot: displayTime,
+            amount: rescheduleTarget.services?.price || 0,
+            oldDate: rescheduleTarget.booking_date,
+            oldTime: oldDisplayTime,
+          });
+
+          console.log("RESCHEDULE_EMAIL_SENT", { bookingId: rescheduleTarget.id });
+        } catch (emailErr) {
+          console.warn("❌ RESCHEDULE_EMAIL_FAILED", emailErr);
+        }
       }
 
       // Update local state

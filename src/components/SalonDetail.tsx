@@ -14,6 +14,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import TurnstileCaptcha, { type TurnstileCaptchaHandle } from "@/components/TurnstileCaptcha";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 import { SlotPicker } from "@/components/booking/SlotPicker";
+import { sendBookingEmail } from "@/services/emailService";
 
 import salon1 from "@/assets/salon-1.jpg";
 import salon2 from "@/assets/salon-2.jpg";
@@ -534,7 +535,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       const nextPosition = Number(latestQueueEntry?.position || 0) + 1;
       const createdAt = new Date().toISOString();
 
-      const { error } = await (supabase.from("queue") as any).insert({
+      const { data: insertedData, error } = await (supabase.from("queue") as any).insert({
         user_id: user?.id || currentUser.id,
         salon_id: salon.id,
         service_id: selectedService.id,
@@ -548,7 +549,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         notes: customer.notes.trim() || null,
         booking_date: date,
         time_slot: time,
-      });
+      }).select().single();
 
       if (error) {
         handleBookingError(error as any, refreshAvailability);
@@ -556,27 +557,41 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         return;
       } else {
         const customerEmail = currentUser.email || user?.email;
-        if (customerEmail) {
+        
+        // Send booking confirmation email
+        if (customerEmail && insertedData) {
           try {
-            const { error: emailInvokeError } = await supabase.functions.invoke("send-booking-email", {
-              body: {
-                type: "confirmed",
-                bookingId: null,
-                userEmail: customerEmail,
-                userName: customerEmail.split("@")[0],
-                salonName: salon.name,
-                serviceName: selectedService.name,
-                bookingDate: date,
-                timeSlot: time,
-                amount: selectedService.price,
-              },
-            });
+            // Get owner email
+            const { data: ownerData } = await supabase
+              .from("owners")
+              .select("email")
+              .eq("id", salon.owner_id)
+              .maybeSingle();
 
-            if (emailInvokeError) {
-              throw emailInvokeError;
-            }
+            const [hours, minutes] = time.split(':');
+            const hour = parseInt(hours);
+            const ampm = hour >= 12 ? 'PM' : 'AM';
+            const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+            const displayTime = `${displayHour}:${minutes} ${ampm}`;
+
+            await sendBookingEmail('booking_confirmed', {
+              bookingId: insertedData.id,
+              salonId: salon.id,
+              salonName: salon.name,
+              salonAddress: salon.address || salon.location || '',
+              customerName: `${activeCustomer.firstName} ${activeCustomer.lastName}`.trim() || 'Customer',
+              customerEmail,
+              customerPhone: activeCustomer.phone,
+              ownerEmail: ownerData?.email || '',
+              serviceName: selectedService.name,
+              barberName: '', // We could fetch this if needed
+              bookingDate: date,
+              timeSlot: displayTime,
+              amount: selectedService.price || 0,
+            });
           } catch (emailErr) {
-            console.warn("BOOKING_EMAIL_FAILED", emailErr);
+            console.warn("❌ BOOKING_EMAIL_FAILED", emailErr);
+            // Don't fail the booking if email fails
           }
         }
 
