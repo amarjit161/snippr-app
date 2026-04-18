@@ -555,6 +555,27 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         setBooking(false);
         return;
       } else {
+        const customerEmail = currentUser.email || user?.email;
+        if (customerEmail) {
+          try {
+            await supabase.functions.invoke("send-booking-email", {
+              body: {
+                type: "confirmed",
+                bookingId: null,
+                userEmail: customerEmail,
+                userName: customerEmail.split("@")[0],
+                salonName: salon.name,
+                serviceName: selectedService.name,
+                bookingDate: date,
+                timeSlot: time,
+                amount: selectedService.price,
+              },
+            });
+          } catch (emailErr) {
+            console.warn("BOOKING_EMAIL_FAILED", emailErr);
+          }
+        }
+
         if (bookingForSomeoneElse) {
           setCustomer((prev) => ({ ...prev, firstName: "", lastName: "", phone: "" }));
         }

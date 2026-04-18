@@ -307,6 +307,26 @@ export default function Dashboard() {
         return;
       }
 
+      if (user?.email) {
+        try {
+          await supabase.functions.invoke("send-booking-email", {
+            body: {
+              type: "cancelled",
+              bookingId: booking.id,
+              userEmail: user.email,
+              userName: (profile?.name || user.email.split("@")[0] || "Customer"),
+              salonName: booking.salons?.name || "Salon",
+              serviceName: booking.services?.name || "Service",
+              bookingDate: booking.booking_date,
+              timeSlot: booking.time_slot,
+              amount: booking.services?.price || 0,
+            },
+          });
+        } catch (emailErr) {
+          console.warn("CANCEL_EMAIL_FAILED", emailErr);
+        }
+      }
+
       // Immediately update local state to remove from upcoming
       setBookings((prev) =>
         prev.map((b) =>
