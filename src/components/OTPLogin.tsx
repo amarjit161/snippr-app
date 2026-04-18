@@ -452,10 +452,10 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
 
                   <button
                     onClick={() => setMode("phone.email")}
-                    className="flex h-11 sm:h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm sm:text-base font-medium text-foreground transition-all hover:bg-muted"
+                    className="flex h-11 sm:h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-sm sm:text-base font-semibold text-white shadow-md hover:brightness-110 transition-all"
                   >
-                    <Smartphone className="h-4 w-4 text-zinc-500" />
-                    Verify with Phone.email
+                    <Smartphone className="h-4 w-4" />
+                    ⚡ Verify with Phone.email
                   </button>
                 </>
               )}
