@@ -3,6 +3,8 @@ import { Phone, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
+const DEFAULT_CLIENT_ID = import.meta.env.VITE_PHONE_EMAIL_CLIENT_ID || "15695407177920574360";
+
 interface PhoneEmailVerificationProps {
   clientId?: string;
   onSuccess?: (phoneData: any) => void;
@@ -11,7 +13,7 @@ interface PhoneEmailVerificationProps {
 }
 
 export const PhoneEmailVerification = ({
-  clientId = "15695407177920574360",
+  clientId = DEFAULT_CLIENT_ID,
   onSuccess,
   onError,
   autoRedirect = true

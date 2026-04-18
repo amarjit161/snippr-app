@@ -1,5 +1,7 @@
 import React, { useEffect } from 'react';
 
+const DEFAULT_CLIENT_ID = import.meta.env.VITE_PHONE_EMAIL_CLIENT_ID || "15695407177920574360";
+
 /**
  * Simple phone.email Sign-in Button Component
  * 
@@ -16,7 +18,7 @@ interface SignInButtonProps {
 }
 
 const SignInButton: React.FC<SignInButtonProps> = ({
-  clientId = "15695407177920574360",
+  clientId = DEFAULT_CLIENT_ID,
   onVerificationStart
 }) => {
   useEffect(() => {

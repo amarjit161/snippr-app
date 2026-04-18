@@ -5,6 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Phone, CheckCircle, AlertCircle, Code } from "lucide-react";
 
+const CONFIGURED_CLIENT_ID = import.meta.env.VITE_PHONE_EMAIL_CLIENT_ID || "15695407177920574360";
+
 export default function TestPhoneVerification() {
   const [simpleResult, setSimpleResult] = useState<string>("");
   const [fullResult, setFullResult] = useState<string>("");
@@ -69,7 +71,7 @@ export default function TestPhoneVerification() {
                 {/* SignInButton Component */}
                 <div className="flex justify-center p-6 bg-slate-50 border border-slate-200 rounded-lg">
                   <SignInButton
-                    clientId="15695407177920574360"
+                    clientId={CONFIGURED_CLIENT_ID}
                     onVerificationStart={handleSimpleStart}
                   />
                 </div>
@@ -125,7 +127,7 @@ export default function TestPhoneVerification() {
                 {/* PhoneEmailVerification Component */}
                 <div className="flex justify-center p-6 bg-slate-50 border border-slate-200 rounded-lg">
                   <PhoneEmailVerification
-                    clientId="15695407177920574360"
+                    clientId={CONFIGURED_CLIENT_ID}
                     onSuccess={handleFullSuccess}
                     onError={handleFullError}
                     autoRedirect={false}
@@ -245,7 +247,7 @@ Invoke-WebRequest -Uri "http://localhost:5173/api/verify-phone-email" \
             </div>
             <div>
               <p className="text-slate-600">Client ID:</p>
-              <p className="font-mono text-slate-900">15695407177920574360</p>
+              <p className="font-mono text-slate-900">{CONFIGURED_CLIENT_ID}</p>
             </div>
           </div>
           <p className="text-xs text-slate-600 mt-4">
