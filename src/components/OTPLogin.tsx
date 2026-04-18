@@ -31,6 +31,44 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
     if (initialError) setAuthError(initialError);
   }, [initialError]);
 
+  // Load phone.email widget script
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.src = "https://www.phone.email/sign_in_button_v1.js";
+    script.async = true;
+    document.head.appendChild(script);
+
+    return () => {
+      document.head.removeChild(script);
+    };
+  }, []);
+
+  // phone.email verification listener
+  useEffect(() => {
+    (window as any).phoneEmailListener = async function(userObj: any) {
+      const user_json_url = userObj.user_json_url;
+      setPhoneEmailVerifying(true);
+
+      try {
+        const response = await fetch(user_json_url);
+        const userData = await response.json();
+        const phone_number = userData.phone_number || userData.phone;
+
+        if (phone_number) {
+          // Auto-login or proceed
+          navigate("/bookings");
+        } else {
+          toast.error("Unable to retrieve phone number");
+        }
+      } catch (error) {
+        console.error("phone.email verification error:", error);
+        toast.error("Verification failed");
+      } finally {
+        setPhoneEmailVerifying(false);
+      }
+    };
+  }, [navigate]);
+
   const resetToLogin = () => {
     setAuthError(null);
     setEmailSent(false);
@@ -129,69 +167,6 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
       setLoading(false);
     }
   };
-
-  // Setup phone.email widget
-  useEffect(() => {
-    if (mode !== "phone.email") return;
-
-    if (!phoneEmailContainerRef.current) return;
-
-    const script = document.createElement("script");
-    script.src = "https://www.phone.email/sign_in_button_v1.js";
-    script.async = true;
-
-    // Define the listener function BEFORE appending script
-    (window as any).phoneEmailListener = async function(userObj: any) {
-      const user_json_url = userObj.user_json_url;
-      setPhoneEmailVerifying(true);
-
-      try {
-        // Verify phone with backend
-        const response = await fetch("/api/verify-phone-email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_json_url })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          toast.error(data.message || "Phone verification failed");
-          setPhoneEmailVerifying(false);
-          return;
-        }
-
-        // Auto-login or create user
-        const { phone_number, country_code } = data;
-        
-        // For now, store the phone and redirect to verify
-        localStorage.setItem("snippr_phone_email_verified", "true");
-        localStorage.setItem("snippr_verified_phone", phone_number);
-        localStorage.setItem("snippr_country_code", country_code);
-
-        toast.success(`✅ Phone verified: ${phone_number}`);
-        
-        // Redirect to bookings after a short delay
-        setTimeout(() => {
-          navigate("/bookings", { replace: true });
-        }, 1000);
-      } catch (error) {
-        console.error("Phone.email verification error:", error);
-        toast.error("Failed to verify phone number");
-        setPhoneEmailVerifying(false);
-      }
-    };
-
-    if (phoneEmailContainerRef.current) {
-      phoneEmailContainerRef.current.appendChild(script);
-    }
-
-    return () => {
-      if (script.parentNode) {
-        script.parentNode.removeChild(script);
-      }
-    };
-  }, [mode, navigate]);
 
   return (
     <motion.div
@@ -436,10 +411,28 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
 
             <div className="space-y-3 sm:space-y-3.5">
               {mode === "phone" && (
+                <>
+                  <button
+                    onClick={() => setMode("email")}
+                    className="flex h-11 sm:h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm sm:text-base font-medium text-foreground transition-all hover:bg-muted"
+                  >
+                    <Mail className="h-4 w-4 text-zinc-500" />
+                    Continue with Email
+                  </button>
+
+                  <button
+                    onClick={() => setMode("phone.email")}
+                    className="flex h-11 sm:h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm sm:text-base font-medium text-foreground transition-all hover:bg-muted"
+                  >
+                    <Smartphone className="h-4 w-4 text-zinc-500" />
+                    Verify with Phone.email
+                  </button>
+                </>
+              )}
+
+              {mode === "phone.email" && (
                 <button
-                  onClick={() => {
-                    setMode("email");
-                  }}
+                  onClick={() => setMode("email")}
                   className="flex h-11 sm:h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm sm:text-base font-medium text-foreground transition-all hover:bg-muted"
                 >
                   <Mail className="h-4 w-4 text-zinc-500" />
@@ -465,16 +458,6 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
                     Verify with Phone.email
                   </button>
                 </>
-              )}
-
-              {mode === "phone.email" && (
-                <button
-                  onClick={() => setMode("email")}
-                  className="flex h-11 sm:h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm sm:text-base font-medium text-foreground transition-all hover:bg-muted"
-                >
-                  <Mail className="h-4 w-4 text-zinc-500" />
-                  Back to Email
-                </button>
               )}
 
               <button
