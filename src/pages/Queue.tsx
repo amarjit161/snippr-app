@@ -9,10 +9,21 @@ import { AddWalkInModal } from "@/components/queue/AddWalkInModal";
 import { useQueue } from "@/hooks/useQueue";
 
 const formatStatus = (value: string) => value.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
+const todayISO = () => new Date().toISOString().split("T")[0];
+const tomorrowISO = () => {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  return date.toISOString().split("T")[0];
+};
+const getQueueDate = (item: any) => item.booking_date || item.created_at.slice(0, 10);
+
+type QueueDatePreset = "today" | "tomorrow" | "custom";
 
 export default function Queue() {
   const navigate = useNavigate();
   const [modalOpen, setModalOpen] = useState(false);
+  const [queueDatePreset, setQueueDatePreset] = useState<QueueDatePreset>("today");
+  const [customQueueDate, setCustomQueueDate] = useState(todayISO());
   const { loading, actionLoading, owner, salon, services, barbers, grouped, addWalkIn, updateStatus, updateBarber } = useQueue(navigate);
 
   console.log("QUEUE_COMPONENT_RENDER", { waiting: grouped.waiting.length, inProgress: grouped.inProgress.length, completed: grouped.completed.length, cancelled: grouped.cancelled.length });
@@ -26,6 +37,22 @@ export default function Queue() {
     [grouped.completed, grouped.inProgress, grouped.waiting]
   );
 
+  const selectedQueueDate = useMemo(() => {
+    if (queueDatePreset === "today") return todayISO();
+    if (queueDatePreset === "tomorrow") return tomorrowISO();
+    return customQueueDate || todayISO();
+  }, [customQueueDate, queueDatePreset]);
+
+  const filteredSections = useMemo(
+    () => sections.map((section) => ({
+      ...section,
+      items: section.items.filter((item) => getQueueDate(item) === selectedQueueDate),
+    })),
+    [sections, selectedQueueDate]
+  );
+
+  const totalFiltered = filteredSections.reduce((sum, section) => sum + section.items.length, 0);
+
   if (loading) return <div className="mx-auto h-72 max-w-4xl rounded-xl bg-gray-200/70 animate-pulse" />;
   if (!owner || !salon) return null;
 
@@ -38,9 +65,28 @@ export default function Queue() {
               <h1 className="font-display text-3xl font-extrabold tracking-tight">Live Queue</h1>
               <p className="mt-1 text-sm text-[#494551]">Manage active and pending queue entries.</p>
             </div>
-            <Button className="rounded-xl" onClick={() => setModalOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" /> Add New Walk-in
-            </Button>
+            <div className="flex flex-wrap items-center gap-3">
+              <select
+                value={queueDatePreset}
+                onChange={(event) => setQueueDatePreset(event.target.value as QueueDatePreset)}
+                className="h-11 rounded-xl border border-[#e3e2e5] bg-white px-4 text-sm font-semibold outline-none"
+              >
+                <option value="today">Today</option>
+                <option value="tomorrow">Tomorrow</option>
+                <option value="custom">Pick date</option>
+              </select>
+              {queueDatePreset === "custom" ? (
+                <input
+                  type="date"
+                  value={customQueueDate}
+                  onChange={(event) => setCustomQueueDate(event.target.value)}
+                  className="h-11 rounded-xl border border-[#e3e2e5] bg-white px-4 text-sm font-semibold outline-none"
+                />
+              ) : null}
+              <Button className="rounded-xl" onClick={() => setModalOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" /> Add New Walk-in
+              </Button>
+            </div>
           </div>
         </section>
 
@@ -48,11 +94,18 @@ export default function Queue() {
           <CardContent className="p-6">
             {services.length === 0 ? (
               <div className="rounded-xl border border-dashed border-[#e3e2e5] p-8 text-center text-sm text-[#494551]">No active services.</div>
-            ) : sections.every((section) => section.items.length === 0) ? (
-              <div className="rounded-xl border border-dashed border-[#e3e2e5] p-8 text-center text-sm text-[#494551]">No customers in queue.</div>
+            ) : filteredSections.every((section) => section.items.length === 0) ? (
+              <div className="rounded-xl border border-dashed border-[#e3e2e5] p-8 text-center text-sm text-[#494551]">
+                No customers in queue for {queueDatePreset === "today" ? "today" : queueDatePreset === "tomorrow" ? "tomorrow" : selectedQueueDate}.
+              </div>
             ) : (
               <div className="space-y-8">
-                {sections.map((section) => (
+                <div className="flex items-center justify-between rounded-xl border border-[#eeedf0] bg-[#f9f8fb] px-4 py-3 text-sm text-[#494551]">
+                  <span>Showing queue for <strong className="text-[#1f2023]">{selectedQueueDate}</strong></span>
+                  <span>{totalFiltered} items</span>
+                </div>
+
+                {filteredSections.map((section) => (
                   <div key={section.key} className="space-y-3">
                     <div className="flex items-center justify-between">
                       <h2 className="font-display text-xl font-bold">{section.title}</h2>

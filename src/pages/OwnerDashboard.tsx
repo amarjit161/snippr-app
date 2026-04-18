@@ -41,8 +41,16 @@ type QueueRow = {
 
 type ProfileLookup = { user_id: string; name: string | null };
 
+type QueueDatePreset = "today" | "tomorrow" | "custom";
+
 const formatMoney = (value: number) => `INR ${value.toLocaleString("en-IN")}`;
 const todayISO = () => new Date().toISOString().split("T")[0];
+const tomorrowISO = () => {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  return date.toISOString().split("T")[0];
+};
+const getQueueDate = (item: QueueRow) => item.booking_date || item.created_at.slice(0, 10);
 const statusClass: Record<string, string> = {
   waiting: "bg-amber-100 text-amber-700",
   accepted: "bg-blue-100 text-blue-700",
@@ -79,6 +87,8 @@ export default function OwnerDashboard() {
   const [salon, setSalon] = useState<SalonRow | null>(null);
   const [queueItems, setQueueItems] = useState<QueueRow[]>([]);
   const [profileMap, setProfileMap] = useState<Record<string, string>>({});
+  const [queueDatePreset, setQueueDatePreset] = useState<QueueDatePreset>("today");
+  const [customQueueDate, setCustomQueueDate] = useState(todayISO());
   
   const [loadingSalon, setLoadingSalon] = useState(true);
   const [loadingData, setLoadingData] = useState(true);
@@ -369,6 +379,17 @@ export default function OwnerDashboard() {
     return { bookingsToday, activeQueue, avgDuration, revenueToday };
   }, [queueItems]);
 
+  const selectedQueueDate = useMemo(() => {
+    if (queueDatePreset === "today") return todayISO();
+    if (queueDatePreset === "tomorrow") return tomorrowISO();
+    return customQueueDate || todayISO();
+  }, [customQueueDate, queueDatePreset]);
+
+  const filteredQueueItems = useMemo(
+    () => queueItems.filter((item) => getQueueDate(item) === selectedQueueDate),
+    [queueItems, selectedQueueDate]
+  );
+
   const updateQueueStatus = async (item: QueueRow, nextStatus: "accepted" | "rejected" | "in_service" | "done") => {
     if (!salon?.id) return;
     setUpdatingQueueId(item.id);
@@ -442,9 +463,9 @@ export default function OwnerDashboard() {
 
   if (!owner) return null;
 
-  const queueEmpty = queueItems.length === 0;
+  const queueEmpty = filteredQueueItems.length === 0;
   const profileImage = salon?.image_url || "/default-salon.jpg";
-  const activeQueueItems = queueItems
+  const activeQueueItems = filteredQueueItems
     .filter((item) => ["waiting", "accepted", "in_service"].includes(item.status))
     .slice(0, 6);
 
@@ -537,16 +558,35 @@ export default function OwnerDashboard() {
         <section className="dashboard-animate grid grid-cols-1 gap-6 xl:grid-cols-3">
           <Card className="rounded-xl border border-[#e3e2e5] bg-white shadow-sm xl:col-span-2">
             <CardContent className="p-6">
-              <div className="mb-5 flex items-center justify-between gap-3">
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                 <h3 className="font-display text-2xl font-bold">Live Queue</h3>
-                <span className="rounded-full border border-[#1f2023] px-3 py-1 text-xs font-bold">
-                  {activeQueueItems.length} people waiting
-                </span>
+                <div className="flex flex-wrap items-center gap-3">
+                  <select
+                    value={queueDatePreset}
+                    onChange={(event) => setQueueDatePreset(event.target.value as QueueDatePreset)}
+                    className="h-10 rounded-full border border-[#e3e2e5] bg-white px-4 text-sm font-semibold outline-none"
+                  >
+                    <option value="today">Today</option>
+                    <option value="tomorrow">Tomorrow</option>
+                    <option value="custom">Pick date</option>
+                  </select>
+                  {queueDatePreset === "custom" ? (
+                    <input
+                      type="date"
+                      value={customQueueDate}
+                      onChange={(event) => setCustomQueueDate(event.target.value)}
+                      className="h-10 rounded-full border border-[#e3e2e5] bg-white px-4 text-sm font-semibold outline-none"
+                    />
+                  ) : null}
+                  <span className="rounded-full border border-[#1f2023] px-3 py-1 text-xs font-bold">
+                    {activeQueueItems.length} people waiting
+                  </span>
+                </div>
               </div>
 
               {activeQueueItems.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-[#d9d6df] p-10 text-center text-sm text-[#6b6474]">
-                  No active queue right now.
+                  No active queue for this date.
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -641,12 +681,31 @@ export default function OwnerDashboard() {
         </section>
 
         <section ref={queueRef as any} className="dashboard-animate overflow-hidden rounded-xl border border-[#e3e2e5] bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-[#eeedf0] px-6 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eeedf0] px-6 py-4">
             <h3 className="font-display text-xl font-bold">Live Queue Status</h3>
-            <Button variant="outline" className="rounded-full" onClick={() => salon && fetchDashboardData(salon.id)} disabled={queueLoading || !salon}>
-              {queueLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Refresh
-            </Button>
+            <div className="flex flex-wrap items-center gap-3">
+              <select
+                value={queueDatePreset}
+                onChange={(event) => setQueueDatePreset(event.target.value as QueueDatePreset)}
+                className="h-10 rounded-full border border-[#e3e2e5] bg-[#f4f3f6] px-4 text-sm font-semibold outline-none"
+              >
+                <option value="today">Today</option>
+                <option value="tomorrow">Tomorrow</option>
+                <option value="custom">Pick date</option>
+              </select>
+              {queueDatePreset === "custom" ? (
+                <input
+                  type="date"
+                  value={customQueueDate}
+                  onChange={(event) => setCustomQueueDate(event.target.value)}
+                  className="h-10 rounded-full border border-[#e3e2e5] bg-[#f4f3f6] px-4 text-sm font-semibold outline-none"
+                />
+              ) : null}
+              <Button variant="outline" className="rounded-full" onClick={() => salon && fetchDashboardData(salon.id)} disabled={queueLoading || !salon}>
+                {queueLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Refresh
+              </Button>
+            </div>
           </div>
 
           {queueLoading ? (
@@ -666,7 +725,7 @@ export default function OwnerDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#eeedf0]">
-                  {queueItems.map((item) => {
+                  {filteredQueueItems.map((item) => {
                     const walkinName = (item as any).customer_first_name && (item as any).customer_last_name 
                       ? `${(item as any).customer_first_name} ${(item as any).customer_last_name}`
                       : (item as any).customer_phone ? `${(item as any).customer_phone}` : null;
@@ -703,7 +762,7 @@ export default function OwnerDashboard() {
         </section>
 
         {salon && (
-          <div className="mt-8 mb-8">
+              <div className="mt-8 mb-8">
             <HolidayCalendar salonId={salon.id} />
           </div>
         )}
