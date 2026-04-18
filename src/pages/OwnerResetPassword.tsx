@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ type Status = "loading" | "ready" | "success" | "error";
 
 export default function OwnerResetPassword() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [status, setStatus] = useState<Status>("loading");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -17,13 +18,20 @@ export default function OwnerResetPassword() {
   const [errorMessage, setErrorMessage] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [email, setEmail] = useState("");
+  const [emailLocked, setEmailLocked] = useState(false);
   const [codeRequired, setCodeRequired] = useState(false);
   const [minOtpLength] = useState(6);
   const [maxOtpLength] = useState(10);
 
   useEffect(() => {
     const rememberedEmail = localStorage.getItem("snippr_reset_email");
-    if (rememberedEmail) {
+    const emailFromQuery = searchParams.get("email")?.trim().toLowerCase() || "";
+
+    if (/^\S+@\S+\.\S+$/.test(emailFromQuery)) {
+      setEmail(emailFromQuery);
+      setEmailLocked(true);
+      localStorage.setItem("snippr_reset_email", emailFromQuery);
+    } else if (rememberedEmail) {
       setEmail(rememberedEmail);
     }
 
@@ -102,7 +110,7 @@ export default function OwnerResetPassword() {
     };
 
     initRecoverySession();
-  }, []);
+  }, [searchParams]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -213,6 +221,7 @@ export default function OwnerResetPassword() {
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="your-email@example.com"
                       className="pl-10"
+                      readOnly={emailLocked}
                       required
                     />
                   </div>
