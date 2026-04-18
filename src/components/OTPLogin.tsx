@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Mail, Phone, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Mail, Phone, Loader2, CheckCircle2, AlertCircle, Smartphone } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ interface OTPLoginProps {
 
 const OTPLogin = ({ initialError }: OTPLoginProps) => {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"email" | "phone">("email");
+  const [mode, setMode] = useState<"email" | "phone" | "phone.email">("email");
   const [emailSent, setEmailSent] = useState(false);
   const [authError, setAuthError] = useState<string | null>(initialError || null);
   const [email, setEmail] = useState("");
@@ -23,7 +23,9 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
   const [loading, setLoading] = useState(false);
   const [verifyingCaptcha, setVerifyingCaptcha] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [phoneEmailVerifying, setPhoneEmailVerifying] = useState(false);
   const turnstileRef = useRef<TurnstileCaptchaHandle | null>(null);
+  const phoneEmailContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (initialError) setAuthError(initialError);
@@ -127,6 +129,69 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
       setLoading(false);
     }
   };
+
+  // Setup phone.email widget
+  useEffect(() => {
+    if (mode !== "phone.email") return;
+
+    if (!phoneEmailContainerRef.current) return;
+
+    const script = document.createElement("script");
+    script.src = "https://www.phone.email/sign_in_button_v1.js";
+    script.async = true;
+
+    // Define the listener function BEFORE appending script
+    (window as any).phoneEmailListener = async function(userObj: any) {
+      const user_json_url = userObj.user_json_url;
+      setPhoneEmailVerifying(true);
+
+      try {
+        // Verify phone with backend
+        const response = await fetch("/api/verify-phone-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_json_url })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          toast.error(data.message || "Phone verification failed");
+          setPhoneEmailVerifying(false);
+          return;
+        }
+
+        // Auto-login or create user
+        const { phone_number, country_code } = data;
+        
+        // For now, store the phone and redirect to verify
+        localStorage.setItem("snippr_phone_email_verified", "true");
+        localStorage.setItem("snippr_verified_phone", phone_number);
+        localStorage.setItem("snippr_country_code", country_code);
+
+        toast.success(`✅ Phone verified: ${phone_number}`);
+        
+        // Redirect to bookings after a short delay
+        setTimeout(() => {
+          navigate("/bookings", { replace: true });
+        }, 1000);
+      } catch (error) {
+        console.error("Phone.email verification error:", error);
+        toast.error("Failed to verify phone number");
+        setPhoneEmailVerifying(false);
+      }
+    };
+
+    if (phoneEmailContainerRef.current) {
+      phoneEmailContainerRef.current.appendChild(script);
+    }
+
+    return () => {
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
+    };
+  }, [mode, navigate]);
 
   return (
     <motion.div
@@ -276,7 +341,7 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
                     {captchaToken && !loading && "✓ Continue"}
                   </Button>
                 </motion.div>
-              ) : (
+              ) : mode === "phone" ? (
                 <motion.div
                   key="phone-input"
                   initial={{ opacity: 0, x: 10 }}
@@ -317,7 +382,34 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
                     {captchaToken && !loading && "✓ Get Started"}
                   </Button>
                 </motion.div>
-              )}
+              ) : mode === "phone.email" ? (
+                <motion.div
+                  key="phone-email-input"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  className="space-y-4 sm:space-y-5"
+                >
+                  <div className="text-center mb-4">
+                    <p className="text-sm text-zinc-600 dark:text-zinc-400">Click the button below to verify your phone number</p>
+                  </div>
+                  
+                  {/* phone.email widget container */}
+                  <div 
+                    ref={phoneEmailContainerRef}
+                    className="pe_signin_button flex justify-center"
+                    data-client-id={import.meta.env.VITE_PHONE_EMAIL_CLIENT_ID || "15695407177920574360"}
+                    style={{ minHeight: "70px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                  />
+
+                  {phoneEmailVerifying && (
+                    <div className="flex items-center justify-center gap-2 text-sm text-zinc-600">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Verifying phone...
+                    </div>
+                  )}
+                </motion.div>
+              ) : null}
             </AnimatePresence>
 
             <div className="mt-3 flex items-center justify-between text-xs text-zinc-500">
@@ -356,12 +448,32 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
               )}
               
               {mode === "email" && (
+                <>
+                  <button
+                    onClick={() => setMode("phone")}
+                    className="flex h-11 sm:h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm sm:text-base font-medium text-foreground transition-all hover:bg-muted"
+                  >
+                    <Phone className="h-4 w-4 text-zinc-500" />
+                    Continue with Phone
+                  </button>
+
+                  <button
+                    onClick={() => setMode("phone.email")}
+                    className="flex h-11 sm:h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm sm:text-base font-medium text-foreground transition-all hover:bg-muted"
+                  >
+                    <Smartphone className="h-4 w-4 text-zinc-500" />
+                    Verify with Phone.email
+                  </button>
+                </>
+              )}
+
+              {mode === "phone.email" && (
                 <button
-                  onClick={() => setMode("phone")}
+                  onClick={() => setMode("email")}
                   className="flex h-11 sm:h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm sm:text-base font-medium text-foreground transition-all hover:bg-muted"
                 >
-                  <Phone className="h-4 w-4 text-zinc-500" />
-                  Continue with Phone
+                  <Mail className="h-4 w-4 text-zinc-500" />
+                  Back to Email
                 </button>
               )}
 
