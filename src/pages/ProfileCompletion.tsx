@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { sendPhoneOTP, verifyPhoneOTP } from '@/services/phoneAuth';
 import { toast } from 'sonner';
 import { Scissors, Eye, EyeOff, CheckCircle2, Lock, User, Phone } from 'lucide-react';
 
@@ -121,8 +120,9 @@ export const ProfileCompletion = () => {
     setProcessingStep(true);
 
     try {
-      // Check if phone already registered
       const formattedPhone = `+91${phone.replace(/\D/g, '').slice(-10)}`;
+      
+      // Check if phone already registered
       const { data: existing } = await supabase
         .from('customer_profiles')
         .select('id')
@@ -136,11 +136,12 @@ export const ProfileCompletion = () => {
         return;
       }
 
-      // Send OTP
-      const result = await sendPhoneOTP(phone);
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to send OTP');
-      }
+      // Send OTP via Supabase (uses Twilio backend)
+      const { error } = await supabase.auth.signInWithOtp({
+        phone: formattedPhone,
+      });
+
+      if (error) throw error;
 
       setPhoneOtpCountdown(60);
       const interval = setInterval(() => {
@@ -172,15 +173,19 @@ export const ProfileCompletion = () => {
     setProcessingStep(true);
 
     try {
-      const result = await verifyPhoneOTP(phone, phoneOtp);
-      if (!result.success) {
-        throw new Error(result.error || 'Invalid OTP');
-      }
+      const formattedPhone = `+91${phone.replace(/\D/g, '').slice(-10)}`;
+
+      // Verify OTP with Supabase
+      const { error } = await supabase.auth.verifyOtp({
+        phone: formattedPhone,
+        token: phoneOtp,
+        type: 'sms',
+      });
+
+      if (error) throw error;
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user');
-
-      const formattedPhone = `+91${phone.replace(/\D/g, '').slice(-10)}`;
 
       // Update profile with phone
       await supabase

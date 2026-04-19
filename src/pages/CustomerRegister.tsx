@@ -1,42 +1,58 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { sendPhoneOTP, verifyPhoneOTP } from '@/services/phoneAuth';
 import { toast } from 'sonner';
-import { Scissors, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
+import { Scissors, Eye, EyeOff } from 'lucide-react';
 
+type Step = 'form' | 'phone_otp' | 'gender' | 'success';
 type Gender = 'Male' | 'Female' | 'Other' | null;
-type Step = 'form' | 'verify_otp' | 'success';
 
 export const CustomerRegister = () => {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [step, setStep] = useState<Step>('form');
-
+  
+  // Form state
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [gender, setGender] = useState<Gender>(null);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-
-  // OTP verification state
-  const [emailOtp, setEmailOtp] = useState('');
-  const [phoneOtp, setPhoneOtp] = useState('');
-  const [emailVerified, setEmailVerified] = useState(false);
-  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
+  // OTP state
+  const [otp, setOtp] = useState('');
   const [otpCountdown, setOtpCountdown] = useState(0);
-  const [pendingAuthData, setPendingAuthData] = useState<any>(null);
+  
+  // Profile state
+  const [gender, setGender] = useState<Gender>(null);
+  
+  // UI state
+  const [step, setStep] = useState<Step>('form');
+  const [loading, setLoading] = useState(false);
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
 
-  const handleSendOTP = async (e: React.FormEvent) => {
+  // ── COUNTDOWN TIMER ────────────────────────────
+  const startCountdown = (seconds = 60) => {
+    setOtpCountdown(seconds);
+    const interval = setInterval(() => {
+      setOtpCountdown(prev => {
+        if (prev <= 1) { 
+          clearInterval(interval); 
+          return 0; 
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  // ── STEP 1: REGISTER FORM ──────────────────────
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Validation
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !password.trim()) {
-      toast.error('Please fill in all required fields');
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !password.trim() || !phone.trim()) {
+      toast.error('Please fill all fields');
       return;
     }
 
@@ -50,7 +66,8 @@ export const CustomerRegister = () => {
       return;
     }
 
-    if (phone && phone.replace(/\D/g, '').length !== 10) {
+    const phoneDigits = phone.replace(/\D/g, '');
+    if (phoneDigits.length !== 10) {
       toast.error('Please enter a valid 10-digit phone number');
       return;
     }
@@ -58,120 +75,139 @@ export const CustomerRegister = () => {
     setLoading(true);
 
     try {
-      // 1. Sign up with email/password
+      const phoneFormatted = `+91${phoneDigits}`;
+
+      // 1. Sign up with Supabase Auth
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/salons`,
-        },
+        phone: phoneFormatted,
       });
 
       if (error) throw error;
 
-      // 2. Send phone OTP via phone.email (if provided)
-      if (phone) {
-        const result = await sendPhoneOTP(phone);
-        if (!result.success) {
-          throw new Error(result.error || 'Failed to send phone OTP');
-        }
+      if (!data.user) throw new Error('User creation failed');
+
+      // 2. Send phone OTP via Supabase (will use configured SMS provider - Twilio)
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        phone: phoneFormatted,
+      });
+
+      if (otpError) {
+        console.warn('OTP send failed:', otpError);
+        toast.warning('Account created. Please enter OTP sent to your phone.');
+      } else {
+        toast.success('OTP sent to your phone!');
       }
 
-      // Store auth data for later use
-      setPendingAuthData(data.user);
-
-      // Start countdown
-      setOtpCountdown(60);
-      const interval = setInterval(() => {
-        setOtpCountdown(prev => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-
-      toast.success('✓ Account created! OTP sent to your phone!');
-      setStep('verify_otp');
+      setPendingUserId(data.user.id);
+      setStep('phone_otp');
+      startCountdown(60);
     } catch (err: any) {
-      toast.error(err.message || 'Failed to create account');
+      toast.error(err.message || 'Registration failed');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleVerifyOTP = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // ── STEP 2: VERIFY PHONE OTP ───────────────────
+  const handleVerifyOTP = async () => {
+    if (otp.length !== 6) {
+      toast.error('Enter 6-digit OTP');
+      return;
+    }
 
-    if (!phone || !phoneOtp || phoneOtp.length !== 6) {
-      toast.error('Enter 6-digit phone OTP');
+    if (!pendingUserId) {
+      toast.error('Session expired. Please try again.');
       return;
     }
 
     setLoading(true);
 
     try {
-      // Verify phone OTP
-      const result = await verifyPhoneOTP(phone, phoneOtp);
-      if (!result.success) {
-        throw new Error(result.error || 'Invalid phone OTP');
-      }
+      const phoneDigits = phone.replace(/\D/g, '');
+      const phoneFormatted = `+91${phoneDigits}`;
 
-      setPhoneVerified(true);
-      toast.success('✓ Phone verified! Creating profile...');
+      // Verify the OTP with Supabase
+      const { error } = await supabase.auth.verifyOtp({
+        phone: phoneFormatted,
+        token: otp,
+        type: 'sms',
+      });
 
-      // Auto-login with the verified credentials and create profile
-      if (pendingAuthData?.id) {
-        const { error: profileError } = await supabase
-          .from('customer_profiles')
-          .insert({
-            id: pendingAuthData.id,
-            email,
-            first_name: firstName,
-            last_name: lastName,
-            phone: '+91' + phone.replace(/\D/g, '').slice(-10),
-            gender: gender,
-          });
+      if (error) throw error;
 
-        if (profileError) throw profileError;
-
-        toast.success('✓ Profile created successfully!');
-        setStep('success');
-        
-        // Redirect to dashboard after short delay
-        setTimeout(() => {
-          navigate('/bookings', { replace: true });
-        }, 1500);
-      }
+      toast.success('Phone verified!');
+      setStep('gender');
     } catch (err: any) {
-      toast.error(err.message || 'Verification failed');
+      toast.error(err.message || 'OTP verification failed');
     } finally {
       setLoading(false);
     }
   };
 
+  // ── STEP 3: SELECT GENDER ─────────────────────
+  const handleCompleteProfile = async () => {
+    if (!gender) {
+      toast.error('Please select your gender');
+      return;
+    }
+
+    if (!pendingUserId) {
+      toast.error('Session expired. Please try again.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const phoneDigits = phone.replace(/\D/g, '');
+      const phoneFormatted = `+91${phoneDigits}`;
+
+      // Create customer profile
+      const { error } = await supabase
+        .from('customer_profiles')
+        .upsert({
+          id: pendingUserId,
+          email,
+          first_name: firstName,
+          last_name: lastName,
+          phone: phoneFormatted,
+          gender,
+        }, { onConflict: 'id' });
+
+      if (error) throw error;
+
+      toast.success('Profile complete!');
+      setStep('success');
+
+      // Redirect after 1.5 seconds
+      setTimeout(() => {
+        navigate('/salons');
+      }, 1500);
+    } catch (err: any) {
+      toast.error(err.message || 'Profile creation failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── RESEND OTP ────────────────────────────────
   const handleResendOTP = async () => {
     setLoading(true);
+
     try {
-      // Resend phone OTP only
-      if (phone) {
-        const result = await sendPhoneOTP(phone);
-        if (!result.success) throw new Error(result.error);
-      }
+      const phoneDigits = phone.replace(/\D/g, '');
+      const phoneFormatted = `+91${phoneDigits}`;
 
-      setOtpCountdown(60);
-      const interval = setInterval(() => {
-        setOtpCountdown(prev => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+      const { error } = await supabase.auth.signInWithOtp({
+        phone: phoneFormatted,
+      });
 
-      toast.success('OTP resent to your phone!');
+      if (error) throw error;
+
+      toast.success('OTP resent!');
+      startCountdown(60);
     } catch (err: any) {
       toast.error(err.message || 'Failed to resend OTP');
     } finally {
@@ -179,58 +215,59 @@ export const CustomerRegister = () => {
     }
   };
 
-  // ── STEP 1: REGISTRATION FORM
-  if (step === 'form') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 
-                      flex items-center justify-center px-4 py-8">
-        <div className="w-full max-w-sm">
-          
-          {/* Logo */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 
-                            bg-purple-600 rounded-2xl shadow-lg shadow-purple-200 mb-4">
-              <Scissors className="w-8 h-8 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900">Join Snippr</h1>
-            <p className="text-gray-500 text-sm mt-1">
-              Create an account to book salons and track queues.
-            </p>
-          </div>
+  // ════════════════════════════════════════════════════════════════
+  // RENDER
+  // ════════════════════════════════════════════════════════════════
 
-          {/* Card */}
-          <div className="bg-white rounded-3xl shadow-xl shadow-gray-100 p-8 border border-gray-100">
-            
-            <form onSubmit={handleSendOTP} className="space-y-4">
-              
-              {/* Names */}
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 
+                    flex items-center justify-center px-4 py-8">
+      <div className="w-full max-w-sm">
+        
+        {/* HEADER */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 
+                          bg-purple-600 rounded-2xl shadow-lg shadow-purple-200 mb-4">
+            <Scissors className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">Join Snippr</h1>
+          <p className="text-gray-500 text-sm mt-1">
+            Create account to start booking at your favorite salons
+          </p>
+        </div>
+
+        {/* CARD */}
+        <div className="bg-white rounded-3xl shadow-xl p-8 border border-gray-100 space-y-4">
+          
+          {/* ── STEP 1: REGISTRATION FORM ── */}
+          {step === 'form' && (
+            <form onSubmit={handleRegister} className="space-y-4">
+              {/* Name Row */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    First Name *
+                    First Name
                   </label>
                   <input
                     type="text"
                     value={firstName}
                     onChange={e => setFirstName(e.target.value)}
-                    placeholder="First name"
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm 
-                               focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent
-                               transition-all"
+                    placeholder="John"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm
+                               focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Last Name *
+                    Last Name
                   </label>
                   <input
                     type="text"
                     value={lastName}
                     onChange={e => setLastName(e.target.value)}
-                    placeholder="Last name"
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm 
-                               focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent
-                               transition-all"
+                    placeholder="Doe"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm
+                               focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   />
                 </div>
               </div>
@@ -238,23 +275,22 @@ export const CustomerRegister = () => {
               {/* Email */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Email address *
+                  Email
                 </label>
                 <input
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder="name@example.com"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm 
-                             focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent
-                             transition-all"
+                  placeholder="you@example.com"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm
+                             focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
               </div>
 
               {/* Phone */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Phone Number <span className="text-gray-400">(Optional)</span>
+                  Phone Number
                 </label>
                 <div className="flex gap-2">
                   <div className="flex items-center px-3 py-3 bg-gray-50 border border-gray-200 
@@ -264,43 +300,19 @@ export const CustomerRegister = () => {
                   <input
                     type="tel"
                     value={phone}
-                    onChange={e => setPhone(e.target.value.replace(/\D/g,'').slice(0,10))}
-                    placeholder="10-digit number"
-                    className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-sm 
-                               focus:outline-none focus:ring-2 focus:ring-purple-500 
-                               focus:border-transparent transition-all"
+                    onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    placeholder="9876543210"
                     maxLength={10}
+                    className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-sm
+                               focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   />
-                </div>
-              </div>
-
-              {/* Gender */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Gender <span className="text-gray-400">(Optional)</span>
-                </label>
-                <div className="flex gap-2">
-                  {(['Male', 'Female', 'Other'] as const).map((g) => (
-                    <button
-                      key={g}
-                      type="button"
-                      onClick={() => setGender(g === gender ? null : g)}
-                      className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                        gender === g
-                          ? 'bg-purple-600 text-white shadow-lg shadow-purple-200'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      {g}
-                    </button>
-                  ))}
                 </div>
               </div>
 
               {/* Password */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Password *
+                  Password
                 </label>
                 <div className="relative">
                   <input
@@ -308,9 +320,8 @@ export const CustomerRegister = () => {
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     placeholder="Min 6 characters"
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm 
-                               focus:outline-none focus:ring-2 focus:ring-purple-500 
-                               focus:border-transparent transition-all pr-12"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm
+                               focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent pr-10"
                   />
                   <button
                     type="button"
@@ -325,17 +336,16 @@ export const CustomerRegister = () => {
               {/* Confirm Password */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Confirm Password *
+                  Confirm Password
                 </label>
                 <div className="relative">
                   <input
                     type={showConfirmPassword ? 'text' : 'password'}
                     value={confirmPassword}
                     onChange={e => setConfirmPassword(e.target.value)}
-                    placeholder="Confirm password"
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm 
-                               focus:outline-none focus:ring-2 focus:ring-purple-500 
-                               focus:border-transparent transition-all pr-12"
+                    placeholder="Re-enter password"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm
+                               focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent pr-10"
                   />
                   <button
                     type="button"
@@ -347,186 +357,171 @@ export const CustomerRegister = () => {
                 </div>
               </div>
 
-              {/* Create Account Button */}
+              {/* Submit Button */}
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-purple-600 text-white py-3.5 rounded-xl font-semibold 
+                className="w-full bg-purple-600 text-white py-3.5 rounded-xl font-semibold
                            text-sm hover:bg-purple-700 transition-all disabled:opacity-50
-                           shadow-lg shadow-purple-200 active:scale-[0.98] mt-6"
+                           shadow-lg shadow-purple-200 active:scale-[0.98]"
               >
-                {loading ? 'Sending OTP...' : 'Continue & Verify'}
+                {loading ? 'Creating account...' : 'Create Account'}
               </button>
 
               {/* Sign In Link */}
-              <p className="text-center text-sm text-gray-500 mt-4">
+              <p className="text-center text-sm text-gray-500">
                 Already have an account?{' '}
-                <Link to="/login" className="text-purple-600 font-semibold hover:underline">
+                <Link to="/login" className="text-purple-600 font-medium hover:underline">
                   Sign in
                 </Link>
               </p>
-
-              <p className="text-center text-xs text-gray-400 mt-3">
-                By creating an account, you agree to our{' '}
-                <a href="/terms" className="underline">Terms of Service</a> and{' '}
-                <a href="/privacy" className="underline">Privacy Policy</a>.
-              </p>
             </form>
-          </div>
-        </div>
-      </div>
-    );
-  }
+          )}
 
-  // ── STEP 2: OTP VERIFICATION
-  if (step === 'verify_otp') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 
-                      flex items-center justify-center px-4 py-8">
-        <div className="w-full max-w-sm">
-          
-          {/* Logo */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 
-                            bg-purple-600 rounded-2xl shadow-lg shadow-purple-200 mb-4">
-              <Scissors className="w-8 h-8 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900">Verify Your Phone</h1>
-            <p className="text-gray-500 text-sm mt-1">
-              Enter the OTP code sent to your phone number to complete registration.
-            </p>
-          </div>
+          {/* ── STEP 2: PHONE OTP VERIFICATION ── */}
+          {step === 'phone_otp' && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <p className="text-sm text-gray-600 mb-1">
+                  OTP sent to
+                </p>
+                <p className="font-semibold text-gray-900">
+                  +91 {phone}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setStep('form')}
+                  className="text-xs text-purple-600 hover:underline mt-2"
+                >
+                  Change number
+                </button>
+              </div>
 
-          {/* Card */}
-          <div className="bg-white rounded-3xl shadow-xl shadow-gray-100 p-8 border border-gray-100">
-            
-            <form onSubmit={handleVerifyOTP} className="space-y-6">
-              
-              {/* Phone OTP */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-semibold text-gray-900">
-                    📱 Phone OTP
-                  </label>
-                  {phoneVerified && (
-                    <span className="text-xs font-medium text-green-600 flex items-center gap-1">
-                      <CheckCircle2 className="w-4 h-4" /> Verified
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 mb-2">OTP sent to +91 {phone}</p>
-                <div className="flex gap-2">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <input
-                      key={`phone-${i}`}
-                      type="text"
-                      maxLength={1}
-                      value={phoneOtp[i] || ''}
-                      onChange={e => {
-                        const val = e.target.value.replace(/\D/g,'');
-                        const newOtp = phoneOtp.split('');
-                        newOtp[i] = val;
-                        setPhoneOtp(newOtp.join(''));
-                        if (val && e.target.nextElementSibling) {
-                          (e.target.nextElementSibling as HTMLInputElement).focus();
-                        }
-                      }}
-                      disabled={phoneVerified}
-                      className="w-11 h-12 text-center text-lg font-bold border-2 border-gray-200 
-                                 rounded-xl focus:outline-none focus:border-purple-500 transition-all
-                                 disabled:bg-green-50 disabled:border-green-200"
-                    />
-                  ))}
-                </div>
+              {/* 6-box OTP input */}
+              <div className="flex gap-2 justify-center">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <input
+                    key={i}
+                    type="text"
+                    maxLength={1}
+                    inputMode="numeric"
+                    value={otp[i] || ''}
+                    onChange={e => {
+                      const val = e.target.value.replace(/\D/g, '');
+                      const newOtp = otp.split('');
+                      newOtp[i] = val;
+                      setOtp(newOtp.join(''));
+                      
+                      // Auto-focus next input
+                      if (val && i < 5) {
+                        const nextInput = e.currentTarget.parentElement?.children[i + 1] as HTMLInputElement;
+                        if (nextInput) nextInput.focus();
+                      }
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'Backspace' && !otp[i] && i > 0) {
+                        const prevInput = e.currentTarget.parentElement?.children[i - 1] as HTMLInputElement;
+                        if (prevInput) prevInput.focus();
+                      }
+                    }}
+                    className="w-11 h-12 text-center text-lg font-bold border-2 border-gray-200
+                               rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 transition-all"
+                  />
+                ))}
               </div>
 
               {/* Verify Button */}
               <button
-                type="submit"
-                disabled={loading || !phoneOtp}
-                className="w-full bg-purple-600 text-white py-3.5 rounded-xl font-semibold 
+                onClick={handleVerifyOTP}
+                disabled={loading || otp.length !== 6}
+                className="w-full bg-purple-600 text-white py-3.5 rounded-xl font-semibold
                            text-sm hover:bg-purple-700 transition-all disabled:opacity-50
                            shadow-lg shadow-purple-200 active:scale-[0.98]"
               >
-                {loading ? 'Verifying...' : 'Verify OTP & Create Account'}
+                {loading ? 'Verifying...' : 'Verify OTP'}
               </button>
 
-              {/* Resend */}
+              {/* Resend OTP */}
               <div className="text-center">
                 {otpCountdown > 0 ? (
-                  <p className="text-sm text-gray-400">Resend OTP in {otpCountdown}s</p>
+                  <p className="text-sm text-gray-400">
+                    Resend OTP in <span className="font-semibold">{otpCountdown}s</span>
+                  </p>
                 ) : (
-                  <button 
-                    type="button"
+                  <button
                     onClick={handleResendOTP}
-                    className="text-sm text-purple-600 font-medium hover:underline"
+                    disabled={loading}
+                    className="text-sm text-purple-600 font-medium hover:underline disabled:opacity-50"
                   >
-                    Resend OTP
+                    Didn't receive? Resend OTP
                   </button>
                 )}
               </div>
-            </form>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ── STEP 3: SUCCESS
-  if (step === 'success') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 
-                      flex items-center justify-center px-4">
-        <div className="w-full max-w-sm text-center">
-          
-          <div className="inline-flex items-center justify-center w-20 h-20 
-                          bg-green-100 rounded-full mb-6">
-            <CheckCircle2 className="w-12 h-12 text-green-600" />
-          </div>
-
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Account Created! 🎉</h1>
-          <p className="text-gray-600 text-lg mb-6">
-            Welcome, <span className="font-semibold">{firstName} {lastName}</span>!
-          </p>
-
-          <div className="bg-white rounded-2xl p-6 mb-6 border border-gray-100 shadow-sm">
-            <div className="space-y-3 text-left">
-              <div className="flex items-start gap-3">
-                <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="font-medium text-gray-900">Email Verified</p>
-                  <p className="text-sm text-gray-500">{email}</p>
-                </div>
-              </div>
-              {phone && (
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="font-medium text-gray-900">Phone Verified</p>
-                    <p className="text-sm text-gray-500">+91 {phone}</p>
-                  </div>
-                </div>
-              )}
             </div>
-          </div>
+          )}
 
-          <p className="text-sm text-gray-600 mb-6">
-            Redirecting to login in a moment...
-          </p>
+          {/* ── STEP 3: SELECT GENDER ── */}
+          {step === 'gender' && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <p className="text-sm text-gray-600">
+                  One more step to complete your profile
+                </p>
+                <p className="text-lg font-semibold text-gray-900 mt-1">
+                  What's your gender?
+                </p>
+              </div>
 
-          <Link 
-            to="/login"
-            className="inline-block bg-purple-600 text-white px-8 py-3 rounded-xl font-semibold 
-                       hover:bg-purple-700 transition-all shadow-lg shadow-purple-200"
-          >
-            Go to Login
-          </Link>
+              <div className="space-y-3">
+                {(['Male', 'Female', 'Other'] as const).map(g => (
+                  <button
+                    key={g}
+                    onClick={() => setGender(g)}
+                    className={`w-full py-3 px-4 rounded-xl border-2 font-medium transition-all
+                      ${gender === g 
+                        ? 'bg-purple-600 text-white border-purple-600 shadow-lg shadow-purple-200' 
+                        : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-gray-300'}`}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={handleCompleteProfile}
+                disabled={!gender || loading}
+                className="w-full bg-purple-600 text-white py-3.5 rounded-xl font-semibold
+                           text-sm hover:bg-purple-700 transition-all disabled:opacity-50
+                           shadow-lg shadow-purple-200 active:scale-[0.98]"
+              >
+                {loading ? 'Completing...' : 'Complete Registration'}
+              </button>
+            </div>
+          )}
+
+          {/* ── SUCCESS ── */}
+          {step === 'success' && (
+            <div className="text-center py-8">
+              <div className="text-5xl mb-4">✨</div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">
+                Welcome to Snippr, {firstName}!
+              </h2>
+              <p className="text-sm text-gray-500">
+                Redirecting to salons...
+              </p>
+            </div>
+          )}
         </div>
-      </div>
-    );
-  }
 
-  return null;
+        {/* Footer */}
+        {step === 'form' && (
+          <div className="mt-6 text-center text-xs text-gray-400">
+            By signing up, you agree to our Terms of Service
+          </div>
+        )}
+      </div>
+    </div>
+  );
 };
 
 export default CustomerRegister;
