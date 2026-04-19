@@ -128,18 +128,31 @@ export const CustomerRegister = () => {
       const phoneDigits = phone.replace(/\D/g, '');
       const phoneFormatted = `+91${phoneDigits}`;
 
-      // Verify the OTP with Supabase
-      const { error } = await supabase.auth.verifyOtp({
+      console.log('🔐 Starting OTP verification:', { phone: phoneFormatted, otp: otp.substring(0, 3) + '***' });
+
+      // Set a timeout to prevent infinite hanging
+      const verifyPromise = supabase.auth.verifyOtp({
         phone: phoneFormatted,
         token: otp,
         type: 'sms',
       });
 
-      if (error) throw error;
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Verification timeout - server not responding. Check console for details.')), 15000)
+      );
 
+      const { error } = await Promise.race([verifyPromise, timeoutPromise]) as any;
+
+      if (error) {
+        console.error('❌ OTP verification error:', error);
+        throw error;
+      }
+
+      console.log('✅ OTP verification successful');
       toast.success('Phone verified!');
       setStep('gender');
     } catch (err: any) {
+      console.error('🚨 Verification error caught:', err);
       toast.error(err.message || 'OTP verification failed');
     } finally {
       setLoading(false);
