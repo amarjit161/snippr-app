@@ -13,6 +13,14 @@ const storage = {
   removeItem: () => {},
 };
 
+const customFetch = (url: RequestInfo | URL, options?: RequestInit) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  
+  return fetch(url, { ...options, signal: controller.signal })
+    .finally(() => clearTimeout(timeoutId));
+};
+
 export const publicSupabase = createClient<Database>(
   SUPABASE_URL,
   SUPABASE_ANON_KEY,
@@ -27,5 +35,8 @@ export const publicSupabase = createClient<Database>(
       autoRefreshToken: false,
       detectSessionInUrl: false,
     },
+    global: {
+      fetch: customFetch
+    }
   }
 );

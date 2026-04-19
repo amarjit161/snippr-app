@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { publicSupabase } from "@/integrations/supabase/publicClient";
 import SalonDetail from "@/components/SalonDetail";
 import Header from "@/components/Header";
 import { useAuth } from "@/contexts/AuthContext";
@@ -25,7 +26,7 @@ export default function SalonPage() {
       setErrorMessage(null);
 
       try {
-        const fetchPromise = supabase.from("salons").select("*").eq("id", id).maybeSingle();
+        const fetchPromise = publicSupabase.from("salons").select("*").eq("id", id).maybeSingle();
         const timeoutPromise = new Promise<any>((_, reject) => 
           setTimeout(() => reject(new Error("Network timeout")), 8000)
         );
