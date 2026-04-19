@@ -58,7 +58,7 @@ export const CustomerRegister = () => {
     setLoading(true);
 
     try {
-      // 1. Sign up with email first
+      // 1. Sign up with email/password
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -69,17 +69,7 @@ export const CustomerRegister = () => {
 
       if (error) throw error;
 
-      // 2. Send email OTP via Supabase
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          shouldCreateUser: false,
-        },
-      });
-
-      if (otpError) throw otpError;
-
-      // 3. Send phone OTP via phone.email (if provided)
+      // 2. Send phone OTP via phone.email (if provided)
       if (phone) {
         const result = await sendPhoneOTP(phone);
         if (!result.success) {
@@ -102,7 +92,7 @@ export const CustomerRegister = () => {
         });
       }, 1000);
 
-      toast.success('✓ OTP sent to your email and phone!');
+      toast.success('✓ Account created! OTP sent to your phone!');
       setStep('verify_otp');
     } catch (err: any) {
       toast.error(err.message || 'Failed to create account');
@@ -114,12 +104,7 @@ export const CustomerRegister = () => {
   const handleVerifyOTP = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!emailOtp || emailOtp.length !== 6) {
-      toast.error('Enter 6-digit email OTP');
-      return;
-    }
-
-    if (phone && (!phoneOtp || phoneOtp.length !== 6)) {
+    if (!phone || !phoneOtp || phoneOtp.length !== 6) {
       toast.error('Enter 6-digit phone OTP');
       return;
     }
@@ -127,79 +112,41 @@ export const CustomerRegister = () => {
     setLoading(true);
 
     try {
-      // Verify email OTP via Supabase
-      const { data: emailData, error: emailError } = await supabase.auth.verifyOtp({
-        email,
-        token: emailOtp,
-        type: 'email',
-      });
-
-      if (emailError) throw emailError;
-
-      setEmailVerified(true);
-      toast.success('✓ Email verified!');
-
-      // Verify phone OTP if phone provided
-      if (phone) {
-        const result = await verifyPhoneOTP(phone, phoneOtp);
-        if (!result.success) {
-          throw new Error(result.error || 'Invalid phone OTP');
-        }
-        setPhoneVerified(true);
-        toast.success('✓ Phone verified!');
-      } else {
-        setPhoneVerified(true);
+      // Verify phone OTP
+      const result = await verifyPhoneOTP(phone, phoneOtp);
+      if (!result.success) {
+        throw new Error(result.error || 'Invalid phone OTP');
       }
 
-      // Wait a moment then create profile
-      setTimeout(() => {
-        handleCreateProfile(emailData);
-      }, 500);
-    } catch (err: any) {
-      toast.error(err.message || 'OTP verification failed');
-      setLoading(false);
-    }
-  };
+      setPhoneVerified(true);
+      toast.success('✓ Phone verified! Creating profile...');
 
-  const handleCreateProfile = async (authData: any) => {
-    try {
-      if (!authData?.user?.id) {
-        throw new Error('No user created');
-      }
-
-      const formattedPhone = phone ? `+91${phone.replace(/\D/g,'').slice(-10)}` : null;
-
-      // Check duplicate phone if provided
-      if (formattedPhone) {
-        const { data: existing } = await supabase
+      // Auto-login with the verified credentials and create profile
+      if (pendingAuthData?.id) {
+        const { error: profileError } = await supabase
           .from('customer_profiles')
-          .select('id')
-          .eq('phone', formattedPhone)
-          .maybeSingle();
+          .insert({
+            id: pendingAuthData.id,
+            email,
+            first_name: firstName,
+            last_name: lastName,
+            phone: '+91' + phone.replace(/\D/g, '').slice(-10),
+            gender: gender,
+          });
 
-        if (existing) {
-          toast.error('This phone number is already registered');
-          setLoading(false);
-          return;
-        }
+        if (profileError) throw profileError;
+
+        toast.success('✓ Profile created successfully!');
+        setStep('success');
+        
+        // Redirect to dashboard after short delay
+        setTimeout(() => {
+          navigate('/bookings', { replace: true });
+        }, 1500);
       }
-
-      // Save profile to customer_profiles
-      await supabase.from('customer_profiles').upsert({
-        id: authData.user.id,
-        first_name: firstName,
-        last_name: lastName,
-        phone: formattedPhone,
-        gender: gender || undefined,
-        email,
-      });
-
-      setStep('success');
-      setTimeout(() => {
-        navigate('/profile-completion');
-      }, 3000);
     } catch (err: any) {
-      toast.error(err.message || 'Failed to create account');
+      toast.error(err.message || 'Verification failed');
+    } finally {
       setLoading(false);
     }
   };
@@ -207,15 +154,7 @@ export const CustomerRegister = () => {
   const handleResendOTP = async () => {
     setLoading(true);
     try {
-      // Resend email OTP
-      await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          shouldCreateUser: false,
-        },
-      });
-
-      // Resend phone OTP
+      // Resend phone OTP only
       if (phone) {
         const result = await sendPhoneOTP(phone);
         if (!result.success) throw new Error(result.error);
@@ -232,7 +171,7 @@ export const CustomerRegister = () => {
         });
       }, 1000);
 
-      toast.success('OTP resent to your email and phone!');
+      toast.success('OTP resent to your phone!');
     } catch (err: any) {
       toast.error(err.message || 'Failed to resend OTP');
     } finally {
@@ -452,9 +391,9 @@ export const CustomerRegister = () => {
                             bg-purple-600 rounded-2xl shadow-lg shadow-purple-200 mb-4">
               <Scissors className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">Verify Your Identity</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Verify Your Phone</h1>
             <p className="text-gray-500 text-sm mt-1">
-              Enter OTP codes sent to your email and phone.
+              Enter the OTP code sent to your phone number to complete registration.
             </p>
           </div>
 
@@ -463,36 +402,36 @@ export const CustomerRegister = () => {
             
             <form onSubmit={handleVerifyOTP} className="space-y-6">
               
-              {/* Email OTP */}
+              {/* Phone OTP */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-semibold text-gray-900">
-                    📧 Email OTP
+                    📱 Phone OTP
                   </label>
-                  {emailVerified && (
+                  {phoneVerified && (
                     <span className="text-xs font-medium text-green-600 flex items-center gap-1">
                       <CheckCircle2 className="w-4 h-4" /> Verified
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-gray-500 mb-2">OTP sent to {email}</p>
+                <p className="text-xs text-gray-500 mb-2">OTP sent to +91 {phone}</p>
                 <div className="flex gap-2">
                   {Array.from({ length: 6 }).map((_, i) => (
                     <input
-                      key={`email-${i}`}
+                      key={`phone-${i}`}
                       type="text"
                       maxLength={1}
-                      value={emailOtp[i] || ''}
+                      value={phoneOtp[i] || ''}
                       onChange={e => {
                         const val = e.target.value.replace(/\D/g,'');
-                        const newOtp = emailOtp.split('');
+                        const newOtp = phoneOtp.split('');
                         newOtp[i] = val;
-                        setEmailOtp(newOtp.join(''));
+                        setPhoneOtp(newOtp.join(''));
                         if (val && e.target.nextElementSibling) {
                           (e.target.nextElementSibling as HTMLInputElement).focus();
                         }
                       }}
-                      disabled={emailVerified}
+                      disabled={phoneVerified}
                       className="w-11 h-12 text-center text-lg font-bold border-2 border-gray-200 
                                  rounded-xl focus:outline-none focus:border-purple-500 transition-all
                                  disabled:bg-green-50 disabled:border-green-200"
@@ -501,55 +440,15 @@ export const CustomerRegister = () => {
                 </div>
               </div>
 
-              {/* Phone OTP (if phone provided) */}
-              {phone && (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="block text-sm font-semibold text-gray-900">
-                      📱 Phone OTP
-                    </label>
-                    {phoneVerified && (
-                      <span className="text-xs font-medium text-green-600 flex items-center gap-1">
-                        <CheckCircle2 className="w-4 h-4" /> Verified
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-500 mb-2">OTP sent to +91 {phone}</p>
-                  <div className="flex gap-2">
-                    {Array.from({ length: 6 }).map((_, i) => (
-                      <input
-                        key={`phone-${i}`}
-                        type="text"
-                        maxLength={1}
-                        value={phoneOtp[i] || ''}
-                        onChange={e => {
-                          const val = e.target.value.replace(/\D/g,'');
-                          const newOtp = phoneOtp.split('');
-                          newOtp[i] = val;
-                          setPhoneOtp(newOtp.join(''));
-                          if (val && e.target.nextElementSibling) {
-                            (e.target.nextElementSibling as HTMLInputElement).focus();
-                          }
-                        }}
-                        disabled={phoneVerified}
-                        className="w-11 h-12 text-center text-lg font-bold border-2 border-gray-200 
-                                   rounded-xl focus:outline-none focus:border-purple-500 transition-all
-                                   disabled:bg-green-50 disabled:border-green-200"
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* Verify Button */}
               <button
                 type="submit"
-                disabled={loading || !emailOtp || (phone && !phoneOtp)}
+                disabled={loading || !phoneOtp}
                 className="w-full bg-purple-600 text-white py-3.5 rounded-xl font-semibold 
                            text-sm hover:bg-purple-700 transition-all disabled:opacity-50
                            shadow-lg shadow-purple-200 active:scale-[0.98]"
               >
-                {loading ? 'Verifying...' : 'Verify Both & Create Account'}
+                {loading ? 'Verifying...' : 'Verify OTP & Create Account'}
               </button>
 
               {/* Resend */}
