@@ -265,6 +265,46 @@ export default defineConfig(({ mode }) => {
         overlay: false,
       },
     },
+    build: {
+      // Target production
+      target: 'ES2020',
+      // Enable minification
+      minify: 'terser',
+      terserOptions: {
+        compress: {
+          drop_console: true, // Remove console logs in production
+          drop_debugger: true,
+          pure_funcs: ['console.log', 'console.error'],
+        },
+        format: {
+          comments: false, // Remove comments
+        },
+      },
+      // Optimize chunks
+      rollupOptions: {
+        output: {
+          // Code splitting for vendor libraries
+          manualChunks: {
+            'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+            'ui-vendor': ['@radix-ui/react-slot', '@radix-ui/react-dialog', '@radix-ui/react-popover'],
+            'supabase-vendor': ['@supabase/supabase-js'],
+            'query-vendor': ['@tanstack/react-query'],
+          },
+          // Optimize asset names
+          assetFileNames: (assetInfo) => {
+            if (assetInfo.name.endsWith('.css')) {
+              return 'assets/[name]-[hash][extname]';
+            } else if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].some(ext => assetInfo.name.endsWith(ext))) {
+              return 'assets/images/[name]-[hash][extname]';
+            }
+            return 'assets/[name]-[hash][extname]';
+          },
+        },
+      },
+      // Size reporting
+      reportCompressedSize: true,
+      chunkSizeWarningLimit: 500, // 500KB chunks
+    },
     plugins: [react(), mode === "development" && componentTagger(), turnstileDevApiPlugin, phoneOtpDevApiPlugin].filter(Boolean),
     resolve: {
       alias: {
