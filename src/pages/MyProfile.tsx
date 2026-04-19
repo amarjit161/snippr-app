@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 import { Scissors, ArrowLeft, Edit2, Check, X, Eye, EyeOff, Phone, Mail, User } from 'lucide-react';
 
 interface UserProfile {
@@ -19,37 +20,50 @@ export const MyProfile = () => {
   const [editing, setEditing] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [editData, setEditData] = useState<UserProfile | null>(null);
-  const [savingPassword, setSavingPassword] = useState(false);
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+
+  const { user } = useAuth();
 
   // Load profile on mount
   useEffect(() => {
     const loadProfile = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        if (!user) {
-          navigate('/login');
-          return;
-        }
+      if (!user) {
+        // Wait for user to be populated
+        return;
+      }
 
-        const { data: profileData } = await supabase
+      try {
+        const fetchPromise = supabase
           .from('customer_profiles')
           .select('*')
           .eq('id', user.id)
           .maybeSingle();
 
+        const timeoutPromise = new Promise<any>((_, reject) => 
+          setTimeout(() => reject(new Error("Network timeout")), 8000)
+        );
+
+        const { data: profileData, error } = await Promise.race([fetchPromise, timeoutPromise]);
+        
+        if (error) throw error;
+
         if (profileData) {
           setProfile(profileData as UserProfile);
           setEditData(profileData as UserProfile);
+        } else {
+          // If no profile exists yet, create an empty template
+          const emptyProfile = {
+            id: user.id,
+            email: user.email || '',
+            first_name: '',
+            last_name: '',
+            phone: null,
+            gender: null
+          };
+          setProfile(emptyProfile);
+          setEditData(emptyProfile);
         }
       } catch (err: any) {
-        toast.error('Failed to load profile');
+        toast.error('Failed to load profile details. Please try again.');
         console.error(err);
       } finally {
         setLoading(false);
@@ -57,7 +71,7 @@ export const MyProfile = () => {
     };
 
     loadProfile();
-  }, [navigate]);
+  }, [user]);
 
   const handleSaveProfile = async () => {
     if (!editData) return;
@@ -91,43 +105,7 @@ export const MyProfile = () => {
     }
   };
 
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
 
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      toast.error('Please fill all password fields');
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      toast.error("Passwords don't match");
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      toast.error('New password must be at least 6 characters');
-      return;
-    }
-
-    setSavingPassword(true);
-
-    try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-
-      if (error) throw error;
-
-      toast.success('✓ Password updated!');
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update password');
-    } finally {
-      setSavingPassword(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -326,95 +304,7 @@ export const MyProfile = () => {
           )}
         </div>
 
-        {/* Change Password Section */}
-        <div className="bg-white rounded-3xl shadow-lg border border-gray-100 p-8">
-          <h3 className="text-xl font-bold text-gray-900 mb-6">🔐 Change Password</h3>
-          
-          <form onSubmit={handleChangePassword} className="space-y-4">
-            
-            {/* Current Password */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2">
-                Current Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showCurrentPassword ? 'text' : 'password'}
-                  value={currentPassword}
-                  onChange={e => setCurrentPassword(e.target.value)}
-                  placeholder="••••••"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm 
-                             focus:outline-none focus:ring-2 focus:ring-purple-500 pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
 
-            {/* New Password */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2">
-                New Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showNewPassword ? 'text' : 'password'}
-                  value={newPassword}
-                  onChange={e => setNewPassword(e.target.value)}
-                  placeholder="••••••"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm 
-                             focus:outline-none focus:ring-2 focus:ring-purple-500 pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowNewPassword(!showNewPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            {/* Confirm Password */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2">
-                Confirm New Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  value={confirmPassword}
-                  onChange={e => setConfirmPassword(e.target.value)}
-                  placeholder="••••••"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm 
-                             focus:outline-none focus:ring-2 focus:ring-purple-500 pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={savingPassword || !currentPassword || !newPassword || !confirmPassword}
-              className="w-full bg-gray-600 text-white py-3 rounded-xl font-semibold text-sm 
-                         hover:bg-gray-700 transition-all disabled:opacity-50 mt-6"
-            >
-              {savingPassword ? 'Updating...' : 'Update Password'}
-            </button>
-          </form>
-        </div>
       </div>
     </div>
   );
