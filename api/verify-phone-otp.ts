@@ -91,15 +91,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     console.log(`[verify-phone-otp] Response:`, data);
+    console.log(`[verify-phone-otp] Full response object:`, JSON.stringify(data, null, 2));
 
     if (data.status === 'success' && data.token) {
+      console.log(`[verify-phone-otp] ✓ OTP verified successfully for ${formatted}`);
       return res.status(200).json({ 
         success: true,
         token: data.token,
-        message: 'OTP verified successfully'
+        message: 'OTP verified successfully',
+        phoneEmailResponse: data
       });
     }
 
+    console.log(`[verify-phone-otp] ✗ Failed - status was:`, data.status, `token:`, data.token);
     return res.status(400).json({ 
       success: false,
       error: data.message || 'Invalid OTP'

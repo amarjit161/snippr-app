@@ -89,14 +89,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     console.log(`[send-phone-otp] Response:`, data);
+    console.log(`[send-phone-otp] Full response object:`, JSON.stringify(data, null, 2));
 
     if (data.status === 'success' || response.ok) {
+      console.log(`[send-phone-otp] ✓ OTP sent successfully to ${formatted}`);
       return res.status(200).json({ 
         success: true,
-        message: 'OTP sent successfully'
+        message: 'OTP sent successfully',
+        phoneEmailResponse: data
       });
     }
 
+    console.log(`[send-phone-otp] ✗ Failed - status was:`, data.status, `response data:`, data);
     return res.status(400).json({ 
       success: false,
       error: data.message || 'Failed to send OTP'
