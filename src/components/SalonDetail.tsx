@@ -612,8 +612,8 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         const displayTime = `${displayHour}:${minutes} ${ampm}`;
         
         const successMsg = isAdvanceBooking
-          ? `Booking confirmed for ${date} at ${displayTime}. Your position: #${nextPosition}`
-          : `Booking successful. Your position in queue: #${nextPosition}`;
+          ? `Booking confirmed for ${date} at ${displayTime}.`
+          : `Booking successful. Your Token Number: #${nextPosition}`;
         toast.success(successMsg);
         onJoined();
         setBooking(false);
