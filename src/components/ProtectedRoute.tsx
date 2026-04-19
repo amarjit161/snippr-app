@@ -18,11 +18,17 @@ export const ProtectedRoute = () => {
       }
 
       try {
-        const { data: profile } = await supabase
+        const fetchPromise = supabase
           .from('customer_profiles')
           .select('phone, gender')
           .eq('id', session.user.id)
           .maybeSingle();
+
+        const timeoutPromise = new Promise<any>((_, reject) => 
+          setTimeout(() => reject(new Error("Profile check timeout")), 5000)
+        );
+
+        const { data: profile } = await Promise.race([fetchPromise, timeoutPromise]);
 
         if (import.meta.env.DEV) console.log("PROTECTED_ROUTE: Profile check", { 
           userId: session.user.id, 

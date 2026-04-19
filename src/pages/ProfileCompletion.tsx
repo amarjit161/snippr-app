@@ -56,11 +56,24 @@ export const ProfileCompletion = () => {
           return;
         }
 
-        const { data: profile } = await supabase
+        const fetchPromise = supabase
           .from('customer_profiles')
           .select('*')
           .eq('id', user.id)
           .maybeSingle();
+
+        const timeoutPromise = new Promise<any>((_, reject) => 
+          setTimeout(() => reject(new Error("Profile load timeout")), 8000)
+        );
+
+        let profile;
+        try {
+          const result = await Promise.race([fetchPromise, timeoutPromise]);
+          profile = result.data;
+        } catch (fetchErr) {
+          console.warn("Profile fetch timeout or error, assuming empty profile", fetchErr);
+          profile = null;
+        }
 
         if (profile) {
           setProfileData({

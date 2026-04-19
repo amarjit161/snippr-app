@@ -161,11 +161,24 @@ export default function OwnerDashboard() {
         }
 
         // 0. Fetch Owner Profile
-        const { data: ownerData, error: ownerError } = await supabase
+        const fetchPromise = supabase
           .from("owners")
           .select("*")
           .eq("id", authUser.id)
           .maybeSingle();
+          
+        const timeoutPromise = new Promise<any>((_, reject) => 
+          setTimeout(() => reject(new Error("Owner query timeout")), 10000)
+        );
+
+        let ownerData, ownerError;
+        try {
+          const result = await Promise.race([fetchPromise, timeoutPromise]);
+          ownerData = result.data;
+          ownerError = result.error;
+        } catch (err: any) {
+          ownerError = err;
+        }
 
         if (ownerError) {
           console.error("OWNER_FETCH_ERROR:", ownerError);

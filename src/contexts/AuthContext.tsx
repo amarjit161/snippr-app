@@ -107,7 +107,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         try {
           console.log("FETCH_PROFILE: Requesting from database...");
           
-          // Create a promise that times out after 15 seconds (for network issues)
+          // Create a promise that times out after 5 seconds (for network issues)
           const fetchWithTimeout = async () => {
             return Promise.race([
               supabase
@@ -116,7 +116,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 .eq("id", sessionId)
                 .maybeSingle(),
               new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("Query timeout after 15s")), 15000)
+                setTimeout(() => reject(new Error("Query timeout after 5s")), 5000)
               ),
             ]);
           };
