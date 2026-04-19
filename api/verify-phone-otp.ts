@@ -62,13 +62,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     );
 
+    // Log response status and headers
+    console.log(`[verify-phone-otp] HTTP Status: ${response.status} ${response.statusText}`);
+    console.log(`[verify-phone-otp] Response Headers:`, {
+      'content-type': response.headers.get('content-type'),
+      'content-length': response.headers.get('content-length'),
+    });
+
     // Check if response is ok before parsing JSON
     if (!response.ok) {
       const text = await response.text();
       console.error(`[verify-phone-otp] HTTP Error:`, response.status, text);
       return res.status(400).json({ 
         success: false,
-        error: `Phone service error: ${response.status}`
+        error: `Phone service error: ${response.status}`,
+        details: text
       });
     }
 
