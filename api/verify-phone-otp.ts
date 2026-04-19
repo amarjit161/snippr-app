@@ -52,7 +52,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Format phone number
     const formatted = phone.startsWith('+') ? phone : `+91${phone.replace(/\D/g,'').slice(-10)}`;
     
+    const apiKey = process.env.VITE_PHONE_EMAIL_API_KEY || '';
+    
+    if (!apiKey) {
+      console.error('[verify-phone-otp] API Key not configured');
+      return res.status(500).json({ 
+        success: false,
+        error: 'API Key not configured'
+      });
+    }
+
     console.log(`[verify-phone-otp] Verifying OTP for ${formatted}`);
+    console.log(`[verify-phone-otp] Using API Key (length: ${apiKey.length})`);
 
     const response = await fetch(
       `https://auth.phone.email/verify_otp`,
@@ -60,7 +71,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/x-www-form-urlencoded',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
         },
         body: new URLSearchParams({
           client_id: PHONE_EMAIL_CLIENT_ID,

@@ -52,13 +52,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
     console.log(`[send-phone-otp] Sending OTP to ${formatted}`);
 
+    const apiKey = process.env.VITE_PHONE_EMAIL_API_KEY || '';
+    
+    if (!apiKey) {
+      console.error('[send-phone-otp] API Key not configured');
+      return res.status(500).json({ 
+        success: false,
+        error: 'API Key not configured'
+      });
+    }
+
+    console.log(`[send-phone-otp] Using API Key (length: ${apiKey.length})`);
+
     const response = await fetch(
       `https://auth.phone.email/send_otp`,
       { 
         method: 'POST',
         headers: { 
           'Content-Type': 'application/x-www-form-urlencoded',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
         },
         body: new URLSearchParams({
           client_id: PHONE_EMAIL_CLIENT_ID,

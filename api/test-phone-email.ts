@@ -6,6 +6,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 const PHONE_EMAIL_CLIENT_ID = process.env.VITE_PHONE_EMAIL_CLIENT_ID || '';
+const PHONE_EMAIL_API_KEY = process.env.VITE_PHONE_EMAIL_API_KEY || '';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -21,6 +22,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
     console.log(`[test-phone-email] Testing send_otp for: ${formatted}`);
     console.log(`[test-phone-email] CLIENT_ID: ${PHONE_EMAIL_CLIENT_ID}`);
+    console.log(`[test-phone-email] API_KEY present: ${!!PHONE_EMAIL_API_KEY}`);
     
     const url = `https://auth.phone.email/send_otp`;
     console.log(`[test-phone-email] URL: ${url}`);
@@ -29,7 +31,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${PHONE_EMAIL_API_KEY}`
       },
       body: new URLSearchParams({
         client_id: PHONE_EMAIL_CLIENT_ID,
