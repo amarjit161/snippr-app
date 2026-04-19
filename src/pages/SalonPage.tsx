@@ -24,17 +24,29 @@ export default function SalonPage() {
       setLoading(true);
       setErrorMessage(null);
 
-      const { data, error } = await supabase.from("salons").select("*").eq("id", id).maybeSingle();
+      try {
+        const fetchPromise = supabase.from("salons").select("*").eq("id", id).maybeSingle();
+        const timeoutPromise = new Promise<any>((_, reject) => 
+          setTimeout(() => reject(new Error("Network timeout")), 8000)
+        );
 
-      if (error) {
-        console.error("Failed to load salon:", error);
-        setErrorMessage("Could not load salon details.");
+        const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
+
+        if (error) {
+          console.error("Failed to load salon:", error);
+          setErrorMessage("Could not load salon details. Please check your connection.");
+          setSalon(null);
+        } else {
+          setSalon(data ?? null);
+          if (!data) setErrorMessage("Salon not found.");
+        }
+      } catch (err: any) {
+        console.error("Timeout or exception loading salon:", err);
+        setErrorMessage("Connection timed out. Please try again.");
         setSalon(null);
-      } else {
-        setSalon(data ?? null);
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     };
 
     fetchSalon();

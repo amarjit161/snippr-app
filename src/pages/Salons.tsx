@@ -214,26 +214,47 @@ const Salons = () => {
     setLoadError(null);
 
     try {
-      const { data: salonData, error: salonError } = await publicSupabase.from("salons").select("*");
+      const fetchPromise = publicSupabase.from("salons").select("*");
+      const timeoutPromise = new Promise<any>((_, reject) => 
+        setTimeout(() => reject(new Error("Network timeout while fetching salons")), 10000)
+      );
+
+      const { data: salonData, error: salonError } = await Promise.race([fetchPromise, timeoutPromise]);
       if (salonError) throw salonError;
       console.log("FETCH_SALONS_RAW_DATA", salonData?.length);
 
       const enriched: SalonWithQueueAndDistance[] = await Promise.all(
         (salonData ?? []).map(async (salon) => {
            // Optimized nested query: only fetch duration from services
-           const { data: queueData, error: queueError } = await publicSupabase
+           // Also add a small timeout here so one slow queue fetch doesn't hang everything
+           const queueFetchPromise = publicSupabase
             .from("queue")
             .select("services(duration)")
             .eq("salon_id", salon.id)
             .eq("status", "waiting");
+            
+           const queueTimeoutPromise = new Promise<any>((_, reject) => 
+            setTimeout(() => reject(new Error("Queue timeout")), 5000)
+           );
+           
+           let queueData = null;
+           let queueError = null;
+           
+           try {
+             const result = await Promise.race([queueFetchPromise, queueTimeoutPromise]);
+             queueData = result.data;
+             queueError = result.error;
+           } catch (e) {
+             queueError = e;
+           }
 
            if (queueError) {
-             console.warn("Queue fetch failed for salon", salon.id, queueError.message);
+             console.warn("Queue fetch failed for salon", salon.id, queueError);
            }
 
            const queueCount = queueData?.length ?? 0;
            const waitTime = (queueData ?? []).reduce(
-             (sum, e: any) => sum + (e.services?.duration ?? 20), 0
+             (sum: any, e: any) => sum + (e.services?.duration ?? 20), 0
            );
 
            let dist = undefined;
