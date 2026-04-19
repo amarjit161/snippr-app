@@ -27,16 +27,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const url = `https://auth.phone.email/send_otp`;
     console.log(`[test-phone-email] URL: ${url}`);
     
+    // Try without Bearer token first (API key might be meant for another purpose)
     const response = await fetch(url, { 
       method: 'POST',
       headers: { 
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${PHONE_EMAIL_API_KEY}`
+        'Accept': 'application/json'
       },
       body: new URLSearchParams({
         client_id: PHONE_EMAIL_CLIENT_ID,
-        phone_number: formatted
+        phone_number: formatted,
+        api_key: PHONE_EMAIL_API_KEY
       }).toString()
     });
 

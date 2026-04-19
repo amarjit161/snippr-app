@@ -71,13 +71,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/x-www-form-urlencoded',
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
+          'Accept': 'application/json'
         },
         body: new URLSearchParams({
           client_id: PHONE_EMAIL_CLIENT_ID,
           phone_number: formatted,
-          otp: otp
+          otp: otp,
+          api_key: apiKey
         }).toString()
       }
     );
