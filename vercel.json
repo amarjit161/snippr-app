@@ -5,6 +5,18 @@
       "destination": "/api/verify-turnstile"
     },
     {
+      "source": "/api/send-phone-otp",
+      "destination": "/api/send-phone-otp"
+    },
+    {
+      "source": "/api/verify-phone-otp",
+      "destination": "/api/verify-phone-otp"
+    },
+    {
+      "source": "/api/test-phone-email",
+      "destination": "/api/test-phone-email"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
