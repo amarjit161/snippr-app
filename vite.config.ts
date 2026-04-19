@@ -268,18 +268,8 @@ export default defineConfig(({ mode }) => {
     build: {
       // Target production
       target: 'ES2020',
-      // Enable minification
-      minify: 'terser',
-      terserOptions: {
-        compress: {
-          drop_console: true, // Remove console logs in production
-          drop_debugger: true,
-          pure_funcs: ['console.log', 'console.error'],
-        },
-        format: {
-          comments: false, // Remove comments
-        },
-      },
+      // Enable minification with esbuild (faster than terser, included by default)
+      minify: 'esbuild',
       // Optimize chunks
       rollupOptions: {
         output: {

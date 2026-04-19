@@ -28,7 +28,6 @@ const VerifyEmail = lazy(() => import("./pages/VerifyEmail.tsx"));
 const Onboarding = lazy(() => import("./pages/Onboarding.tsx"));
 const RegisterSalon = lazy(() => import("./pages/RegisterSalon.tsx"));
 const OwnerDashboard = lazy(() => import("./pages/OwnerDashboard.tsx"));
-const OwnerRegister = lazy(() => import("./pages/OwnerRegister.tsx"));
 const SalonProfile = lazy(() => import("./pages/SalonProfile.tsx"));
 const Settings = lazy(() => import("./pages/Settings.tsx"));
 const Services = lazy(() => import("./pages/Services.tsx"));
