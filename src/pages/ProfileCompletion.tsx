@@ -102,9 +102,10 @@ export const ProfileCompletion = () => {
 
   // Calculate completion percentage
   const getCompletionPercentage = () => {
-    let completed = 25; // Email is always done at this point
-    if (profileData.phone) completed += 25;
-    if (profileData.gender) completed += 25;
+    let completed = 0;
+    if (profileData.email) completed += 25; // Email
+    if (profileData.phone) completed += 50; // Phone (now required to access salons)
+    if (profileData.gender) completed += 25; // Gender (optional)
     if (currentStep === 'complete') completed = 100;
     return completed;
   };
@@ -336,27 +337,27 @@ export const ProfileCompletion = () => {
         </div>
         <div className="text-center">
           <div className={`mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full ${
-            getCompletionPercentage() >= 50 ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-600'
+            getCompletionPercentage() >= 75 ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-600'
           }`}>
-            {getCompletionPercentage() >= 50 ? '✓' : <Phone className="w-5 h-5" />}
+            {getCompletionPercentage() >= 75 ? '✓' : <Phone className="w-5 h-5" />}
           </div>
           <p className="text-xs font-medium text-gray-700">Phone</p>
         </div>
         <div className="text-center">
           <div className={`mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full ${
-            getCompletionPercentage() >= 75 ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-600'
+            getCompletionPercentage() >= 100 ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-600'
           }`}>
-            {getCompletionPercentage() >= 75 ? '✓' : <User className="w-5 h-5" />}
+            {getCompletionPercentage() >= 100 ? '✓' : <User className="w-5 h-5" />}
           </div>
-          <p className="text-xs font-medium text-gray-700">Gender</p>
+          <p className="text-xs font-medium text-gray-700">Gender (Optional)</p>
         </div>
         <div className="text-center">
           <div className={`mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full ${
             getCompletionPercentage() >= 100 ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-600'
           }`}>
-            {getCompletionPercentage() >= 100 ? '✓' : <Lock className="w-5 h-5" />}
+            {getCompletionPercentage() >= 100 ? '✓' : <CheckCircle2 className="w-5 h-5" />}
           </div>
-          <p className="text-xs font-medium text-gray-700">Complete</p>
+          <p className="text-xs font-medium text-gray-700">Ready</p>
         </div>
       </div>
     </div>
@@ -501,7 +502,7 @@ export const ProfileCompletion = () => {
                 </div>
 
                 <label className="block text-sm font-semibold text-gray-900 mb-4">
-                  👤 Select Your Gender
+                  👤 Select Your Gender (Optional)
                 </label>
                 <div className="grid grid-cols-3 gap-3">
                   {(['Male', 'Female', 'Other'] as const).map((g) => (
@@ -521,15 +522,26 @@ export const ProfileCompletion = () => {
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={processingStep || !gender}
-                className="w-full bg-purple-600 text-white py-3 rounded-xl font-semibold 
-                           text-sm hover:bg-purple-700 transition-all disabled:opacity-50
-                           shadow-lg shadow-purple-200 active:scale-[0.98]"
-              >
-                {processingStep ? 'Saving...' : 'Save & Continue'}
-              </button>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleCompleteProfile}
+                  className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold 
+                             text-sm hover:bg-gray-300 transition-all
+                             active:scale-[0.98]"
+                >
+                  Skip for Now
+                </button>
+                <button
+                  type="submit"
+                  disabled={processingStep}
+                  className="flex-1 bg-purple-600 text-white py-3 rounded-xl font-semibold 
+                             text-sm hover:bg-purple-700 transition-all disabled:opacity-50
+                             shadow-lg shadow-purple-200 active:scale-[0.98]"
+                >
+                  {processingStep ? 'Saving...' : 'Save & Continue'}
+                </button>
+              </div>
             </form>
           )}
 

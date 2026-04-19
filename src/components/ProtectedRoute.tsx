@@ -12,7 +12,7 @@ export const ProtectedRoute = () => {
   useEffect(() => {
     const checkProfileCompletion = async () => {
       if (!session?.user) {
-        console.log("PROTECTED_ROUTE: No session user");
+        if (import.meta.env.DEV) console.log("PROTECTED_ROUTE: No session user");
         setCheckingProfile(false);
         return;
       }
@@ -24,23 +24,23 @@ export const ProtectedRoute = () => {
           .eq('id', session.user.id)
           .maybeSingle();
 
-        console.log("PROTECTED_ROUTE: Profile check", { 
+        if (import.meta.env.DEV) console.log("PROTECTED_ROUTE: Profile check", { 
           userId: session.user.id, 
           phone: profile?.phone ? "✓ Set" : "✗ Not set",
           gender: profile?.gender ? "✓ Set" : "✗ Not set",
-          profileComplete: !!(profile?.phone && profile?.gender)
+          canAccess: !!profile?.phone
         });
 
-        // Profile is complete if both phone and gender are set
-        if (profile?.phone && profile?.gender) {
-          console.log("PROTECTED_ROUTE: Profile complete ✓");
+        // Profile is sufficient for booking if phone is set (gender is optional)
+        if (profile?.phone) {
+          if (import.meta.env.DEV) console.log("PROTECTED_ROUTE: Profile sufficient ✓");
           setProfileComplete(true);
         } else {
-          console.log("PROTECTED_ROUTE: Profile incomplete ✗ - Redirect to /profile-completion needed");
+          if (import.meta.env.DEV) console.log("PROTECTED_ROUTE: Profile incomplete ✗ - Phone not set");
           setProfileComplete(false);
         }
       } catch (err) {
-        console.error('PROTECTED_ROUTE: Error checking profile completion:', err);
+        if (import.meta.env.DEV) console.error('PROTECTED_ROUTE: Error checking profile completion:', err);
         setProfileComplete(false);
       } finally {
         setCheckingProfile(false);
@@ -64,7 +64,8 @@ export const ProtectedRoute = () => {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
-  // Redirect to profile completion if not complete
+  // Only redirect to profile completion if phone is NOT set
+  // Users with phone verified can access salons even without gender
   if (!profileComplete && location.pathname !== "/profile-completion") {
     return <Navigate to="/profile-completion" replace />;
   }
