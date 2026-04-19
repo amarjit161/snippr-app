@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Scissors, Eye, EyeOff, CheckCircle2, Lock, User, Phone } from 'lucide-react';
 
@@ -17,6 +18,7 @@ interface ProfileData {
 
 export const ProfileCompletion = () => {
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [currentStep, setCurrentStep] = useState<Step>('email');
   
@@ -47,15 +49,18 @@ export const ProfileCompletion = () => {
 
   // Load profile on mount
   useEffect(() => {
+    if (authLoading) return; // Wait for auth to initialize
+    
     const loadProfile = async () => {
+      console.log("PROFILE_COMPLETION: Starting loadProfile", { user: user?.id });
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        
         if (!user) {
+          console.log("PROFILE_COMPLETION: No user, navigating to login");
           navigate('/login');
           return;
         }
 
+        console.log("PROFILE_COMPLETION: Initiating Supabase fetch...");
         const fetchPromise = supabase
           .from('customer_profiles')
           .select('*')
@@ -68,10 +73,12 @@ export const ProfileCompletion = () => {
 
         let profile;
         try {
+          console.log("PROFILE_COMPLETION: Waiting for fetch or timeout...");
           const result = await Promise.race([fetchPromise, timeoutPromise]);
+          console.log("PROFILE_COMPLETION: Fetch resolved!", result);
           profile = result.data;
         } catch (fetchErr) {
-          console.warn("Profile fetch timeout or error, assuming empty profile", fetchErr);
+          console.warn("PROFILE_COMPLETION: Fetch timed out or failed", fetchErr);
           profile = null;
         }
 
@@ -111,7 +118,7 @@ export const ProfileCompletion = () => {
     };
 
     loadProfile();
-  }, [navigate]);
+  }, [navigate, user, authLoading]);
 
   // Calculate completion percentage
   const getCompletionPercentage = () => {
