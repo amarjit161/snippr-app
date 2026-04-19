@@ -1,56 +1,73 @@
+import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
+
+// Eager load critical pages
 import Index from "./pages/Index.tsx";
 import Auth from "./pages/Auth.tsx";
 import AuthCallback from "./pages/AuthCallback.tsx";
-import Verify from "./pages/Verify.tsx";
-import Salons from "./pages/Salons.tsx";
-import Admin from "./pages/Admin.tsx";
-import OwnerRegistration from "./pages/OwnerRegistration.tsx";
-import Dashboard from "./pages/Dashboard.tsx";
-import SalonPage from "./pages/SalonPage.tsx";
-import NotFound from "./pages/NotFound.tsx";
-import { ProtectedRoute } from "./components/ProtectedRoute.tsx";
-import OwnerLogin from "./pages/OwnerLogin.tsx";
-import OwnerSignUp from "./pages/OwnerSignUp.tsx";
-import OwnerResetPassword from "./pages/OwnerResetPassword.tsx";
-import VerifyEmail from "./pages/VerifyEmail.tsx";
-import Onboarding from "./pages/Onboarding.tsx";
-import RegisterSalon from "./pages/RegisterSalon.tsx";
-import OwnerDashboard from "./pages/OwnerDashboard.tsx";
-import OwnerRegister from "./pages/OwnerRegister.tsx";
-import SalonProfile from "./pages/SalonProfile.tsx";
-import Settings from "./pages/Settings.tsx";
-import Services from "./pages/Services.tsx";
-import Team from "./pages/Team.tsx";
-import Queue from "./pages/Queue.tsx";
-import Careers from "./pages/Careers.tsx";
-import HowItWorks from "./pages/HowItWorks.tsx";
-import Support from "./pages/Support.tsx";
-import Privacy from "./pages/Privacy.tsx";
-import { OwnerProtectedRoute } from "./components/OwnerProtectedRoute.tsx";
-import TestPhoneVerification from "./pages/TestPhoneVerification.tsx";
 import CustomerLogin from "./pages/CustomerLogin.tsx";
 import CustomerRegister from "./pages/CustomerRegister.tsx";
-import ProfileCompletion from "./pages/ProfileCompletion.tsx";
-import MyProfile from "./pages/MyProfile.tsx";
+import NotFound from "./pages/NotFound.tsx";
 
+// Lazy load non-critical pages
+const Verify = lazy(() => import("./pages/Verify.tsx"));
+const Salons = lazy(() => import("./pages/Salons.tsx"));
+const Admin = lazy(() => import("./pages/Admin.tsx"));
+const OwnerRegistration = lazy(() => import("./pages/OwnerRegistration.tsx"));
+const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
+const SalonPage = lazy(() => import("./pages/SalonPage.tsx"));
+const OwnerLogin = lazy(() => import("./pages/OwnerLogin.tsx"));
+const OwnerSignUp = lazy(() => import("./pages/OwnerSignUp.tsx"));
+const OwnerResetPassword = lazy(() => import("./pages/OwnerResetPassword.tsx"));
+const VerifyEmail = lazy(() => import("./pages/VerifyEmail.tsx"));
+const Onboarding = lazy(() => import("./pages/Onboarding.tsx"));
+const RegisterSalon = lazy(() => import("./pages/RegisterSalon.tsx"));
+const OwnerDashboard = lazy(() => import("./pages/OwnerDashboard.tsx"));
+const OwnerRegister = lazy(() => import("./pages/OwnerRegister.tsx"));
+const SalonProfile = lazy(() => import("./pages/SalonProfile.tsx"));
+const Settings = lazy(() => import("./pages/Settings.tsx"));
+const Services = lazy(() => import("./pages/Services.tsx"));
+const Team = lazy(() => import("./pages/Team.tsx"));
+const Queue = lazy(() => import("./pages/Queue.tsx"));
+const Careers = lazy(() => import("./pages/Careers.tsx"));
+const HowItWorks = lazy(() => import("./pages/HowItWorks.tsx"));
+const Support = lazy(() => import("./pages/Support.tsx"));
+const Privacy = lazy(() => import("./pages/Privacy.tsx"));
+const ProfileCompletion = lazy(() => import("./pages/ProfileCompletion.tsx"));
+const MyProfile = lazy(() => import("./pages/MyProfile.tsx"));
+
+import { ProtectedRoute } from "./components/ProtectedRoute.tsx";
+import { OwnerProtectedRoute } from "./components/OwnerProtectedRoute.tsx";
 import { useAuth } from "@/contexts/AuthContext";
 import { ErrorBoundary } from "./components/errors/ErrorBoundary";
 import { OfflineBanner } from "./components/errors/OfflineBanner";
 import { useTawkTo } from "@/hooks/useTawkTo";
 
-const queryClient = new QueryClient();
+// Optimized QueryClient with better caching
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      gcTime: 1000 * 60 * 10, // 10 minutes (formerly cacheTime)
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+    mutations: {
+      retry: 1,
+    },
+  },
+});
 
 const RootLoadingGuard = ({ children }: { children: React.ReactNode }) => {
   const { loading } = useAuth();
 
   if (loading) {
-    console.log("APP_LOADING");
+    if (import.meta.env.DEV) console.log("APP_LOADING");
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="relative flex flex-col items-center gap-4">
@@ -61,56 +78,66 @@ const RootLoadingGuard = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
-  console.log("APP_READY");
+  if (import.meta.env.DEV) console.log("APP_READY");
   return <>{children}</>;
 };
+
+// Loading component for lazy routes
+const PageLoader = () => (
+  <div className="flex min-h-screen items-center justify-center bg-background">
+    <div className="relative flex flex-col items-center gap-4">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-200 border-t-primary" />
+    </div>
+  </div>
+);
 
 const AppRoutes = () => {
   useTawkTo();
 
   return (
     <Routes>
+      {/* Critical pages - No suspension */}
       <Route path="/" element={<Index />} />
       <Route path="/login" element={<CustomerLogin />} />
       <Route path="/register" element={<CustomerRegister />} />
-      <Route path="/profile-completion" element={<ProfileCompletion />} />
       <Route path="/auth" element={<Auth />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
-      <Route path="/verify" element={<Verify />} />
-      <Route path="/owner-login" element={<OwnerLogin />} />
-      <Route path="/owner-signup" element={<OwnerSignUp />} />
-      <Route path="/owner-reset-password" element={<OwnerResetPassword />} />
-      <Route path="/reset-password" element={<OwnerResetPassword />} />
-      <Route path="/verify-email" element={<VerifyEmail />} />
-      <Route path="/onboarding" element={<Onboarding />} />
-      <Route path="/owner-register" element={<OwnerRegistration />} />
-      <Route path="/careers" element={<Careers />} />
-      <Route path="/how-it-works" element={<HowItWorks />} />
-      <Route path="/support" element={<Support />} />
-      <Route path="/privacy" element={<Privacy />} />
-
-      <Route path="/register-salon" element={<OwnerProtectedRoute><RegisterSalon /></OwnerProtectedRoute>} />
-      <Route path="/owner-dashboard" element={<OwnerProtectedRoute><OwnerDashboard /></OwnerProtectedRoute>} />
-      <Route path="/dashboard" element={<OwnerProtectedRoute><OwnerDashboard /></OwnerProtectedRoute>} />
-      <Route path="/queue" element={<OwnerProtectedRoute><Queue /></OwnerProtectedRoute>} />
-      <Route path="/services" element={<OwnerProtectedRoute><Services /></OwnerProtectedRoute>} />
-      <Route path="/team" element={<OwnerProtectedRoute><Team /></OwnerProtectedRoute>} />
-      <Route path="/salon-profile" element={<OwnerProtectedRoute><SalonProfile /></OwnerProtectedRoute>} />
-      <Route path="/settings" element={<OwnerProtectedRoute><Settings /></OwnerProtectedRoute>} />
-      <Route path="/edit-salon" element={<OwnerProtectedRoute><SalonProfile /></OwnerProtectedRoute>} />
-
-      <Route element={<ProtectedRoute />}>
-        <Route path="/salons" element={<Salons />} />
-        <Route path="/salon/:id" element={<SalonPage />} />
-        <Route path="/admin" element={<Admin />} />
-        <Route path="/bookings" element={<Dashboard />} />
-        <Route path="/my-profile" element={<MyProfile />} />
-      </Route>
-
-      {/* Test Routes - Remove before production */}
-      <Route path="/test-phone" element={<TestPhoneVerification />} />
-
       <Route path="*" element={<NotFound />} />
+
+      {/* Lazy-loaded pages with Suspense */}
+      <Route path="/profile-completion" element={<Suspense fallback={<PageLoader />}><ProfileCompletion /></Suspense>} />
+      <Route path="/verify" element={<Suspense fallback={<PageLoader />}><Verify /></Suspense>} />
+      <Route path="/owner-login" element={<Suspense fallback={<PageLoader />}><OwnerLogin /></Suspense>} />
+      <Route path="/owner-signup" element={<Suspense fallback={<PageLoader />}><OwnerSignUp /></Suspense>} />
+      <Route path="/owner-reset-password" element={<Suspense fallback={<PageLoader />}><OwnerResetPassword /></Suspense>} />
+      <Route path="/reset-password" element={<Suspense fallback={<PageLoader />}><OwnerResetPassword /></Suspense>} />
+      <Route path="/verify-email" element={<Suspense fallback={<PageLoader />}><VerifyEmail /></Suspense>} />
+      <Route path="/onboarding" element={<Suspense fallback={<PageLoader />}><Onboarding /></Suspense>} />
+      <Route path="/owner-register" element={<Suspense fallback={<PageLoader />}><OwnerRegistration /></Suspense>} />
+      <Route path="/careers" element={<Suspense fallback={<PageLoader />}><Careers /></Suspense>} />
+      <Route path="/how-it-works" element={<Suspense fallback={<PageLoader />}><HowItWorks /></Suspense>} />
+      <Route path="/support" element={<Suspense fallback={<PageLoader />}><Support /></Suspense>} />
+      <Route path="/privacy" element={<Suspense fallback={<PageLoader />}><Privacy /></Suspense>} />
+
+      {/* Owner protected routes */}
+      <Route path="/register-salon" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><RegisterSalon /></OwnerProtectedRoute></Suspense>} />
+      <Route path="/owner-dashboard" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><OwnerDashboard /></OwnerProtectedRoute></Suspense>} />
+      <Route path="/dashboard" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><OwnerDashboard /></OwnerProtectedRoute></Suspense>} />
+      <Route path="/queue" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><Queue /></OwnerProtectedRoute></Suspense>} />
+      <Route path="/services" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><Services /></OwnerProtectedRoute></Suspense>} />
+      <Route path="/team" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><Team /></OwnerProtectedRoute></Suspense>} />
+      <Route path="/salon-profile" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><SalonProfile /></OwnerProtectedRoute></Suspense>} />
+      <Route path="/settings" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><Settings /></OwnerProtectedRoute></Suspense>} />
+      <Route path="/edit-salon" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><SalonProfile /></OwnerProtectedRoute></Suspense>} />
+
+      {/* Customer protected routes */}
+      <Route element={<ProtectedRoute />}>
+        <Route path="/salons" element={<Suspense fallback={<PageLoader />}><Salons /></Suspense>} />
+        <Route path="/salon/:id" element={<Suspense fallback={<PageLoader />}><SalonPage /></Suspense>} />
+        <Route path="/admin" element={<Suspense fallback={<PageLoader />}><Admin /></Suspense>} />
+        <Route path="/bookings" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
+        <Route path="/my-profile" element={<Suspense fallback={<PageLoader />}><MyProfile /></Suspense>} />
+      </Route>
     </Routes>
   );
 };
