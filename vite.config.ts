@@ -54,9 +54,9 @@ export default defineConfig(({ mode }) => {
         }
 
         try {
-          console.log(token);
+          if (process.env.NODE_ENV === 'development') console.log(token);
           const result = await verifyTurnstileWithCloudflare(token, turnstileSecret);
-          console.log(result);
+          if (process.env.NODE_ENV === 'development') console.log(result);
 
           if (!result.success) {
             console.error("Cloudflare Turnstile verification failed (dev)", result);

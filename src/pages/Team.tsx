@@ -27,7 +27,7 @@ export default function Team() {
   const salonId = salon?.id;
 
   const fetchBarbers = async (id: string) => {
-    console.log("🔥 FETCHING BARBERS for salon:", id);
+    if (import.meta.env.DEV) console.log("🔥 FETCHING BARBERS for salon:", id);
 
     try {
       const { data, error } = await supabaseAny
@@ -37,14 +37,14 @@ export default function Team() {
         .order("name");
 
       if (error) {
-        console.error("❌ FETCH ERROR:", error);
+        if (import.meta.env.DEV) console.error("❌ FETCH ERROR:", error);
         return;
       }
 
-      console.log("✅ FETCH_BARBERS_RESULT:", data);
+      if (import.meta.env.DEV) console.log("✅ FETCH_BARBERS_RESULT:", data);
       setBarbers((data as BarberRow[]) || []);
     } catch (error: any) {
-      console.error("❌ FETCH ERROR:", error);
+      if (import.meta.env.DEV) console.error("❌ FETCH ERROR:", error);
       toast.error(error.message || "Failed to load team members");
     }
   };

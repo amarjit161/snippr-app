@@ -140,14 +140,14 @@ export default function OwnerDashboard() {
   useEffect(() => {
     // Only fetch once on mount, never again
     if (hasFetchedRef.current) {
-      console.log("DASHBOARD_SKIP_DUPLICATE_FETCH: Already fetched");
+      if (import.meta.env.DEV) console.log("DASHBOARD_SKIP_DUPLICATE_FETCH: Already fetched");
       return;
     }
     hasFetchedRef.current = true;
 
     const fetchDashboard = async () => {
       try {
-        console.log("FETCH_DASHBOARD_START");
+        if (import.meta.env.DEV) console.log("FETCH_DASHBOARD_START");
         setLoadingSalon(true);
         setLoadingData(true);
 

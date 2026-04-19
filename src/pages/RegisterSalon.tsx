@@ -250,11 +250,11 @@ export default function RegisterSalon() {
       if (salonError) throw salonError;
       if (!salon) throw new Error("Failed to create salon record or permissions denied.");
 
-      console.log("SALON_CREATED", salon.id, "OWNER", user.id);
+      if (import.meta.env.DEV) console.log("SALON_CREATED", salon.id, "OWNER", user.id);
 
       // Insert services
       if (services.length > 0) {
-        console.log("STEP 3: INSERT SERVICES");
+        if (import.meta.env.DEV) console.log("STEP 3: INSERT SERVICES");
         const { error: servicesError } = await supabase.from("services").insert(
           services.map((s) => ({
             salon_id: salon.id,
@@ -269,7 +269,7 @@ export default function RegisterSalon() {
 
       // Insert barbers
       if (barbers.length > 0) {
-        console.log("STEP 4: INSERT BARBERS");
+        if (import.meta.env.DEV) console.log("STEP 4: INSERT BARBERS");
         const { error: barbersError } = await supabase.from("barbers").insert(
           barbers.map((b) => ({
             salon_id: salon.id,
@@ -282,11 +282,11 @@ export default function RegisterSalon() {
         if (barbersError) throw barbersError;
       }
 
-      console.log("STEP 5: COMPLETE");
+      if (import.meta.env.DEV) console.log("STEP 5: COMPLETE");
       toast.success("Salon registered successfully");
       navigate("/owner-dashboard", { replace: true });
     } catch (error: any) {
-      console.error("REGISTER_ERROR", error);
+      if (import.meta.env.DEV) console.error("REGISTER_ERROR", error);
       alert(error.message || "Registration failed");
     } finally {
       setSubmitting(false);

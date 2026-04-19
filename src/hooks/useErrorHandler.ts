@@ -11,7 +11,7 @@ export const useErrorHandler = () => {
   const handleError = (error: SupabaseError | null, context: string) => {
     if (!error) return;
 
-    console.error(`[${context}]`, error);
+    if (import.meta.env.DEV) console.error(`[${context}]`, error);
 
     switch (error.code) {
       case "23505":

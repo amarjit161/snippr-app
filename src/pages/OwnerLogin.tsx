@@ -189,14 +189,14 @@ export default function OwnerLogin() {
       console.log("PROFILE_FETCH_SUCCESS", finalOwnerProfile.id);
       localStorage.setItem("owner", JSON.stringify(finalOwnerProfile));
 
-      console.log("SALON_FETCH_START");
+      if (import.meta.env.DEV) console.log("SALON_FETCH_START");
       const { data: existingSalon } = await supabase
         .from("salons")
         .select("*")
         .eq("owner_id", finalOwnerProfile.id)
         .maybeSingle();
 
-      console.log("LOGIN_COMPLETE", { hasSalon: !!existingSalon });
+      if (import.meta.env.DEV) console.log("LOGIN_COMPLETE", { hasSalon: !!existingSalon });
       toast.success("Welcome back");
       
       // Store owner info in localStorage and set owner role so AuthContext knows
@@ -205,7 +205,7 @@ export default function OwnerLogin() {
       
       navigate(existingSalon ? "/owner-dashboard" : "/register-salon", { replace: true });
     } catch (error: any) {
-      console.error("LOGIN_PIPELINE_ERROR:", error.message || error);
+      if (import.meta.env.DEV) console.error("LOGIN_PIPELINE_ERROR:", error.message || error);
       toast.error(error.message || "Login failed");
     } finally {
       // Small delay before removing the loading state to allow unmount to happen cleanly

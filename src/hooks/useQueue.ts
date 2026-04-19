@@ -405,7 +405,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
     }
 
     try {
-      console.log("ADD_WALK_IN_START", salon.id);
+      if (import.meta.env.DEV) console.log("ADD_WALK_IN_START", salon.id);
 
       const { data: { user: freshUser } } = await supabase.auth.getUser();
       if (!freshUser) throw new Error("Owner session expired. Please re-login.");

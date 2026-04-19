@@ -18,7 +18,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error("APP_ERROR_BOUNDARY:", error, info);
+    if (import.meta.env.DEV) console.error("APP_ERROR_BOUNDARY:", error, info);
     // TODO: Send to Sentry when ready
   }
 

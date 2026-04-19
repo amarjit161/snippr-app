@@ -111,15 +111,15 @@ export function useSlotAvailability(
         .eq("id", salonId)
         .maybeSingle();
 
-      console.log('SALON_FETCH:', { salonId, salon, error: salonError });
-      console.log('SALON_RAW_DATA:', JSON.stringify(salon));
-      console.log('OPEN_TIME:', salon?.open_time, 'CLOSE_TIME:', salon?.close_time);
-      console.log('IS_MANUAL_CLOSED:', salon?.is_manual_closed);
+      if (import.meta.env.DEV) console.log('SALON_FETCH:', { salonId, salon, error: salonError });
+      if (import.meta.env.DEV) console.log('SALON_RAW_DATA:', JSON.stringify(salon));
+      if (import.meta.env.DEV) console.log('OPEN_TIME:', salon?.open_time, 'CLOSE_TIME:', salon?.close_time);
+      if (import.meta.env.DEV) console.log('IS_MANUAL_CLOSED:', salon?.is_manual_closed);
 
       const openTime = salon?.open_time?.trim() || FALLBACK_OPEN_TIME;
       const closeTime = salon?.close_time?.trim() || FALLBACK_CLOSE_TIME;
 
-      console.log("SLOT_HOURS_USED:", {
+      if (import.meta.env.DEV) console.log("SLOT_HOURS_USED:", {
         openTime,
         closeTime,
         raw_open: salon?.open_time,
@@ -163,7 +163,7 @@ export function useSlotAvailability(
         return;
       }
 
-      console.log('SLOT_QUERY:', { 
+      if (import.meta.env.DEV) console.log('SLOT_QUERY:', { 
         date, 
         bookingsFound: bookedRecords?.length || 0,
         error: bookingsError ? { code: bookingsError.code, message: bookingsError.message, details: bookingsError.details } : null
@@ -175,7 +175,7 @@ export function useSlotAvailability(
       }
 
       if (bookingsError) {
-        console.error('SLOT_QUERY_ERROR:', bookingsError.code, bookingsError.message, bookingsError.details);
+        if (import.meta.env.DEV) console.error('SLOT_QUERY_ERROR:', bookingsError.code, bookingsError.message, bookingsError.details);
         // Don't crash — just treat as 0 booked slots and show all as available
         setSlots(
           generateTimeSlots(FALLBACK_OPEN_TIME, FALLBACK_CLOSE_TIME).map(
@@ -249,7 +249,7 @@ export function useSlotAvailability(
         currentBoundary += SLOT_DURATION_MINUTES;
       }
 
-      console.log('SLOT_DEBUG:', {
+      if (import.meta.env.DEV) console.log('SLOT_DEBUG:', {
         salonId,
         date: selectedDate,
         openTime,
@@ -258,7 +258,7 @@ export function useSlotAvailability(
         slotsGenerated: updatedSlots.length,
       });
 
-      console.log('FINAL_SLOTS:', { 
+      if (import.meta.env.DEV) console.log('FINAL_SLOTS:', { 
         totalSlots: updatedSlots.length, 
         availableCount: updatedSlots.filter(s => s.available).length,
         firstSlot: updatedSlots[0],
@@ -273,7 +273,7 @@ export function useSlotAvailability(
       if (requestId !== requestSequenceRef.current) {
         return;
       }
-      console.error("Error fetching slots:", error);
+      if (import.meta.env.DEV) console.error("Error fetching slots:", error);
       setSlots([]);
     } finally {
       if (requestId !== requestSequenceRef.current) {
@@ -311,7 +311,7 @@ export function useSlotAvailability(
           filter: `salon_id=eq.${salonId}&booking_date=eq.${date}`,
         },
         () => {
-          console.log("🔄 Slot availability changed - refreshing...");
+          if (import.meta.env.DEV) console.log("🔄 Slot availability changed - refreshing...");
           fetchSlots(date);
         }
       )
