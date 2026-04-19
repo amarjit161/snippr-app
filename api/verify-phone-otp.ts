@@ -55,10 +55,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log(`[verify-phone-otp] Verifying OTP for ${formatted}`);
 
     const response = await fetch(
-      `https://auth.phone.email/verify_otp?client_id=${PHONE_EMAIL_CLIENT_ID}&phone_number=${encodeURIComponent(formatted)}&otp=${otp}`,
+      `https://auth.phone.email/verify_otp`,
       { 
-        method: 'GET', 
-        headers: { 'Accept': 'application/json' }
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json'
+        },
+        body: new URLSearchParams({
+          client_id: PHONE_EMAIL_CLIENT_ID,
+          phone_number: formatted,
+          otp: otp
+        }).toString()
       }
     );
 

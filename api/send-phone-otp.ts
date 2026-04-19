@@ -53,10 +53,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log(`[send-phone-otp] Sending OTP to ${formatted}`);
 
     const response = await fetch(
-      `https://auth.phone.email/send_otp?client_id=${PHONE_EMAIL_CLIENT_ID}&phone_number=${encodeURIComponent(formatted)}`,
+      `https://auth.phone.email/send_otp`,
       { 
-        method: 'GET', 
-        headers: { 'Accept': 'application/json' }
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json'
+        },
+        body: new URLSearchParams({
+          client_id: PHONE_EMAIL_CLIENT_ID,
+          phone_number: formatted
+        }).toString()
       }
     );
 
