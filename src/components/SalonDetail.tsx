@@ -132,7 +132,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       const salonId = salon?.id;
       if (!salonId) return;
 
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const currentUser = user;
       if (!currentUser) return;
 
       const { data: ownedSalon } = await supabase
@@ -481,7 +481,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       }
 
       // Always resolve authenticated user before queue checks/inserts (RLS-safe).
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const currentUser = user;
 
       if (!currentUser) {
         setBooking(false);

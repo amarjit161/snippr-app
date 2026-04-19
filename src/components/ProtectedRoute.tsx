@@ -70,11 +70,11 @@ export const ProtectedRoute = () => {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
-  // Only redirect to profile completion if phone is NOT set
-  // Users with phone verified can access salons even without gender
-  if (!profileComplete && location.pathname !== "/profile-completion") {
-    return <Navigate to="/profile-completion" replace />;
-  }
+  // We no longer aggressively redirect to /profile-completion.
+  // Users can browse salons and book using manual entry, or use the ProfileCompletionBanner.
+  // if (!profileComplete && location.pathname !== "/profile-completion") {
+  //   return <Navigate to="/profile-completion" replace />;
+  // }
 
   return <Outlet />;
 };

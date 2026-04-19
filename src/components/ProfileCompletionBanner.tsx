@@ -14,13 +14,13 @@ interface ProfileData {
 
 export default function ProfileCompletionBanner() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadProfile = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
         const { data } = await supabase
