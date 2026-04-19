@@ -106,10 +106,10 @@ const Header = ({ onSignOut, userName, userEmail, profileName, onAdminToggle, is
 
           <nav className="flex-1 space-y-1 p-4">
             {[
-              { icon: "👤", label: "My Profile", sub: "Edit your details", path: "/bookings" },
+              { icon: "👤", label: "My Profile", sub: "Edit your details", path: "/my-profile" },
               { icon: "📋", label: "My Bookings", sub: "View appointments", path: "/bookings" },
               { icon: "⏳", label: "Live Queue", sub: "Your queue position", path: "/bookings" },
-              { icon: "🔐", label: "Change Password", sub: "Update your password", path: "/bookings" },
+              { icon: "🔐", label: "Change Password", sub: "Update your password", path: "/my-profile" },
               { icon: "💬", label: "Support", sub: "Get help", path: "/support" },
             ].map((item) => (
               <button

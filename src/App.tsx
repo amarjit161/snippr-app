@@ -34,6 +34,10 @@ import Support from "./pages/Support.tsx";
 import Privacy from "./pages/Privacy.tsx";
 import { OwnerProtectedRoute } from "./components/OwnerProtectedRoute.tsx";
 import TestPhoneVerification from "./pages/TestPhoneVerification.tsx";
+import CustomerLogin from "./pages/CustomerLogin.tsx";
+import CustomerRegister from "./pages/CustomerRegister.tsx";
+import ProfileCompletion from "./pages/ProfileCompletion.tsx";
+import MyProfile from "./pages/MyProfile.tsx";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { ErrorBoundary } from "./components/errors/ErrorBoundary";
@@ -67,7 +71,9 @@ const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/" element={<Index />} />
-      <Route path="/login" element={<Auth />} />
+      <Route path="/login" element={<CustomerLogin />} />
+      <Route path="/register" element={<CustomerRegister />} />
+      <Route path="/profile-completion" element={<ProfileCompletion />} />
       <Route path="/auth" element={<Auth />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/verify" element={<Verify />} />
@@ -94,11 +100,11 @@ const AppRoutes = () => {
       <Route path="/edit-salon" element={<OwnerProtectedRoute><SalonProfile /></OwnerProtectedRoute>} />
 
       <Route element={<ProtectedRoute />}>
-        <Route path="/register" element={<OwnerRegistration />} />
         <Route path="/salons" element={<Salons />} />
         <Route path="/salon/:id" element={<SalonPage />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/bookings" element={<Dashboard />} />
+        <Route path="/my-profile" element={<MyProfile />} />
       </Route>
 
       {/* Test Routes - Remove before production */}

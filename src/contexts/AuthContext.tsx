@@ -248,6 +248,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         // Only fetch/refetch profile on initial sign in, not on every token refresh
         if (event === "SIGNED_IN" && currentSession) {
+          // Auto-create customer profile if SSO login and no profile exists
+          if (currentSession.user) {
+            const { data: existing } = await supabase
+              .from('customer_profiles')
+              .select('id')
+              .eq('id', currentSession.user.id)
+              .maybeSingle();
+            
+            if (!existing) {
+              console.log("AUTH_SSO: Creating auto-profile for new SSO user");
+              // New SSO user — create profile from Google data
+              const meta = currentSession.user.user_metadata;
+              try {
+                await supabase.from('customer_profiles').insert({
+                  id: currentSession.user.id,
+                  first_name: meta?.full_name?.split(' ')[0] || meta?.name?.split(' ')[0] || '',
+                  last_name: meta?.full_name?.split(' ').slice(1).join(' ') || '',
+                  email: currentSession.user.email,
+                  phone: null, // will be collected via PhoneVerifyModal
+                  gender: null, // will be collected in profile completion
+                });
+              } catch (err) {
+                console.error("AUTH_SSO: Failed to create profile", err);
+              }
+            }
+          }
+          
           // Skip refetch if this was triggered by visibility change & we already have cached profile
           if ((isVisibilityChangeEvent && cachedProfileRef.current) || lastProfileFetchSessionIdRef.current === currentSession.user.id) {
             console.log("AUTH_STATE: Skipping refetch due to visibility change, using cache");

@@ -81,6 +81,22 @@ export default function AuthCallback() {
           return;
         }
 
+        // Check profile completion for logged-in users
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from('customer_profiles')
+            .select('phone, gender')
+            .eq('id', user.id)
+            .maybeSingle();
+
+          // Redirect to profile completion if incomplete
+          if (!profile?.phone || !profile?.gender) {
+            navigate("/profile-completion", { replace: true });
+            return;
+          }
+        }
+
         navigate("/auth", { replace: true });
       } catch (error: any) {
         console.error("AUTH_CALLBACK_ERROR", error);

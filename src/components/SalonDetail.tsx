@@ -71,6 +71,7 @@ type CustomerProfile = {
   firstName: string;
   lastName: string;
   phone: string;
+  altPhone?: string;
 };
 
 const EMPTY_PROFILE: CustomerProfile = {
@@ -88,7 +89,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
   const [barbers, setBarbers] = useState<BarberRow[]>([]);
   const [selectedService, setSelectedService] = useState<Tables<"services"> | null>(null);
   const [selectedBarberId, setSelectedBarberId] = useState<string>("");
-  const [customer, setCustomer] = useState({ firstName: "", lastName: "", phone: "", notes: "" });
+  const [customer, setCustomer] = useState({ firstName: "", lastName: "", phone: "", altPhone: "", notes: "" });
   const [savedProfile, setSavedProfile] = useState<CustomerProfile>(EMPTY_PROFILE);
   const [profileDraft, setProfileDraft] = useState<CustomerProfile>(EMPTY_PROFILE);
   const [hasSavedProfile, setHasSavedProfile] = useState(false);
@@ -546,6 +547,8 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         customer_first_name: activeCustomer.firstName.trim(),
         customer_last_name: activeCustomer.lastName.trim(),
         customer_phone: activeCustomer.phone.trim(),
+        contact_phone: activeCustomer.phone.trim() ? `+91${activeCustomer.phone.replace(/\D/g,'').slice(-10)}` : null,
+        alt_phone: activeCustomer.altPhone?.trim() ? `+91${activeCustomer.altPhone.replace(/\D/g,'').slice(-10)}` : null,
         notes: customer.notes.trim() || null,
         booking_date: date,
         time_slot: time,
@@ -696,6 +699,16 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
                         className="h-10 sm:h-11 md:h-12 rounded-lg border-2 border-[#cbc4d2] bg-white px-3 sm:px-4 text-sm sm:text-base placeholder:text-slate-300 focus-visible:ring-2 focus-visible:ring-[#6750a4]/20"
                       />
                       {phoneError ? <p className="mt-1 text-xs sm:text-sm text-red-600">{phoneError}</p> : null}
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-xs sm:text-sm font-semibold text-[#7a7582]">Alternative Number <span className="text-gray-400">(Optional)</span></label>
+                      <Input
+                        value={activeCustomer.altPhone || ""}
+                        onChange={(event) => setCustomer((prev) => ({ ...prev, altPhone: event.target.value }))}
+                        placeholder="For salon to call if needed"
+                        inputMode="tel"
+                        className="h-10 sm:h-11 md:h-12 rounded-lg border-2 border-[#cbc4d2] bg-white px-3 sm:px-4 text-sm sm:text-base placeholder:text-slate-300 focus-visible:ring-2 focus-visible:ring-[#6750a4]/20"
+                      />
                     </div>
                   </div>
                   <div>
