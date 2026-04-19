@@ -243,6 +243,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         setSession(currentSession);
         setLoading(false); // Resolve loading on any state change
+
+        // Auto-create customer profile on first sign-in if it doesn't exist
+        if (event === 'SIGNED_IN' && currentSession?.user) {
+          try {
+            const { data: existingProfile } = await supabase
+              .from('customer_profiles')
+              .select('id')
+              .eq('id', currentSession.user.id)
+              .maybeSingle();
+
+            if (!existingProfile) {
+              // Create empty profile for new customer
+              const { error } = await supabase
+                .from('customer_profiles')
+                .insert([{
+                  id: currentSession.user.id,
+                  email: currentSession.user.email || '',
+                  profile_complete_pct: 20, // Email only = 20%
+                }]);
+
+              if (import.meta.env.DEV && error) console.log('Auto-create profile:', error);
+            }
+          } catch (err) {
+            if (import.meta.env.DEV) console.error('Error auto-creating profile:', err);
+          }
+        }
         
         // Check if this is likely a visibility change event (within 1 second of visibility becoming visible)
         const isVisibilityChangeEvent = Date.now() - visibilityChangeTimeRef.current < 1000;

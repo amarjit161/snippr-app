@@ -12,6 +12,9 @@ import Auth from "./pages/Auth.tsx";
 import AuthCallback from "./pages/AuthCallback.tsx";
 import CustomerLogin from "./pages/CustomerLogin.tsx";
 import CustomerRegister from "./pages/CustomerRegister.tsx";
+import CompleteProfile from "./pages/CompleteProfile.tsx";
+import ForgotPassword from "./pages/ForgotPassword.tsx";
+import ResetPassword from "./pages/ResetPassword.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 // Lazy load non-critical pages
@@ -99,6 +102,9 @@ const AppRoutes = () => {
       <Route path="/" element={<Index />} />
       <Route path="/login" element={<CustomerLogin />} />
       <Route path="/register" element={<CustomerRegister />} />
+      <Route path="/complete-profile" element={<CompleteProfile />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/auth" element={<Auth />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="*" element={<NotFound />} />
@@ -109,7 +115,6 @@ const AppRoutes = () => {
       <Route path="/owner-login" element={<Suspense fallback={<PageLoader />}><OwnerLogin /></Suspense>} />
       <Route path="/owner-signup" element={<Suspense fallback={<PageLoader />}><OwnerSignUp /></Suspense>} />
       <Route path="/owner-reset-password" element={<Suspense fallback={<PageLoader />}><OwnerResetPassword /></Suspense>} />
-      <Route path="/reset-password" element={<Suspense fallback={<PageLoader />}><OwnerResetPassword /></Suspense>} />
       <Route path="/verify-email" element={<Suspense fallback={<PageLoader />}><VerifyEmail /></Suspense>} />
       <Route path="/onboarding" element={<Suspense fallback={<PageLoader />}><Onboarding /></Suspense>} />
       <Route path="/owner-register" element={<Suspense fallback={<PageLoader />}><OwnerRegistration /></Suspense>} />
