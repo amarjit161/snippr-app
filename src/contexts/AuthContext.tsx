@@ -313,14 +313,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!tawk) return;
 
     const setVisitor = () => {
+      // Only set attributes if email is available (skip during phone OTP flow)
+      if (!session.user.email) return;
+      
       tawk.setAttributes?.(
         {
           name: profile?.name || session.user.email?.split("@")[0] || "Customer",
-          email: session.user.email || "",
+          email: session.user.email,
           hash: "",
         },
         (error: any) => {
-          if (error) console.log("Tawk setAttributes error:", error);
+          if (error && error !== "INVALID_EMAIL") console.log("Tawk setAttributes error:", error);
         }
       );
     };
