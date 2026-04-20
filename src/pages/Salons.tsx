@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Search } from "lucide-react";
 import { publicSupabase } from "@/integrations/supabase/publicClient";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import type { Tables } from "@/integrations/supabase/types";
 import { calculateDistance } from "@/lib/location";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 export type SalonWithQueueAndDistance = Tables<"salons"> & { queueCount: number; waitTime: number; distance?: number };
 
@@ -152,179 +153,57 @@ const Salons = () => {
   const { user, profile, loading: authLoading, signOut } = useAuth();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<"distance" | "waitTime">("distance");
   const debouncedSearch = useDebounce(search, 300);
-  const [salons, setSalons] = useState<SalonWithQueueAndDistance[]>([]);
+  const queryClient = useQueryClient();
+  const { data: salons = [], isLoading: loading, error: queryError } = useQuery({
+    queryKey: ["salons", userCoords],
+    queryFn: async () => {
+      console.log("FETCH_SALONS_OPTIMIZED_START");
+      const { data, error } = await publicSupabase
+        .from("salon_with_stats" as any)
+        .select("*");
 
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [locationMode, setLocationMode] = useState<"auto" | "manual">("auto");
-  const [manualCity, setManualCity] = useState("");
-  const [userCoords, setUserCoords] = useState<{lat: number, lng: number} | null>(null);
-  const [locationError, setLocationError] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+      if (error) throw error;
 
-  console.log("SALONS_AUTH_STATE:", { 
-    userId: user?.id, 
-    authLoading, 
-    hasProfile: !!profile 
+      return (data as any[]).map(salon => {
+        let dist = undefined;
+        if (userCoords && salon.lat && salon.lng) {
+          dist = calculateDistance(userCoords.lat, userCoords.lng, salon.lat, salon.lng);
+        }
+        return { ...salon, distance: dist };
+      }).sort((a, b) => {
+        if (a.distance && b.distance) return a.distance - b.distance;
+        return 0;
+      });
+    },
+    enabled: !!user,
+    refetchInterval: 30000,
   });
 
+  const loadError = queryError ? "Could not load salons right now." : null;
+
+  // Real-time Subscriptions for Salon & Queue updates
   useEffect(() => {
-    if (!authLoading && !user) {
-      console.log("SALONS_REDIRECT_TO_AUTH");
-      navigate("/auth");
-    }
-  }, [user, authLoading, navigate]);
-
-  useEffect(() => {
-    console.log("SALONS_GEOLOCATION_INIT");
-    if (!navigator.geolocation) {
-      console.warn("GEOLOCATION_NOT_SUPPORTED");
-      setLocationMode("manual");
-      setLocationError(true);
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        console.log("GEOLOCATION_SUCCESS", position.coords);
-        setUserCoords({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        });
-        setLocationMode("auto");
-        setLocationError(false);
-      },
-      (error) => {
-        console.warn("GEOLOCATION_ERROR", error.code, error.message);
-        setLocationMode("manual");
-        setLocationError(true);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 8000,
-        maximumAge: 300000,
-      }
-    );
-  }, []);
-
-  const fetchSalons = useCallback(async () => {
-    console.log("FETCH_SALONS_START_INNER");
-    setLoading(true);
-    setLoadError(null);
-
-    try {
-      const fetchPromise = publicSupabase.from("salons").select("*");
-      const timeoutPromise = new Promise<any>((_, reject) => 
-        setTimeout(() => reject(new Error("Network timeout while fetching salons")), 10000)
-      );
-
-      const { data: salonData, error: salonError } = await Promise.race([fetchPromise, timeoutPromise]);
-      if (salonError) throw salonError;
-      console.log("FETCH_SALONS_RAW_DATA", salonData?.length);
-
-      const enriched: SalonWithQueueAndDistance[] = await Promise.all(
-        (salonData ?? []).map(async (salon) => {
-           // Optimized nested query: only fetch duration from services
-           // Also add a small timeout here so one slow queue fetch doesn't hang everything
-           const queueFetchPromise = publicSupabase
-            .from("queue")
-            .select("services(duration)")
-            .eq("salon_id", salon.id)
-            .eq("status", "waiting");
-            
-           const queueTimeoutPromise = new Promise<any>((_, reject) => 
-            setTimeout(() => reject(new Error("Queue timeout")), 5000)
-           );
-           
-           let queueData = null;
-           let queueError = null;
-           
-           try {
-             const result = await Promise.race([queueFetchPromise, queueTimeoutPromise]);
-             queueData = result.data;
-             queueError = result.error;
-           } catch (e) {
-             queueError = e;
-           }
-
-           if (queueError) {
-             console.warn("Queue fetch failed for salon", salon.id, queueError);
-           }
-
-           const queueCount = queueData?.length ?? 0;
-           const waitTime = (queueData ?? []).reduce(
-             (sum: any, e: any) => sum + (e.services?.duration ?? 20), 0
-           );
-
-           let dist = undefined;
-             if (userCoords && salon.lat && salon.lng) {
-               dist = calculateDistance(userCoords.lat, userCoords.lng, salon.lat, salon.lng);
-           }
-
-           return { ...salon, queueCount, waitTime, distance: dist };
-        })
-      );
-
-      // Sort by distance if available
-      enriched.sort((a, b) => {
-          if (a.distance && b.distance) return a.distance - b.distance;
-          return 0;
-      });
-
-      setSalons(enriched);
-      console.log("FETCH_SALONS_ENRICHED_SUCCESS", enriched.length);
-    } catch (error: any) {
-      console.error("Failed to load salons:", error);
-      setLoadError("Could not load salons right now. Please try again.");
-      setSalons([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [userCoords]); // Re-fetch only when user coordinates change
-
-  // 1. Initial Fetch on Mount
-  useEffect(() => {
-    console.log("SALONS_MOUNT_EFFECT");
-    fetchSalons();
-  }, [fetchSalons]);
-
-  // 2. Real-time Subscriptions for Salon & Queue updates
-  useEffect(() => {
+    if (!user) return;
+    
     console.log("SALONS_SUBSCRIPTION_INIT");
     const channel = publicSupabase
       .channel("salon-updates")
-      .on("postgres_changes", { event: "*", schema: "public", table: "queue" }, (payload) => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "queue" }, () => {
         console.log("SALONS_REALTIME: QUEUE_CHANGE_DETECTED");
-        fetchSalons();
+        queryClient.invalidateQueries({ queryKey: ["salons"] });
       })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "salons" }, (payload) => {
-        console.log("SALONS_REALTIME: SALON_UPDATE_DETECTED", payload.new?.id);
-        // Immediately refetch on salon update
-        fetchSalons();
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "salons" }, () => {
+        console.log("SALONS_REALTIME: SALON_UPDATE_DETECTED");
+        queryClient.invalidateQueries({ queryKey: ["salons"] });
       })
-      .subscribe((status) => {
-        console.log("SALONS_SUBSCRIPTION_STATUS", status);
-      });
+      .subscribe();
+      
     return () => { 
-      console.log("SALONS_SUBSCRIPTION_CLEANUP");
       publicSupabase.removeChannel(channel); 
     };
-  }, [fetchSalons]);
-
-  // 3. Periodic refresh fallback (every 10 seconds) to ensure latest data
-  useEffect(() => {
-    console.log("SALONS_PERIODIC_REFRESH_INIT");
-    const interval = setInterval(() => {
-      console.log("SALONS_PERIODIC_REFRESH_TRIGGERED");
-      fetchSalons();
-    }, 10000); // 10 seconds
-
-    return () => {
-      console.log("SALONS_PERIODIC_REFRESH_CLEANUP");
-      clearInterval(interval);
-    };
-  }, [fetchSalons]);
+  }, [user, queryClient]);
 
   const normalizedSearch = debouncedSearch.trim().toLowerCase();
   const isDelhiLocalityQuery =
@@ -420,7 +299,21 @@ const Salons = () => {
   const nearYouSalons = filtered
     .filter((salon) => salon.distance !== undefined)
     .slice()
-    .sort((a, b) => (a.distance as number) - (b.distance as number));
+    .sort((a, b) => {
+      if (sortBy === "distance") {
+        return (a.distance as number) - (b.distance as number);
+      } else {
+        return (a.waitTime || 0) - (b.waitTime || 0);
+      }
+    });
+
+  const sortedFiltered = filtered.slice().sort((a, b) => {
+    if (sortBy === "distance") {
+      return (a.distance || 0) - (b.distance || 0);
+    } else {
+      return (a.waitTime || 0) - (b.waitTime || 0);
+    }
+  });
 
   if (authLoading || (!user)) {
     return null;
@@ -437,32 +330,58 @@ const Salons = () => {
         isAdmin={false}
       />
 
-      <main className="container space-y-8 pb-32 py-8">
+      <main className="max-w-7xl mx-auto px-6 pt-12 pb-32">
         <div className="space-y-8">
-          <section className="ds-gradient-header space-y-2 p-5 sm:p-6">
-            <h1 className="font-display text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
-              Skip the wait.{" "}
-              <span className="text-primary">Join the queue.</span>
-            </h1>
-            <p className="text-muted-foreground max-w-lg">
-              Browse salons near you, see live wait times, and join the queue.
-            </p>
-          </section>
+          {/* Header Section */}
+          <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div>
+              <span className="font-headline font-bold text-xs uppercase tracking-widest text-[#630ed4] mb-2 block">
+                Nearby Artisans
+              </span>
+              <h1 className="font-headline font-extrabold text-4xl tracking-tight text-[#191c1d]">
+                Explore Salons
+              </h1>
+            </div>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setSortBy("distance")}
+                className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-colors ${
+                  sortBy === "distance" 
+                    ? "bg-[#630ed4] text-white shadow-lg shadow-[#630ed4]/20" 
+                    : "bg-white text-[#191c1d] shadow-sm border border-[#ccc3d8]/10 hover:bg-[#f3f4f5]"
+                }`}
+              >
+                Distance
+              </button>
+              <button 
+                onClick={() => setSortBy("waitTime")}
+                className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-colors ${
+                  sortBy === "waitTime" 
+                    ? "bg-[#630ed4] text-white shadow-lg shadow-[#630ed4]/20" 
+                    : "bg-white text-[#191c1d] shadow-sm border border-[#ccc3d8]/10 hover:bg-[#f3f4f5]"
+                }`}
+              >
+                Wait Time
+              </button>
+            </div>
+          </header>
 
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search salons, landmarks, addresses…"
-                value={search}
-                onFocus={() => setShowSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setShowSuggestions(true);
-                }}
-                className="ds-input pl-10"
-              />
+              <div className="flex items-center bg-[#e7e8e9] rounded-full px-4 py-3 border border-[#ccc3d8]/15 focus-within:bg-white focus-within:ring-2 focus-within:ring-[#630ed4]/20 transition-all">
+                <Search className="text-[#4a4455] mr-2 w-5 h-5" />
+                <Input
+                  placeholder="Search salons, landmarks, addresses…"
+                  value={search}
+                  onFocus={() => setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setShowSuggestions(true);
+                  }}
+                  className="bg-transparent border-none focus:ring-0 focus-visible:ring-0 text-sm w-full font-medium placeholder:text-[#4a4455]/60 shadow-none px-0"
+                />
+              </div>
               {showSuggestions && uniqueSuggestions.length > 0 ? (
                 <div className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-2xl border border-border bg-background shadow-xl">
                   <div className="border-b border-border px-4 py-3">
@@ -565,16 +484,16 @@ const Salons = () => {
             </section>
           ) : null}
 
-          <section className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <section className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {loading
               ? [1, 2, 3, 4].map((i) => (
                   <div key={i} className="h-40 rounded-xl bg-gray-200 animate-pulse" />
                 ))
               : loadError
               ? <p className="col-span-full rounded-xl border border-border bg-card p-6 text-center text-muted-foreground">{loadError}</p>
-              : filtered.length === 0
+              : sortedFiltered.length === 0
               ? <p className="col-span-full rounded-xl border border-border bg-card p-6 text-center text-muted-foreground">No salons found for your current search.</p>
-              : filtered.map((salon, i) => (
+              : sortedFiltered.map((salon, i) => (
                   <SalonCard key={salon.id} salon={salon as any} index={i} onSelect={() => navigate(`/salon/${salon.id}`)} />
                 ))}
           </section>

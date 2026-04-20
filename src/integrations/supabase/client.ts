@@ -32,7 +32,7 @@ if (typeof window !== "undefined") {
 
 const customFetch = (url: RequestInfo | URL, options?: RequestInit) => {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
   
   return fetch(url, { ...options, signal: controller.signal })
     .finally(() => clearTimeout(timeoutId));

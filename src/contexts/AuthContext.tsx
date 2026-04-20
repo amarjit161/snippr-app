@@ -59,112 +59,62 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const fetchProfile = async (s: Session | null, forceRefresh = false) => {
       const sessionId = s?.user?.id ?? null;
-
-      if (sessionId) {
-        if (profileFetchInFlightRef.current === sessionId) {
-          return;
-        }
-
-        if (!forceRefresh && lastProfileFetchSessionIdRef.current === sessionId) {
-          if (cachedProfileRef.current) {
-            console.log("FETCH_PROFILE: Using cached profile");
-            setProfile(cachedProfileRef.current);
-          }
-          return;
-        }
-
-        profileFetchInFlightRef.current = sessionId;
-
-        if (!isOwnerIntent(s)) {
-          console.log("FETCH_PROFILE_SKIPPED: customer session, not querying owners table");
-          cachedProfileRef.current = null;
-          setProfile(null);
-          lastProfileFetchSessionIdRef.current = sessionId;
-          profileFetchInFlightRef.current = null;
-          setProfileLoading(false);
-          return;
-        }
-
-        // If we have a cached profile and not forcing refresh, use cache
-        if (cachedProfileRef.current && !forceRefresh) {
-          console.log("FETCH_PROFILE: Using cached profile");
-          setProfile(cachedProfileRef.current);
-          lastProfileFetchSessionIdRef.current = sessionId;
-          profileFetchInFlightRef.current = null;
-          return;
-        }
-
-        console.log("FETCH_PROFILE_START", sessionId);
-        setProfileLoading(true);
-
-        const storedOwner = readStoredOwnerProfile();
-        if (storedOwner?.id === sessionId) {
-          console.log("FETCH_PROFILE: Using stored owner profile as immediate bootstrap");
-          cachedProfileRef.current = storedOwner;
-          setProfile(storedOwner);
-        }
-        
-        try {
-          console.log("FETCH_PROFILE: Requesting from database...");
-          
-          // Create a promise that times out after 5 seconds (for network issues)
-          const fetchWithTimeout = async () => {
-            return Promise.race([
-              supabase
-                .from("owners")
-                .select("*")
-                .eq("id", sessionId)
-                .maybeSingle(),
-              new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("Query timeout after 5s")), 5000)
-              ),
-            ]);
-          };
-
-          const { data, error } = (await fetchWithTimeout()) as any;
-
-          // maybeSingle() returns null if no row found — this is not an error for customers
-          if (!error) {
-            console.log("FETCH_PROFILE_COMPLETE:", data ?? "null (customer user, not owner)");
-            const resolvedProfile = data ?? storedOwner ?? null;
-            cachedProfileRef.current = resolvedProfile;
-            setProfile(resolvedProfile);
-            lastProfileFetchSessionIdRef.current = sessionId;
-            setProfileLoading(false);
-            return;
-          }
-
-          // Only retry on actual network/timeout errors
-          console.error("FETCH_PROFILE_ERROR:", error.message);
-          if (cachedProfileRef.current) {
-            setProfile(cachedProfileRef.current);
-          } else if (storedOwner?.id === sessionId) {
-            console.log("FETCH_PROFILE: Falling back to stored owner profile after error");
-            cachedProfileRef.current = storedOwner;
-            setProfile(storedOwner);
-          } else {
-            setProfile(null);
-          }
-        } catch (err: any) {
-          console.error("FETCH_PROFILE_EXCEPTION:", err.message || err);
-          if (cachedProfileRef.current) {
-            console.log("FETCH_PROFILE: Falling back to cached profile");
-            setProfile(cachedProfileRef.current);
-          } else if (storedOwner?.id === sessionId) {
-            console.log("FETCH_PROFILE: Falling back to stored owner profile after exception");
-            cachedProfileRef.current = storedOwner;
-            setProfile(storedOwner);
-          } else {
-            setProfile(null);
-          }
-        } finally {
-          profileFetchInFlightRef.current = null;
-          setProfileLoading(false);
-        }
-      } else {
+      if (!sessionId) {
         setProfile(null);
         cachedProfileRef.current = null;
         lastProfileFetchSessionIdRef.current = null;
+        setProfileLoading(false);
+        return;
+      }
+
+      // Check if we already have a fetch in flight for this user
+      if (profileFetchInFlightRef.current === sessionId && !forceRefresh) return;
+
+      // Skip if it's a customer (not owner) and we already checked
+      if (!forceRefresh && lastProfileFetchSessionIdRef.current === sessionId) {
+        if (cachedProfileRef.current) setProfile(cachedProfileRef.current);
+        return;
+      }
+
+      if (!isOwnerIntent(s)) {
+        console.log("FETCH_PROFILE_SKIPPED: Not an owner intent");
+        setProfile(null);
+        lastProfileFetchSessionIdRef.current = sessionId;
+        setProfileLoading(false);
+        return;
+      }
+
+      profileFetchInFlightRef.current = sessionId;
+      setProfileLoading(true);
+
+      const storedOwner = readStoredOwnerProfile();
+      if (storedOwner?.id === sessionId && !profile) {
+        setProfile(storedOwner); // Fast bootstrap
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from("owners")
+          .select("*")
+          .eq("id", sessionId)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        const resolvedProfile = data ?? null;
+        cachedProfileRef.current = resolvedProfile;
+        setProfile(resolvedProfile);
+        lastProfileFetchSessionIdRef.current = sessionId;
+        
+        if (resolvedProfile) {
+          localStorage.setItem("owner", JSON.stringify(resolvedProfile));
+        }
+      } catch (err: any) {
+        console.error("FETCH_PROFILE_ERROR:", err.message);
+        // Fallback to cache or stored
+        if (cachedProfileRef.current) setProfile(cachedProfileRef.current);
+        else if (storedOwner?.id === sessionId) setProfile(storedOwner);
+      } finally {
         profileFetchInFlightRef.current = null;
         setProfileLoading(false);
       }

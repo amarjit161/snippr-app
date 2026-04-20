@@ -98,69 +98,73 @@ const SalonCard = ({ salon, index, onSelect }: SalonCardProps) => {
       initial="hidden"
       animate="visible"
       variants={cardFloat}
-      className="group cursor-pointer overflow-hidden rounded-2xl bg-white shadow-md transition-all duration-150 ease-out hover:-translate-y-px hover:shadow-md"
+      className="group bg-white rounded-2xl overflow-hidden shadow-[0_20px_40px_rgba(99,14,212,0.06)] transition-all hover:-translate-y-1 cursor-pointer"
       onClick={() => onSelect(salon)}
     >
-      <div className="relative h-48 overflow-hidden">
+      <div className="relative h-56 overflow-hidden">
         <img
           src={getSalonImageSrc(salon.image_url)}
           alt={salon.name}
           loading={index === 0 ? undefined : "lazy"}
-          width={640}
-          height={512}
-          className="h-48 w-full rounded-t-2xl object-cover transition-transform duration-500 group-hover:scale-105"
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
         />
-        <Badge
-          className={`absolute top-3 right-3 ${
-            isOpen
-              ? "bg-success text-success-foreground"
-              : "bg-muted text-muted-foreground"
-          }`}
-        >
-          {isOpen ? "Open" : "Closed"}
-        </Badge>
-      </div>
-
-      <div className="p-4 space-y-3">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="font-display text-lg font-bold text-card-foreground leading-tight">
-            {salon.name}
-          </h3>
-          <span className="flex items-center gap-1 text-sm font-medium text-warning shrink-0">
-            <Star className="h-4 w-4 fill-current" />
-            {salon.rating}
-          </span>
-        </div>
-
-        <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <MapPin className="h-3.5 w-3.5" />
-          {salon.location} {salon.distance !== undefined ? `• ${salon.distance.toFixed(1)} km away` : ""}
-        </p>
-
-        {isOpen && (
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <Users className="h-3.5 w-3.5" />
-              {salon.queueCount} in queue
+        <div className="absolute top-4 right-4 flex gap-2">
+          {isOpen ? (
+            <span className="bg-[#6ffbbe] text-[#002113] px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm">
+              Open
             </span>
-            <span className="flex items-center gap-1">
-              <Clock className="h-3.5 w-3.5" />
-              ~{salon.waitTime} min
+          ) : (
+            <span className="bg-[#e1e3e4] text-[#191c1d] px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm">
+              Closed
+            </span>
+          )}
+        </div>
+        
+        {isOpen && (
+          <div className="absolute bottom-4 left-4">
+            <span className="bg-black/40 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5" />
+              {salon.waitTime}m wait
             </span>
           </div>
         )}
+      </div>
 
-        <Button
+      <div className="p-6">
+        <div className="flex justify-between items-start mb-2">
+          <h3 className="font-headline font-bold text-xl text-[#191c1d] line-clamp-1">
+            {salon.name}
+          </h3>
+          <div className="flex items-center gap-1 text-[#191c1d]">
+            <Star className="text-[#630ed4] w-[18px] h-[18px] fill-[#630ed4]" />
+            <span className="font-bold text-sm">{salon.rating || "4.8"}</span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 text-[#4a4455] text-sm mb-6 whitespace-nowrap overflow-hidden text-ellipsis">
+          {salon.distance !== undefined && (
+            <>
+              <span className="flex items-center gap-1 shrink-0">
+                <MapPin className="w-[16px] h-[16px]" />
+                {salon.distance.toFixed(1)} km
+              </span>
+              <span className="w-1 h-1 rounded-full bg-[#ccc3d8] shrink-0"></span>
+            </>
+          )}
+          <span className="truncate">{salon.location || "Location not available"}</span>
+        </div>
+
+        <button 
           onClick={(e) => {
             e.stopPropagation();
             onSelect(salon);
           }}
           disabled={!isOpen}
-          className="w-full mt-1"
-          size="lg"
+          className="w-full text-white py-3 rounded-full font-bold text-sm tracking-wide shadow-lg hover:brightness-110 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{ background: isOpen ? 'linear-gradient(to right, #630ed4, #7c3aed)' : '#7b7487' }}
         >
-          {isOpen ? "View & Join Queue" : "Currently Closed"}
-        </Button>
+          {isOpen ? "Book a Snipp" : "Currently Closed"}
+        </button>
       </div>
     </motion.div>
   );
