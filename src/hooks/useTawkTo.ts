@@ -9,17 +9,22 @@ export const useTawkTo = () => {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       if (typeof window === "undefined") return;
-      const tawk = (window as any).Tawk_API;
-      if (!tawk) return;
+      let tawk;
+      try {
+        tawk = (window as any).Tawk_API;
+        if (!tawk) return;
 
-      const shouldShow =
-        TAWK_VISIBLE_PATHS.some((path) => location.pathname === path) ||
-        location.pathname.startsWith("/salon/");
+        const shouldShow =
+          TAWK_VISIBLE_PATHS.some((path) => location.pathname === path) ||
+          location.pathname.startsWith("/salon/");
 
-      if (shouldShow) {
-        tawk.showWidget?.();
-      } else {
-        tawk.hideWidget?.();
+        if (shouldShow) {
+          tawk.showWidget?.();
+        } else {
+          tawk.hideWidget?.();
+        }
+      } catch (e) {
+        // tawk.to blocked by ad blocker — ignore
       }
     }, 500);
 
