@@ -15,6 +15,7 @@ import TurnstileCaptcha, { type TurnstileCaptchaHandle } from "@/components/Turn
 import { verifyTurnstileToken } from "@/lib/turnstile";
 import { SlotPicker } from "@/components/booking/SlotPicker";
 import { sendBookingEmail } from "@/services/emailService";
+import BookingSuccess from "@/components/BookingSuccess";
 
 import salon1 from "@/assets/salon-1.jpg";
 import salon2 from "@/assets/salon-2.jpg";
@@ -107,6 +108,14 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
   const [bookedSlots, setBookedSlots] = useState<Set<string>>(new Set());
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [lastAvailabilityUpdate, setLastAvailabilityUpdate] = useState<Date | null>(null);
+  const [confirmedBookingState, setConfirmedBookingState] = useState<{
+    salonName: string;
+    serviceName: string;
+    address: string;
+    image: string;
+    estimatedWait: string;
+    queuePosition: number | string;
+  } | null>(null);
   const turnstileRef = useRef<TurnstileCaptchaHandle | null>(null);
   const firstNameInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -604,18 +613,14 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
         setMyQueuePosition(nextPosition);
         
-        // Format time from HH:MM:SS to 12-hour format
-        const [hours, minutes] = time.split(':');
-        const hour = parseInt(hours);
-        const ampm = hour >= 12 ? 'PM' : 'AM';
-        const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
-        const displayTime = `${displayHour}:${minutes} ${ampm}`;
-        
-        const successMsg = isAdvanceBooking
-          ? `Booking confirmed for ${date} at ${displayTime}.`
-          : `Booking successful. Your Token Number: #${nextPosition}`;
-        toast.success(successMsg);
-        onJoined();
+        setConfirmedBookingState({
+          salonName: salon.name,
+          serviceName: selectedService.name,
+          address: salon.address || salon.location || "",
+          image: salon.image_url || "",
+          estimatedWait: estimatedWait,
+          queuePosition: nextPosition,
+        });
         setBooking(false);
       }
     } catch (err: any) {
@@ -625,6 +630,16 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       setVerifyingCaptcha(false);
     }
   };
+
+  if (confirmedBookingState) {
+    return (
+      <BookingSuccess
+        {...confirmedBookingState}
+        onViewBookings={onJoined}
+        onModify={onBack}
+      />
+    );
+  }
 
   return (
     <motion.div initial="hidden" animate="visible" variants={pageFade} className="min-h-screen bg-[#faf9fc] text-[#1a1c1e]">
