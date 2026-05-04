@@ -8,14 +8,14 @@ import { AuthProvider } from "@/contexts/AuthContext";
 
 // Eager load critical pages
 import Index from "./pages/Index.tsx";
-import Auth from "./pages/Auth.tsx";
-import AuthCallback from "./pages/AuthCallback.tsx";
 import CustomerLogin from "./pages/CustomerLogin.tsx";
 import CustomerRegister from "./pages/CustomerRegister.tsx";
 import CompleteProfile from "./pages/CompleteProfile.tsx";
 import ForgotPassword from "./pages/ForgotPassword.tsx";
 import ResetPassword from "./pages/ResetPassword.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import Auth from "./pages/Auth.tsx";
+import AuthCallback from "./pages/AuthCallback.tsx";
 
 // Lazy load non-critical pages
 const Verify = lazy(() => import("./pages/Verify.tsx"));
@@ -101,11 +101,11 @@ const AppRoutes = () => {
       {/* Critical pages - No suspension */}
       <Route path="/" element={<Index />} />
       <Route path="/login" element={<CustomerLogin />} />
+      <Route path="/auth" element={<Auth />} />
       <Route path="/register" element={<CustomerRegister />} />
       <Route path="/complete-profile" element={<CompleteProfile />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/auth" element={<Auth />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="*" element={<NotFound />} />
 

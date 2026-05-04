@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import type { Tables } from "@/integrations/supabase/types";
 import { calculateDistance } from "@/lib/location";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useGeolocation } from "@/hooks/useGeolocation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 export type SalonWithQueueAndDistance = Tables<"salons"> & { queueCount: number; waitTime: number; distance?: number };
@@ -152,6 +153,7 @@ const Salons = () => {
   console.log("SALONS_COMPONENT_RENDER_START");
   const { user, profile, loading: authLoading, signOut } = useAuth();
   const navigate = useNavigate();
+  const { location: userCoords } = useGeolocation();
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"distance" | "waitTime">("distance");
   const debouncedSearch = useDebounce(search, 300);
