@@ -105,11 +105,18 @@ export function useSlotAvailability(
     setSlots([]);
     try {
       // Step 1/2: read salon hours and always apply fallback values.
+      // Step 1/2: read salon hours and always apply fallback values.
+      console.log("🔄 SLOT_AVAILABILITY_FETCH_START:", { salonId, date: selectedDate, barberId });
       const { data: salon, error: salonError } = await supabase
         .from("salons" as any)
         .select("open_time, close_time, is_manual_closed")
         .eq("id", salonId)
         .maybeSingle();
+      
+      if (salonError) {
+        console.error("❌ SALON_FETCH_ERROR:", salonError);
+      }
+      console.log('✅ SALON_FETCHED:', { salon, error: salonError });
 
       if (import.meta.env.DEV) console.log('SALON_FETCH:', { salonId, salon, error: salonError });
       if (import.meta.env.DEV) console.log('SALON_RAW_DATA:', JSON.stringify(salon));
@@ -127,6 +134,7 @@ export function useSlotAvailability(
       });
 
       // Step 3: holiday check first.
+      console.log("🔄 CHECKING_HOLIDAYS for:", { salonId, selectedDate });
       const { data: holiday } = await supabase
         .from("salon_holidays" as any)
         .select("date, name, note, type")
@@ -135,6 +143,11 @@ export function useSlotAvailability(
         .maybeSingle();
 
       if (requestId !== requestSequenceRef.current) {
+              if (holiday) {
+                console.log("📅 HOLIDAY_FOUND:", holiday);
+              } else {
+                console.log("📅 NO_HOLIDAY_ON_DATE");
+              }
         return;
       }
 
@@ -152,6 +165,7 @@ export function useSlotAvailability(
       setHolidayInfo(null);
 
       // Step 4: booked slots for the selected day.
+        console.log("🔄 FETCHING_BOOKED_SLOTS for:", { salonId, selectedDate });
       const { data: bookedRecords, error: bookingsError } = await supabase
         .from("queue" as any)
         .select("time_slot, barber_id, status")
@@ -162,17 +176,13 @@ export function useSlotAvailability(
       if (requestId !== requestSequenceRef.current) {
         return;
       }
-
-      if (import.meta.env.DEV) console.log('SLOT_QUERY:', { 
-        date, 
-        bookingsFound: bookedRecords?.length || 0,
-        error: bookingsError ? { code: bookingsError.code, message: bookingsError.message, details: bookingsError.details } : null
-      });
-
-      // Handle query errors gracefully
-      if (requestId !== requestSequenceRef.current) {
-        return;
+      if (bookingsError) {
+        console.error("❌ QUEUE_FETCH_ERROR:", bookingsError);
+      } else {
+        console.log("✅ BOOKED_RECORDS_FETCHED:", bookedRecords?.length || 0, "bookings");
       }
+
+
 
       if (bookingsError) {
         if (import.meta.env.DEV) console.error('SLOT_QUERY_ERROR:', bookingsError.code, bookingsError.message, bookingsError.details);
@@ -268,12 +278,20 @@ export function useSlotAvailability(
       });
 
       setSlots(updatedSlots);
+            console.log("✅ SLOTS_GENERATED_SUCCESSFULLY:", {
+              totalSlots: updatedSlots.length,
+              availableSlots: updatedSlots.filter(s => s.available).length,
+              salonId,
+              date: selectedDate,
+              openTime,
+              closeTime
+            });
       setLastUpdated(new Date());
     } catch (error) {
       if (requestId !== requestSequenceRef.current) {
         return;
       }
-      if (import.meta.env.DEV) console.error("Error fetching slots:", error);
+      console.error("❌ SLOT_AVAILABILITY_ERROR:", error);
       setSlots([]);
     } finally {
       if (requestId !== requestSequenceRef.current) {
