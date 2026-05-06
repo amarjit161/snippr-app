@@ -478,18 +478,23 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       return;
     }
 
+    console.log("📋 BOOKING_ATTEMPT_START", { salon: salon.id, date, time, barber: selectedBarberId });
     setVerifyingCaptcha(true);
 
     try {
       const token = turnstileRef.current?.getResponse() || "";
       if (!token) {
+        console.log("❌ BOOKING_NO_CAPTCHA_TOKEN");
         toast.error("Invalid or expired captcha");
         resetCaptcha();
         setVerifyingCaptcha(false);
         return;
       }
 
+      console.log("🔐 BOOKING_CAPTCHA_VERIFY_START");
       const captchaResult = await verifyTurnstileToken(token);
+      console.log("🔐 BOOKING_CAPTCHA_VERIFY_RESULT", captchaResult.success);
+      
       if (!captchaResult.success) {
         toast.error(captchaResult.message || "Captcha verification failed");
         resetCaptcha();
@@ -567,6 +572,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         return;
       }
 
+      console.log("📍 BOOKING_FETCH_LATEST_POSITION");
       const { data: latestQueueEntry } = await supabase
         .from("queue" as any)
         .select("position")
@@ -577,6 +583,8 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
       const nextPosition = Number(latestQueueEntry?.position || 0) + 1;
       const createdAt = new Date().toISOString();
+      
+      console.log("💾 BOOKING_INSERT_START", { position: nextPosition, date, time });
 
       const { data: insertedData, error } = await (supabase.from("queue") as any).insert({
         user_id: user?.id || currentUser.id,
@@ -597,15 +605,18 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       }).select().single();
 
       if (error) {
+        console.error("❌ BOOKING_INSERT_ERROR", error);
         handleBookingError(error as any, refreshAvailability);
         setBooking(false);
         return;
       } else {
+        console.log("✅ BOOKING_INSERT_SUCCESS", { id: insertedData?.id, position: nextPosition });
         const customerEmail = currentUser.email || user?.email;
         
         // Send booking confirmation email
         if (customerEmail && insertedData) {
           try {
+            console.log("📧 BOOKING_EMAIL_SEND_START");
             // Get owner email
             const { data: ownerData } = await supabase
               .from("owners")
@@ -634,8 +645,9 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
               timeSlot: displayTime,
               amount: selectedService.price || 0,
             });
+            console.log("✅ BOOKING_EMAIL_SEND_SUCCESS");
           } catch (emailErr) {
-            console.warn("❌ BOOKING_EMAIL_FAILED", emailErr);
+            console.warn("⚠️ BOOKING_EMAIL_FAILED", emailErr);
             // Don't fail the booking if email fails
           }
         }
@@ -646,6 +658,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
         setMyQueuePosition(nextPosition);
         
+        console.log("🎉 BOOKING_SUCCESS_SHOW", { position: nextPosition, salonName: salon.name });
         setConfirmedBookingState({
           salonName: salon.name,
           serviceName: selectedService.name,
@@ -657,7 +670,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         setBooking(false);
       }
     } catch (err: any) {
-      console.error("BOOKING_ERROR", err);
+      console.error("❌ BOOKING_EXCEPTION_ERROR", err);
       toast.error(err.message || "Failed to join queue");
       setBooking(false);
       setVerifyingCaptcha(false);
