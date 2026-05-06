@@ -28,7 +28,8 @@ export default function Queue() {
   const { loading, actionLoading, owner, salon, services, barbers, grouped, pendingAccepts, startAccept, undoAccept, addWalkIn, updateStatus, updateBarber } = useQueue(navigate);
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 250);
+    // Reduced from 250ms to 1000ms to minimize re-renders (still responsive for UI updates)
+    const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
 
