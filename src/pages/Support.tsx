@@ -50,7 +50,7 @@ export default function Support() {
     }
 
     supabase
-      .from("queue")
+      .from("appointments")
       .select("*, salons(name)")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })

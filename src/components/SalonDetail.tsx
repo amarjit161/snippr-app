@@ -586,7 +586,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       
       console.log("💾 BOOKING_INSERT_START", { position: nextPosition, date, time });
 
-      const { data: insertedData, error } = await (supabase.from("queue") as any).insert({
+      const { data: insertedData, error } = await (supabase.from("appointments") as any).insert({
         user_id: user?.id || currentUser.id,
         salon_id: salon.id,
         service_id: selectedService.id,

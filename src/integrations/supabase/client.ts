@@ -30,14 +30,6 @@ if (typeof window !== "undefined") {
   console.info("Supabase project URL:", supabaseUrl);
 }
 
-const customFetch = (url: RequestInfo | URL, options?: RequestInit) => {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
-  
-  return fetch(url, { ...options, signal: controller.signal })
-    .finally(() => clearTimeout(timeoutId));
-};
-
 const createSupabaseClient = () => {
   const client = createClient<Database>(supabaseUrl, supabaseKey, {
     db: {
@@ -48,9 +40,6 @@ const createSupabaseClient = () => {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-    },
-    global: {
-      fetch: customFetch
     }
   });
   

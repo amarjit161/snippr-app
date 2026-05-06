@@ -29,7 +29,7 @@ export const BookingCalendar = ({ salonId }: BookingCalendarProps) => {
     setLoading(true);
 
     const { data } = await supabase
-      .from("queue")
+      .from("appointments")
       .select(`
         id, booking_date, time_slot, status,
         customer_first_name, customer_last_name, customer_phone,
@@ -71,7 +71,7 @@ export const BookingCalendar = ({ salonId }: BookingCalendarProps) => {
   };
 
   const updateStatus = async (bookingId: string, status: string) => {
-    await supabase.from("queue").update({ status } as any).eq("id", bookingId);
+    await supabase.from("appointments").update({ status } as any).eq("id", bookingId);
     await fetchBookings();
   };
 

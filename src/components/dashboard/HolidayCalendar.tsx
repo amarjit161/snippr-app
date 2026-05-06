@@ -138,7 +138,7 @@ export function HolidayCalendar({ salonId }: HolidayCalendarProps) {
 
       const [scheduledRes, walkInRes] = await Promise.all([
         supabase
-          .from("queue")
+          .from("appointments")
           .select(
             "id, booking_date, created_at, time_slot, status, customer_first_name, customer_last_name, customer_phone, services(name), barbers(name)"
           )
@@ -147,7 +147,7 @@ export function HolidayCalendar({ salonId }: HolidayCalendarProps) {
           .lte("booking_date", monthEndIso)
           .order("time_slot", { ascending: true }),
         supabase
-          .from("queue")
+          .from("appointments")
           .select(
             "id, booking_date, created_at, time_slot, status, customer_first_name, customer_last_name, customer_phone, services(name), barbers(name)"
           )
