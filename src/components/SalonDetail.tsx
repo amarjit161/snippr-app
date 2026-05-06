@@ -254,7 +254,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
   useEffect(() => {
     const fetchNextPosition = async () => {
       const { data } = await (supabase
-        .from("queue" as any) as any)
+        .from("appointments" as any) as any)
         .select("position")
         .eq("salon_id", salon.id)
         .order("position", { ascending: false })
@@ -289,7 +289,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       setCheckingAvailability(true);
       try {
         const { data } = await supabase
-          .from("queue" as any)
+          .from("appointments" as any)
           .select("time_slot")
           .eq("salon_id", salon.id)
           .eq("barber_id", selectedBarberId)
@@ -356,7 +356,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
     const interval = setInterval(async () => {
       try {
         const { data } = await supabase
-          .from("queue" as any)
+          .from("appointments" as any)
           .select("time_slot")
           .eq("salon_id", salon.id)
           .eq("barber_id", selectedBarberId)
@@ -437,7 +437,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
     if (!date || !selectedBarberId) return;
 
     const { data } = await supabase
-      .from("queue" as any)
+      .from("appointments" as any)
       .select("time_slot")
       .eq("salon_id", salon.id)
       .eq("barber_id", selectedBarberId)
@@ -510,7 +510,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       // FINAL SAFETY CHECK - Refresh availability one last time before booking
       console.log("🔒 FINAL_CHECK: Refreshing availability before booking...");
       const { data: latestBookings } = await supabase
-        .from("queue" as any)
+        .from("appointments" as any)
         .select("time_slot")
         .eq("salon_id", salon.id)
         .eq("barber_id", selectedBarberId)
@@ -539,7 +539,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
       // Prevent multiple active bookings for the same user across salons.
       const { data: existingActiveBooking } = await supabase
-        .from("queue" as any)
+        .from("appointments" as any)
         .select("id, salon_id")
         .eq("user_id", currentUser.id)
         .in("status", ["waiting", "in_progress"])
@@ -554,7 +554,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
       // Now do the original conflict check
       const { data: conflictCheck } = await supabase
-        .from("queue" as any)
+        .from("appointments" as any)
         .select("id")
         .eq("salon_id", salon.id)
         .eq("barber_id", selectedBarberId)
@@ -574,7 +574,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
       console.log("📍 BOOKING_FETCH_LATEST_POSITION");
       const { data: latestQueueEntry } = await supabase
-        .from("queue" as any)
+        .from("appointments" as any)
         .select("position")
         .eq("salon_id", salon.id)
         .order("position", { ascending: false })
