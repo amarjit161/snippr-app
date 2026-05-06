@@ -56,6 +56,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
+  // Helper for internal auth queries to prevent hanging
+  const supabaseWithTimeout = async (query: any, timeoutMs = 8000) => {
+    const timeout = new Error("AUTH_QUERY_TIMEOUT");
+    const promise = new Promise((_, reject) => setTimeout(() => reject(timeout), timeoutMs));
+    return Promise.race([query, promise]) as any;
+  };
+
   useEffect(() => {
     const fetchProfile = async (s: Session | null, forceRefresh = false) => {
       const sessionId = s?.user?.id ?? null;
@@ -93,11 +100,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       try {
-        const { data, error } = await supabase
-          .from("owners")
-          .select("*")
-          .eq("id", sessionId)
-          .maybeSingle();
+        const { data, error } = await supabaseWithTimeout(
+          supabase.from("owners").select("*").eq("id", sessionId).maybeSingle()
+        );
 
         if (error) throw error;
 
@@ -122,7 +127,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const initAuth = async () => {
       try {
-        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        const { data: { session: initialSession } } = await supabaseWithTimeout(supabase.auth.getSession(), 10000);
         console.log("SESSION_ON_LOAD:", initialSession ? "Active" : "None");
         setSession(initialSession);
         if (initialSession) {
@@ -197,21 +202,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Auto-create customer profile on first sign-in if it doesn't exist
         if (event === 'SIGNED_IN' && currentSession?.user) {
           try {
-            const { data: existingProfile } = await supabase
-              .from('customer_profiles')
-              .select('id')
-              .eq('id', currentSession.user.id)
-              .maybeSingle();
+            const { data: existingProfile } = await supabaseWithTimeout(
+              supabase.from('customer_profiles').select('id').eq('id', currentSession.user.id).maybeSingle()
+            );
 
             if (!existingProfile) {
               // Create empty profile for new customer
-              const { error } = await supabase
-                .from('customer_profiles')
-                .insert([{
+              const { error } = await supabaseWithTimeout(
+                supabase.from('customer_profiles').insert([{
                   id: currentSession.user.id,
                   email: currentSession.user.email || '',
                   profile_complete_pct: 20, // Email only = 20%
-                }]);
+                }])
+              );
 
               if (import.meta.env.DEV && error) console.log('Auto-create profile:', error);
             }
@@ -227,25 +230,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (event === "SIGNED_IN" && currentSession) {
           // Auto-create customer profile if SSO login and no profile exists
           if (currentSession.user) {
-            const { data: existing } = await supabase
-              .from('customer_profiles')
-              .select('id')
-              .eq('id', currentSession.user.id)
-              .maybeSingle();
+            const { data: existing } = await supabaseWithTimeout(
+              supabase.from('customer_profiles').select('id').eq('id', currentSession.user.id).maybeSingle()
+            );
             
             if (!existing) {
               console.log("AUTH_SSO: Creating auto-profile for new SSO user");
               // New SSO user — create profile from Google data
               const meta = currentSession.user.user_metadata;
               try {
-                await supabase.from('customer_profiles').insert({
-                  id: currentSession.user.id,
-                  first_name: meta?.full_name?.split(' ')[0] || meta?.name?.split(' ')[0] || '',
-                  last_name: meta?.full_name?.split(' ').slice(1).join(' ') || '',
-                  email: currentSession.user.email,
-                  phone: null, // will be collected via PhoneVerifyModal
-                  gender: null, // will be collected in profile completion
-                });
+                await supabaseWithTimeout(
+                  supabase.from('customer_profiles').insert({
+                    id: currentSession.user.id,
+                    first_name: meta?.full_name?.split(' ')[0] || meta?.name?.split(' ')[0] || '',
+                    last_name: meta?.full_name?.split(' ').slice(1).join(' ') || '',
+                    email: currentSession.user.email,
+                    phone: null, // will be collected via PhoneVerifyModal
+                    gender: null, // will be collected in profile completion
+                  })
+                );
               } catch (err) {
                 console.error("AUTH_SSO: Failed to create profile", err);
               }
@@ -302,35 +305,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.removeItem("owner");
     }
   };
-
-  useEffect(() => {
-    if (!session?.user || typeof window === "undefined") return;
-
-    const tawk = (window as any).Tawk_API;
-    if (!tawk) return;
-
-    const setVisitor = () => {
-      // Only set attributes if email is available (skip during phone OTP flow)
-      if (!session.user.email) return;
-      
-      tawk.setAttributes?.(
-        {
-          name: profile?.name || session.user.email?.split("@")[0] || "Customer",
-          email: session.user.email,
-          hash: "",
-        },
-        (error: any) => {
-          if (error && error !== "INVALID_EMAIL") console.log("Tawk setAttributes error:", error);
-        }
-      );
-    };
-
-    if (typeof tawk.setAttributes === "function") {
-      setVisitor();
-    } else {
-      tawk.onLoad = setVisitor;
-    }
-  }, [session?.user, profile]);
 
   return (
     <AuthContext.Provider value={{ session, user: session?.user ?? null, profile, loading, profileLoading, signOut }}>
