@@ -21,13 +21,30 @@ export const verifyTurnstileWithCloudflare = async (
 
   const body = new URLSearchParams(payload);
 
-  const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body,
-  });
+  try {
+    // Create abort controller with 8 second timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-  return (await response.json()) as TurnstileCloudflareResponse;
+    const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body,
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+    return (await response.json()) as TurnstileCloudflareResponse;
+  } catch (error: any) {
+    // Handle timeout errors
+    if (error?.name === "AbortError") {
+      return {
+        success: false,
+        "error-codes": ["timeout"],
+      };
+    }
+    throw error;
+  }
 };

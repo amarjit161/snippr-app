@@ -39,7 +39,7 @@ export default async function handler(req: any, res: any) {
 
   const secret = process.env.TURNSTILE_SECRET_KEY;
   if (!secret) {
-    console.error("TURNSTILE_SECRET_KEY is missing in process.env");
+    console.error("❌ TURNSTILE_SECRET_KEY is missing in process.env");
     res.statusCode = 500;
     res.setHeader("Content-Type", "application/json");
     res.end(JSON.stringify({ success: false, message: "Captcha verification unavailable" }));
@@ -57,34 +57,41 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    console.log(token);
+    console.log("🔐 TURNSTILE_SERVER_VERIFY_START");
 
     const remoteIpHeader = req.headers["x-forwarded-for"];
     const remoteIp = typeof remoteIpHeader === "string" ? remoteIpHeader.split(",")[0].trim() : undefined;
+    
     const result = await verifyTurnstileWithCloudflare(token, secret, remoteIp);
-    console.log(result);
+    console.log("🔐 TURNSTILE_SERVER_VERIFY_RESULT", result);
 
     if (!result.success) {
-      console.error("Cloudflare Turnstile verification failed", result);
+      console.error("❌ TURNSTILE_SERVER_CLOUDFLARE_FAILED", result);
       res.statusCode = 400;
       res.setHeader("Content-Type", "application/json");
+      
       const isExpiredOrInvalid = (result["error-codes"] || []).some((code) =>
-        ["timeout-or-duplicate", "invalid-input-response", "missing-input-response"].includes(code)
+        ["timeout-or-duplicate", "invalid-input-response", "missing-input-response", "timeout"].includes(code)
       );
 
+      const message = isExpiredOrInvalid 
+        ? "Invalid or expired captcha" 
+        : "Captcha verification failed";
+      
       res.end(JSON.stringify({
         success: false,
-        message: isExpiredOrInvalid ? "Invalid or expired captcha" : "Captcha verification failed",
+        message,
         "error-codes": result["error-codes"] || [],
       }));
       return;
     }
 
+    console.log("✅ TURNSTILE_SERVER_VERIFY_SUCCESS");
     res.statusCode = 200;
     res.setHeader("Content-Type", "application/json");
     res.end(JSON.stringify({ success: true }));
   } catch (error) {
-    console.error("Turnstile verification error", error);
+    console.error("❌ TURNSTILE_SERVER_VERIFY_ERROR", error);
     res.statusCode = 500;
     res.setHeader("Content-Type", "application/json");
     res.end(JSON.stringify({ success: false, message: "Captcha verification failed" }));
