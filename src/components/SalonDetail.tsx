@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { ChevronLeft, Calendar, Check, Clock, DollarSign, Loader2, MapPin, Navigation, Star, UserRound } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { publicSupabase } from "@/integrations/supabase/publicClient";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -132,7 +133,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
     const fetchServices = async () => {
       try {
         console.log("📋 FETCHING_SERVICES for salon:", salon.id);
-        const { data, error } = await supabase
+        const { data, error } = await publicSupabase
           .from("services")
           .select("*")
           .eq("salon_id", salon.id);
@@ -184,7 +185,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
     const loadBarbers = async () => {
       try {
         console.log("💈 FETCHING_BARBERS for salon:", salon.id);
-        const { data, error } = await supabase
+        const { data, error } = await publicSupabase
           .from("barbers" as any)
           .select("id, name, chair_number, specialization")
           .eq("salon_id", salon.id)
