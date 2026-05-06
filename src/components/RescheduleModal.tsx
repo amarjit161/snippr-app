@@ -27,16 +27,16 @@ export function RescheduleModal({
   const [selectedTime, setSelectedTime] = useState("");
   const [activePicker, setActivePicker] = useState<"date" | "time" | null>("date");
 
-  if (!booking) return null;
-
-  const today = new Date();
-
   useEffect(() => {
     if (!open) return;
     setSelectedDate("");
     setSelectedTime("");
     setActivePicker("date");
   }, [open]);
+
+  if (!booking) return null;
+
+  const today = new Date();
 
   // Generate next 30 days
   const generateDates = () => {

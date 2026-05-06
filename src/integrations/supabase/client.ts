@@ -43,14 +43,20 @@ const createSupabaseClient = () => {
     },
     global: {
       fetch: async (url, options) => {
+        const start = performance.now();
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+        const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout
         
         try {
           const res = await fetch(url, { ...options, signal: controller.signal });
+          const end = performance.now();
+          if (end - start > 5000) {
+            console.warn(`🐢 SLOW_FETCH [${Math.round(end - start)}ms]:`, url);
+          }
           return res;
         } catch (error: any) {
-          console.error("🌐 SUPABASE_FETCH_ERROR:", { url, error });
+          const end = performance.now();
+          console.error(`🌐 SUPABASE_FETCH_ERROR [${Math.round(end - start)}ms]:`, { url, error });
           throw error;
         } finally {
           clearTimeout(timeoutId);

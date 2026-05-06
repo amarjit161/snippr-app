@@ -269,9 +269,9 @@ export default function Dashboard() {
     try {
       console.log("📋 BOOKINGS_FETCH_START");
       
-      // Create a timeout promise that rejects after 12 seconds
+      // Create a timeout promise that rejects after 20 seconds
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("DATABASE_QUERY_TIMEOUT")), 12000)
+        setTimeout(() => reject(new Error("DATABASE_QUERY_TIMEOUT")), 20000)
       );
 
       // Race the supabase query against the timeout

@@ -57,7 +57,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Helper for internal auth queries to prevent hanging
-  const supabaseWithTimeout = async (query: any, timeoutMs = 8000) => {
+  const supabaseWithTimeout = async (query: any, timeoutMs = 20000) => {
     const timeout = new Error("AUTH_QUERY_TIMEOUT");
     const promise = new Promise((_, reject) => setTimeout(() => reject(timeout), timeoutMs));
     return Promise.race([query, promise]) as any;
