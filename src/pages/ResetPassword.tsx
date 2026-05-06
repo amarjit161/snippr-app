@@ -14,28 +14,57 @@ export default function ResetPassword() {
   const [canReset, setCanReset] = useState(false);
 
   useEffect(() => {
+    let mounted = true;
+    let subscription: any = null;
+
     const checkRecoveryMode = async () => {
       try {
+        // Initial check
         const { data: { session } } = await supabase.auth.getSession();
+        if (!mounted) return;
+
         if (session) {
+          console.log("RESET_PASSWORD: Found active session on load");
           setCanReset(true);
-        } else {
-          // Wait for auth state change to PASSWORD_RECOVERY
-          const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-            if (event === 'PASSWORD_RECOVERY') {
+          return;
+        }
+
+        // Listen for recovery event
+        const { data } = supabase.auth.onAuthStateChange((event, session) => {
+          if (!mounted) return;
+          console.log("RESET_PASSWORD_AUTH_EVENT:", event);
+          if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
+            setCanReset(true);
+          }
+        });
+        subscription = data.subscription;
+
+        // Failsafe: Re-check session after 3 seconds in case listener missed it
+        setTimeout(async () => {
+          if (mounted && !canReset) {
+            const { data: { session: secondSession } } = await supabase.auth.getSession();
+            if (secondSession) {
+              console.log("RESET_PASSWORD: Found session on second check");
               setCanReset(true);
             }
-          });
+          }
+        }, 3000);
 
-          return () => subscription?.unsubscribe();
-        }
       } catch (err) {
-        toast.error('Failed to process reset link');
-        navigate('/forgot-password');
+        console.error('RESET_PASSWORD_ERROR:', err);
+        if (mounted) {
+          toast.error('Failed to process reset link');
+          navigate('/login');
+        }
       }
     };
 
     checkRecoveryMode();
+
+    return () => {
+      mounted = false;
+      if (subscription) subscription.unsubscribe();
+    };
   }, [navigate]);
 
   const handleResetPassword = async (e: React.FormEvent) => {

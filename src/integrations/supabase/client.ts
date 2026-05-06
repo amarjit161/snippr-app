@@ -26,8 +26,10 @@ const supabaseUrl = SUPABASE_URL || "http://127.0.0.1:54321";
 const supabaseKey = SUPABASE_PUBLISHABLE_KEY || "missing-supabase-key";
 
 if (typeof window !== "undefined") {
-  console.log(import.meta.env.VITE_SUPABASE_URL);
   console.info("Supabase project URL:", supabaseUrl);
+  if (window.location.hash.includes('access_token=')) {
+    console.log("🔑 AUTH_TOKEN_DETECTED: Recovery or Login token found in URL hash");
+  }
 }
 
 const createSupabaseClient = () => {
