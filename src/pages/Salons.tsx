@@ -189,17 +189,13 @@ const Salons = () => {
 
   const loadError = queryError ? "Could not load salons right now." : null;
 
-  // Real-time Subscriptions for Salon & Queue updates
+  // Real-time Subscriptions for Salon updates (not all queue changes)
   useEffect(() => {
     if (!user) return;
     
     console.log("SALONS_SUBSCRIPTION_INIT");
     const channel = publicSupabase
-      .channel("salon-updates")
-      .on("postgres_changes", { event: "*", schema: "public", table: "queue" }, () => {
-        console.log("SALONS_REALTIME: QUEUE_CHANGE_DETECTED");
-        queryClient.invalidateQueries({ queryKey: ["salons"] });
-      })
+      .channel("salon-updates-v2")
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "salons" }, () => {
         console.log("SALONS_REALTIME: SALON_UPDATE_DETECTED");
         queryClient.invalidateQueries({ queryKey: ["salons"] });

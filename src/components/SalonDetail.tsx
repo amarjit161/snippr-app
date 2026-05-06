@@ -312,30 +312,27 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
     checkAvailability();
 
-    // REAL-TIME UPDATES - Listen for ALL queue changes and refresh
+    // REAL-TIME UPDATES - Listen for THIS SALON's queue changes only with proper filtering
     const subscription = supabase
-      .channel(`bookings-${salon.id}`)
+      .channel(`bookings-${salon.id}-${date}`)
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "INSERT,UPDATE",
           schema: "public",
           table: "queue",
-          // NO FILTER - catch all changes and check availability
+          filter: `salon_id=eq.${salon.id}`,
         },
         (payload) => {
-          // Only refresh if it's for THIS salon and date
-          if (payload.new?.salon_id === salon.id || payload.old?.salon_id === salon.id) {
-            console.log("🔄 REAL_TIME_UPDATE: A booking changed", {
+          // Only process if booking is for current date
+          const payloadDate = payload.new?.booking_date || payload.old?.booking_date;
+          if (payloadDate === date && selectedBarberId) {
+            console.log("🔄 REAL_TIME_UPDATE: Booking changed for current date", {
               eventType: payload.eventType,
-              newData: payload.new?.booking_date,
-              oldData: payload.old?.booking_date
+              bookingDate: payloadDate
             });
-            // Refresh availability for current selections
-            if (date && selectedBarberId) {
-              console.log("🔁 REFRESHING availability due to real-time event");
-              checkAvailability();
-            }
+            console.log("🔁 REFRESHING availability due to real-time event");
+            checkAvailability();
           }
         }
       )

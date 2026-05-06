@@ -308,9 +308,9 @@ export function useSlotAvailability(
     }
   }, [fetchSlots, salonId, date]);
 
-  // Auto-refresh every 60 seconds (subscriptions handle real-time updates)
+  // Auto-refresh every 30 seconds
   useEffect(() => {
-    const interval = setInterval(() => fetchSlots(date), 60000);
+    const interval = setInterval(() => fetchSlots(date), 30000);
     return () => clearInterval(interval);
   }, [fetchSlots, date]);
 

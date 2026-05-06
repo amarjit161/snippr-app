@@ -187,14 +187,12 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
     bootstrap();
   }, [bootstrap]);
 
-  // Fetch full queue item with all relations (optimized to only needed fields)
+  // Fetch full queue item with all relations
   const fetchQueueItemFull = useCallback(async (queueId: string) => {
     try {
       const { data } = await supabaseAny
         .from("queue")
-        .select(
-          "id, created_at, status, user_id, service_id, barber_id, position, started_at, completed_at, customer_first_name, customer_last_name, customer_phone, booking_date, time_slot, notes, services(id, name, price, duration), barbers(id, name, chair_number, specialization)"
-        )
+        .select("*, services (*), barbers (*), salons (*)")
         .eq("id", queueId)
         .maybeSingle();
       return data;
