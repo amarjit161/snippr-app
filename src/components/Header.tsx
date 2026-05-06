@@ -149,9 +149,17 @@ const Header = ({ onSignOut, userName, userEmail, profileName, onAdminToggle, is
           <div className="border-t border-gray-100 p-4">
             <button
               onClick={async () => {
-                await Promise.resolve(onSignOut());
-                setProfileOpen(false);
-                navigate("/");
+                console.log("🚪 LOGOUT_BUTTON_CLICKED");
+                try {
+                  await Promise.resolve(onSignOut());
+                  console.log("✅ LOGOUT_CALLBACK_COMPLETE");
+                  setProfileOpen(false);
+                  navigate("/", { replace: true });
+                } catch (err) {
+                  console.error("❌ LOGOUT_FAILED", err);
+                  setProfileOpen(false);
+                  navigate("/", { replace: true });
+                }
               }}
               className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-red-600 transition-colors hover:bg-red-50"
             >

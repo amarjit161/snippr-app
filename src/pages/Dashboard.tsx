@@ -209,6 +209,13 @@ export default function Dashboard() {
   const [showCompletionCelebration, setShowCompletionCelebration] = useState(false);
 
   useEffect(() => {
+    if (!user) {
+      console.log("🚪 USER_LOGGED_OUT: Redirecting to home");
+      navigate("/", { replace: true });
+    }
+  }, [user, navigate]);
+
+  useEffect(() => {
     const fromLanding = (location.state as { transitionFrom?: string } | null)?.transitionFrom === "landing";
 
     const ctx = gsap.context(() => {
@@ -253,15 +260,35 @@ export default function Dashboard() {
   }, [fetching, bookings.length, activeTab]);
 
   const fetchBookings = async () => {
-    if (!user) return;
-    const { data, error } = await supabase
-      .from("queue")
-      .select("*, services (*), salons (*)")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
+    if (!user) {
+      console.log("📋 BOOKINGS_FETCH_SKIPPED: No user");
+      setFetching(false);
+      return;
+    }
+
+    try {
+      console.log("📋 BOOKINGS_FETCH_START");
+      const { data, error } = await supabase
+        .from("queue")
+        .select("*, services (*), salons (*)")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
       
-    if (!error) setBookings(data || []);
-    setFetching(false);
+      if (error) {
+        console.error("❌ BOOKINGS_FETCH_ERROR", error);
+        setBookings([]);
+        setFetching(false);
+        return;
+      }
+
+      console.log("✅ BOOKINGS_FETCH_SUCCESS", { count: data?.length || 0 });
+      setBookings(data || []);
+    } catch (err) {
+      console.error("❌ BOOKINGS_FETCH_EXCEPTION", err);
+      setBookings([]);
+    } finally {
+      setFetching(false);
+    }
   };
 
   const filteredBookings = useMemo(() => {
@@ -520,7 +547,14 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setFetching(false);
+      setBookings([]);
+      return;
+    }
+
+    console.log("📋 BOOKINGS_FETCH_STARTING", { userId: user.id });
+    
     fetchBookings();
     
     const channel = supabase
@@ -530,10 +564,18 @@ export default function Dashboard() {
         schema: "public", 
         table: "queue", 
         filter: `user_id=eq.${user.id}` 
-      }, fetchBookings)
-      .subscribe();
+      }, () => {
+        console.log("📡 BOOKINGS_REALTIME_UPDATE");
+        fetchBookings();
+      })
+      .subscribe((status) => {
+        console.log("📡 BOOKINGS_SUBSCRIPTION_STATUS", status);
+      });
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      console.log("🗑️ BOOKINGS_SUBSCRIPTION_CLEANUP");
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   return (

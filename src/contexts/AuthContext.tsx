@@ -274,13 +274,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signOut = async () => {
-    console.log("LOGOUT_INITIATED");
-    await supabase.auth.signOut();
-    setSession(null);
-    setProfile(null);
-    cachedProfileRef.current = null;
-    localStorage.removeItem("snippr_role");
-    localStorage.removeItem("owner");
+    console.log("🚪 LOGOUT_INITIATED");
+    try {
+      // Clear local state first to prevent any more API calls
+      setSession(null);
+      setProfile(null);
+      cachedProfileRef.current = null;
+      lastProfileFetchSessionIdRef.current = null;
+      profileFetchInFlightRef.current = null;
+      localStorage.removeItem("snippr_role");
+      localStorage.removeItem("owner");
+      localStorage.removeItem("snippet_customer_profile");
+      
+      console.log("🚪 LOCAL_STATE_CLEARED");
+      
+      // Now sign out from Supabase
+      await supabase.auth.signOut();
+      
+      console.log("✅ LOGOUT_COMPLETE");
+    } catch (err) {
+      console.error("❌ LOGOUT_ERROR", err);
+      // Even if logout fails, clear local state
+      setSession(null);
+      setProfile(null);
+      cachedProfileRef.current = null;
+      localStorage.removeItem("snippr_role");
+      localStorage.removeItem("owner");
+    }
   };
 
   useEffect(() => {
