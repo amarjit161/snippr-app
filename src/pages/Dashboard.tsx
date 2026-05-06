@@ -268,11 +268,23 @@ export default function Dashboard() {
 
     try {
       console.log("📋 BOOKINGS_FETCH_START");
-      const { data, error } = await supabase
-        .from("customer_bookings")
-        .select("*, services (*), salons (*)")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+      
+      // Create a timeout promise that rejects after 12 seconds
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("DATABASE_QUERY_TIMEOUT")), 12000)
+      );
+
+      // Race the supabase query against the timeout
+      const result = await Promise.race([
+        supabase
+          .from("customer_bookings")
+          .select("*, services (*), salons (*)")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false }),
+        timeoutPromise
+      ]) as any;
+
+      const { data, error } = result;
       
       if (error) {
         console.error("❌ BOOKINGS_FETCH_ERROR", error);
