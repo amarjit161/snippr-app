@@ -36,7 +36,7 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
   const fetchQueue = async () => {
     if (!selectedSalonId) return;
     const { data } = await supabase
-      .from("appointments")
+      .from("customer_bookings")
       .select(`
         *,
         services (*),
@@ -53,7 +53,7 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
     if (!selectedSalonId) return;
     // All completed entries for this salon
     const { data: completed } = await supabase
-      .from("appointments")
+      .from("customer_bookings")
       .select(`
         *,
         services (*),
@@ -73,7 +73,7 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
     // Peak hour
     const hourCounts: Record<number, number> = {};
     const { data: allEntries } = await supabase
-      .from("appointments")
+      .from("customer_bookings")
       .select(`
         *,
         services (*),
@@ -107,18 +107,18 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
   }, [selectedSalonId]);
 
   const handleStartService = async (entry: QueueEntry) => {
-    await supabase.from("appointments").update({ status: "in_progress", started_at: new Date().toISOString() }).eq("id", entry.id).eq("salon_id", selectedSalonId!);
+    await supabase.from("customer_bookings").update({ status: "in_progress", started_at: new Date().toISOString() }).eq("id", entry.id).eq("salon_id", selectedSalonId!);
     toast.success(`Started service for queue #${entry.position}`);
   };
 
   const handleComplete = async (entry: QueueEntry) => {
-    await supabase.from("appointments").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", entry.id).eq("salon_id", selectedSalonId!);
+    await supabase.from("customer_bookings").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", entry.id).eq("salon_id", selectedSalonId!);
     toast.success("Service completed!");
 
     // Auto-progress: start next waiting entry
     const next = queue.find((q) => q.status === "waiting" && q.id !== entry.id);
     if (next) {
-      await supabase.from("appointments").update({ status: "in_progress", started_at: new Date().toISOString() }).eq("id", next.id).eq("salon_id", selectedSalonId!);
+      await supabase.from("customer_bookings").update({ status: "in_progress", started_at: new Date().toISOString() }).eq("id", next.id).eq("salon_id", selectedSalonId!);
       toast.info(`Auto-started service for next customer`);
     }
   };

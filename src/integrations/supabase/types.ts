@@ -145,7 +145,7 @@ export type Database = {
             foreignKeyName: "email_notifications_booking_id_fkey"
             columns: ["booking_id"]
             isOneToOne: false
-            referencedRelation: "appointments"
+            referencedRelation: "customer_bookings"
             referencedColumns: ["id"]
           },
           {

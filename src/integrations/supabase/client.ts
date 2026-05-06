@@ -40,6 +40,22 @@ const createSupabaseClient = () => {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
+    },
+    global: {
+      fetch: async (url, options) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+        
+        try {
+          const res = await fetch(url, { ...options, signal: controller.signal });
+          return res;
+        } catch (error: any) {
+          console.error("🌐 SUPABASE_FETCH_ERROR:", { url, error });
+          throw error;
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      }
     }
   });
   

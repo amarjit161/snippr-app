@@ -269,7 +269,7 @@ export default function Dashboard() {
     try {
       console.log("📋 BOOKINGS_FETCH_START");
       const { data, error } = await supabase
-        .from("appointments")
+        .from("customer_bookings")
         .select("*, services (*), salons (*)")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
@@ -335,7 +335,7 @@ export default function Dashboard() {
 
       // Update booking status to cancelled
       const { data: updatedBooking, error } = await supabase
-        .from("appointments")
+        .from("customer_bookings")
         .update({ status: "cancelled" } as any)
         .eq("id", cancelPendingId)
         .eq("user_id", user.id)
@@ -464,7 +464,7 @@ export default function Dashboard() {
     setUpdatingId(rescheduleTarget.id);
     try {
       const { data, error } = await supabase
-        .from("appointments")
+        .from("customer_bookings")
         .update({
           booking_date: newDate,
           time_slot: newTime,

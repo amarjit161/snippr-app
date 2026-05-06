@@ -167,7 +167,7 @@ export function useSlotAvailability(
       // Step 4: booked slots for the selected day.
         console.log("🔄 FETCHING_BOOKED_SLOTS for:", { salonId, selectedDate });
       const { data: bookedRecords, error: bookingsError } = await publicSupabase
-        .from("appointments" as any)
+        .from("customer_bookings" as any)
         .select("time_slot, barber_id, status")
         .eq("salon_id", salonId)
         .eq("booking_date", selectedDate)
