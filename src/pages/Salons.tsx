@@ -156,6 +156,10 @@ const Salons = () => {
   const { location: userCoords } = useGeolocation();
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"distance" | "waitTime">("distance");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [manualCity, setManualCity] = useState("");
+  const [locationMode, setLocationMode] = useState<"auto" | "manual">("auto");
+  const [locationError, setLocationError] = useState(false);
   const debouncedSearch = useDebounce(search, 300);
   const queryClient = useQueryClient();
   const { data: salons = [], isLoading: loading, error: queryError } = useQuery({
