@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { publicSupabase } from "@/integrations/supabase/publicClient";
 
 interface TimeSlot {
   time: string; // Display format "10:00 AM"
@@ -107,7 +107,7 @@ export function useSlotAvailability(
       // Step 1/2: read salon hours and always apply fallback values.
       // Step 1/2: read salon hours and always apply fallback values.
       console.log("🔄 SLOT_AVAILABILITY_FETCH_START:", { salonId, date: selectedDate, barberId });
-      const { data: salon, error: salonError } = await supabase
+      const { data: salon, error: salonError } = await publicSupabase
         .from("salons" as any)
         .select("open_time, close_time, is_manual_closed")
         .eq("id", salonId)
@@ -135,7 +135,7 @@ export function useSlotAvailability(
 
       // Step 3: holiday check first.
       console.log("🔄 CHECKING_HOLIDAYS for:", { salonId, selectedDate });
-      const { data: holiday } = await supabase
+      const { data: holiday } = await publicSupabase
         .from("salon_holidays" as any)
         .select("date, name, note, type")
         .eq("salon_id", salonId)
@@ -166,7 +166,7 @@ export function useSlotAvailability(
 
       // Step 4: booked slots for the selected day.
         console.log("🔄 FETCHING_BOOKED_SLOTS for:", { salonId, selectedDate });
-      const { data: bookedRecords, error: bookingsError } = await supabase
+      const { data: bookedRecords, error: bookingsError } = await publicSupabase
         .from("queue" as any)
         .select("time_slot, barber_id, status")
         .eq("salon_id", salonId)
@@ -205,7 +205,7 @@ export function useSlotAvailability(
       // Step 5: fetch barber count.
       let totalBarbers = 1;
       if (!barberId) {
-        const { count: barberCount } = await supabase
+        const { count: barberCount } = await publicSupabase
           .from("barbers" as any)
           .select("*", { count: "exact", head: true })
           .eq("salon_id", salonId);
@@ -318,7 +318,7 @@ export function useSlotAvailability(
   useEffect(() => {
     if (!salonId) return;
 
-    const subscription = supabase
+    const subscription = publicSupabase
       .channel(`slots-${salonId}-${date}`)
       .on(
         "postgres_changes",
