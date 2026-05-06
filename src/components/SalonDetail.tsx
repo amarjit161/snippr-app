@@ -129,11 +129,31 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
   };
 
   useEffect(() => {
-    supabase
-      .from("services")
-      .select("*")
-      .eq("salon_id", salon.id)
-      .then(({ data }) => setServices(data || []));
+    const fetchServices = async () => {
+      try {
+        console.log("📋 FETCHING_SERVICES for salon:", salon.id);
+        const { data, error } = await supabase
+          .from("services")
+          .select("*")
+          .eq("salon_id", salon.id);
+
+        if (error) {
+          console.error("❌ SERVICES_FETCH_ERROR:", error);
+          setServices([]);
+          return;
+        }
+
+        console.log("✅ SERVICES_FETCHED:", data?.length || 0, "services found");
+        setServices(data || []);
+      } catch (err) {
+        console.error("❌ SERVICES_FETCH_EXCEPTION:", err);
+        setServices([]);
+      }
+    };
+
+    if (salon.id) {
+      fetchServices();
+    }
   }, [salon.id]);
 
   useEffect(() => {
@@ -162,18 +182,33 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
   useEffect(() => {
     const loadBarbers = async () => {
-      const { data } = await supabase
-        .from("barbers" as any)
-        .select("id, name, chair_number, specialization")
-        .eq("salon_id", salon.id)
-        .order("name");
+      try {
+        console.log("💈 FETCHING_BARBERS for salon:", salon.id);
+        const { data, error } = await supabase
+          .from("barbers" as any)
+          .select("id, name, chair_number, specialization")
+          .eq("salon_id", salon.id)
+          .order("name");
 
-      const nextBarbers = (data || []) as any as BarberRow[];
-      setBarbers(nextBarbers);
-      setSelectedBarberId((current) => current || nextBarbers[0]?.id || "");
+        if (error) {
+          console.error("❌ BARBERS_FETCH_ERROR:", error);
+          setBarbers([]);
+          return;
+        }
+
+        console.log("✅ BARBERS_FETCHED:", data?.length || 0, "barbers found");
+        const nextBarbers = (data || []) as any as BarberRow[];
+        setBarbers(nextBarbers);
+        setSelectedBarberId((current) => current || nextBarbers[0]?.id || "");
+      } catch (err) {
+        console.error("❌ BARBERS_FETCH_EXCEPTION:", err);
+        setBarbers([]);
+      }
     };
 
-    loadBarbers();
+    if (salon.id) {
+      loadBarbers();
+    }
   }, [salon.id]);
 
   useEffect(() => {
