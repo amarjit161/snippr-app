@@ -105,7 +105,8 @@ const SalonCard = ({ salon, index, onSelect }: SalonCardProps) => {
         <img
           src={getSalonImageSrc(salon.image_url)}
           alt={salon.name}
-          loading={index === 0 ? undefined : "lazy"}
+          loading="lazy"
+          decoding="async"
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
         />
         <div className="absolute top-4 right-4 flex gap-2">

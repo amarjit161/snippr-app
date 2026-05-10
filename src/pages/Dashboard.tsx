@@ -260,64 +260,67 @@ export default function Dashboard() {
   }, [fetching, bookings.length, activeTab]);
 
   const fetchBookings = async () => {
-    if (!user) {
-      console.log("📋 BOOKINGS_FETCH_SKIPPED: No user");
+    setFetching(true);
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      console.log("BOOKINGS: No authenticated user");
+      setBookings([]);
       setFetching(false);
       return;
     }
 
-    try {
-      console.log("📋 BOOKINGS_FETCH_START");
-      
-      // Create a timeout promise that rejects after 20 seconds
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("DATABASE_QUERY_TIMEOUT")), 20000)
-      );
+    const { data, error } = await supabase
+      .from("customer_bookings")
+      .select("*, services (*), salons (*)")
+      .eq("user_id", user.id)
+      .order("booking_date", { ascending: false })
+      .order("created_at", { ascending: false });
 
-      // Race the supabase query against the timeout
-      const result = await Promise.race([
-        supabase
-          .from("customer_bookings")
-          .select("*, services (*), salons (*)")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false }),
-        timeoutPromise
-      ]) as any;
-
-      const { data, error } = result;
-      
-      if (error) {
-        console.error("❌ BOOKINGS_FETCH_ERROR", error);
-        setBookings([]);
-        setFetching(false);
-        return;
-      }
-
-      console.log("✅ BOOKINGS_FETCH_SUCCESS", { count: data?.length || 0 });
-      setBookings(data || []);
-    } catch (err) {
-      console.error("❌ BOOKINGS_FETCH_EXCEPTION", err);
+    if (error) {
+      console.error("BOOKINGS_FETCH_ERROR:", error);
       setBookings([]);
-    } finally {
-      setFetching(false);
+    } else {
+      setBookings(data || []);
     }
+    setFetching(false);
   };
 
+  const today = new Date().toISOString().split("T")[0];
+  const upcomingBookings = useMemo(
+    () =>
+      bookings.filter(
+        (b) =>
+          String(b.booking_date || "") >= today &&
+          ["waiting", "confirmed", "in_progress"].includes(normalizeStatus(b.status))
+      ),
+    [bookings, today]
+  );
+
+  const pastBookings = useMemo(
+    () =>
+      bookings.filter(
+        (b) =>
+          String(b.booking_date || "") < today ||
+          ["completed", "done"].includes(normalizeStatus(b.status))
+      ),
+    [bookings, today]
+  );
+
+  const cancelledBookings = useMemo(
+    () => bookings.filter((b) => ["cancelled", "rejected"].includes(normalizeStatus(b.status))),
+    [bookings]
+  );
+
   const filteredBookings = useMemo(() => {
-    return bookings.filter((b) => {
-      const status = normalizeStatus(b.status);
-
-      if (activeTab === "cancelled") {
-        return ["cancelled", "rejected"].includes(status);
-      }
-
-      if (activeTab === "past") {
-        return ["done", "completed"].includes(status) || isPastDate(b.booking_date);
-      }
-
-      return !["cancelled", "rejected", "done", "completed"].includes(status) && !isPastDate(b.booking_date);
-    });
-  }, [activeTab, bookings]);
+    if (activeTab === "upcoming") return upcomingBookings;
+    if (activeTab === "past") return pastBookings;
+    return cancelledBookings;
+  }, [activeTab, upcomingBookings, pastBookings, cancelledBookings]);
 
   const handleCancelClick = (id: string) => {
     setCancelPendingId(id);
@@ -559,36 +562,58 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    if (!user) {
-      setFetching(false);
-      setBookings([]);
-      return;
-    }
+    let queueChannel: ReturnType<typeof supabase.channel> | null = null;
 
-    console.log("📋 BOOKINGS_FETCH_STARTING", { userId: user.id });
-    
-    fetchBookings();
-    
-    const channel = supabase
-      .channel(`user-queue-${user.id}`)
-      .on("postgres_changes", { 
-        event: "*", 
-        schema: "public", 
-        table: "queue", 
-        filter: `user_id=eq.${user.id}` 
-      }, () => {
-        console.log("📡 BOOKINGS_REALTIME_UPDATE");
+    const setupQueueSync = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      if (queueChannel) {
+        supabase.removeChannel(queueChannel);
+      }
+
+      queueChannel = supabase
+        .channel(`user-queue-${user.id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "customer_bookings",
+            filter: `user_id=eq.${user.id}`,
+          },
+          fetchBookings
+        )
+        .subscribe();
+    };
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
         fetchBookings();
-      })
-      .subscribe((status) => {
-        console.log("📡 BOOKINGS_SUBSCRIPTION_STATUS", status);
-      });
+        setupQueueSync();
+      }
+
+      if (event === "SIGNED_OUT") {
+        setBookings([]);
+        setFetching(false);
+      }
+    });
+
+    fetchBookings();
+    setupQueueSync();
 
     return () => {
-      console.log("🗑️ BOOKINGS_SUBSCRIPTION_CLEANUP");
-      supabase.removeChannel(channel);
+      subscription.unsubscribe();
+      if (queueChannel) {
+        supabase.removeChannel(queueChannel);
+      }
     };
-  }, [user]);
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#f4f3f6]">

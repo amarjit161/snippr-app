@@ -18,6 +18,8 @@ const QueueTracker = () => {
   const [totalWait, setTotalWait] = useState(0);
   const [pulseUpdate, setPulseUpdate] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [isVisible, setIsVisible] = useState(true);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const prevPosition = useRef<number | null>(null);
 
   const AVG_SERVICE_TIME = 20;
@@ -121,6 +123,7 @@ const QueueTracker = () => {
     setAheadCount(0);
     setMyPosition(null);
     setTotalWait(0);
+    setShowCancelConfirm(false);
     prevPosition.current = null;
   };
 
@@ -162,10 +165,17 @@ const QueueTracker = () => {
     }
 
     toast.info("Queue entry cancelled");
+    setShowCancelConfirm(false);
     clearTrackerState();
   };
 
-  if (!entry) return null;
+  useEffect(() => {
+    if (entry?.id) {
+      setIsVisible(true);
+    }
+  }, [entry?.id]);
+
+  if (!entry || !isVisible) return null;
 
   const salon = entry.salons;
   const service = entry.services;
@@ -196,7 +206,15 @@ const QueueTracker = () => {
           </div>
         </div>
         {!isInProgress && (
-          <button onClick={handleCancel} className="text-muted-foreground hover:text-destructive transition-colors">
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsVisible(false);
+            }}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Close"
+          >
             <X className="h-5 w-5" />
           </button>
         )}
@@ -265,6 +283,13 @@ const QueueTracker = () => {
           <div className="pt-2">
             <Progress value={Math.max(10, 100 - (aheadCount * 15))} className="h-2" />
           </div>
+
+          <button
+            onClick={() => setShowCancelConfirm(true)}
+            className="w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-100"
+          >
+            Cancel Booking
+          </button>
         </>
       )}
 
@@ -288,6 +313,31 @@ const QueueTracker = () => {
         >
           <p className="font-display font-bold text-success">🎉 You're Next!</p>
         </motion.div>
+      )}
+
+      {showCancelConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6">
+            <h3 className="mb-2 text-lg font-bold text-gray-900">Cancel Booking?</h3>
+            <p className="mb-6 text-sm text-gray-500">
+              Are you sure you want to cancel your appointment? This cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCancelConfirm(false)}
+                className="flex-1 rounded-xl border border-gray-200 py-3 font-medium text-gray-700"
+              >
+                Keep Booking
+              </button>
+              <button
+                onClick={handleCancel}
+                className="flex-1 rounded-xl bg-red-600 py-3 font-medium text-white"
+              >
+                Yes, Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </motion.div>
   );

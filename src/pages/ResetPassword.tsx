@@ -12,60 +12,63 @@ export default function ResetPassword() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [canReset, setCanReset] = useState(false);
+  const [processing, setProcessing] = useState(true);
 
   useEffect(() => {
-    let mounted = true;
-    let subscription: any = null;
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const accessToken = hashParams.get('access_token');
+    const refreshToken = hashParams.get('refresh_token') || '';
+    const type = hashParams.get('type');
 
-    const checkRecoveryMode = async () => {
-      try {
-        // Initial check
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!mounted) return;
+    console.log('RESET_PAGE_PARAMS:', { type, hasToken: !!accessToken });
 
-        if (session) {
-          console.log("RESET_PASSWORD: Found active session on load");
-          setCanReset(true);
-          return;
-        }
-
-        // Listen for recovery event
-        const { data } = supabase.auth.onAuthStateChange((event, session) => {
-          if (!mounted) return;
-          console.log("RESET_PASSWORD_AUTH_EVENT:", event);
-          if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
+    if (accessToken && type === 'recovery') {
+      supabase.auth
+        .setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        })
+        .then(({ error }) => {
+          if (error) {
+            console.error('RESET_SESSION_ERROR:', error);
+            setCanReset(false);
+          } else {
             setCanReset(true);
+            window.history.replaceState({}, '', '/reset-password');
           }
+          setProcessing(false);
         });
-        subscription = data.subscription;
+      return;
+    }
 
-        // Failsafe: Re-check session after 3 seconds in case listener missed it
-        setTimeout(async () => {
-          if (mounted && !canReset) {
-            const { data: { session: secondSession } } = await supabase.auth.getSession();
-            if (secondSession) {
-              console.log("RESET_PASSWORD: Found session on second check");
-              setCanReset(true);
-            }
-          }
-        }, 3000);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('RESET_PASSWORD_AUTH_EVENT:', event);
 
-      } catch (err) {
-        console.error('RESET_PASSWORD_ERROR:', err);
-        if (mounted) {
-          toast.error('Failed to process reset link');
-          navigate('/login');
-        }
+      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
+        setCanReset(true);
+        setProcessing(false);
+        return;
       }
-    };
 
-    checkRecoveryMode();
+      if (event === 'INITIAL_SESSION') {
+        if (session) {
+          setCanReset(true);
+        } else {
+          setCanReset(false);
+        }
+        setProcessing(false);
+      }
+    });
+
+    const timeout = setTimeout(() => {
+      setProcessing(false);
+    }, 5000);
 
     return () => {
-      mounted = false;
-      if (subscription) subscription.unsubscribe();
+      subscription.unsubscribe();
+      clearTimeout(timeout);
     };
-  }, [navigate]);
+  }, []);
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,7 +99,8 @@ export default function ResetPassword() {
         return;
       }
 
-      toast.success('Password updated successfully!');
+      toast.success('Password updated successfully! Please sign in.');
+      await supabase.auth.signOut();
       navigate('/login');
     } catch (err: any) {
       toast.error(err.message || 'Failed to update password');
@@ -105,7 +109,7 @@ export default function ResetPassword() {
     }
   };
 
-  if (!canReset) {
+  if (processing) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
@@ -118,19 +122,39 @@ export default function ResetPassword() {
     );
   }
 
+  if (!canReset) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
+            <div className="text-5xl mb-4">⏰</div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Link Expired</h2>
+            <p className="text-gray-500 text-sm mb-6">
+              This password reset link has expired or already been used.
+              Request a new one.
+            </p>
+            <button
+              onClick={() => navigate('/forgot-password')}
+              className="w-full bg-purple-600 text-white py-3 rounded-xl font-semibold hover:bg-purple-700"
+            >
+              Request New Link
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-extrabold text-gray-900 mb-2">Set new password</h1>
           <p className="text-gray-600">Create a strong password for your account</p>
         </div>
 
-        {/* Card */}
         <div className="bg-white rounded-2xl shadow-lg p-8">
           <form onSubmit={handleResetPassword} className="space-y-4">
-            {/* Password Input */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 New password (min 8 chars)
@@ -156,7 +180,6 @@ export default function ResetPassword() {
               </div>
             </div>
 
-            {/* Confirm Password Input */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Confirm password
@@ -182,7 +205,6 @@ export default function ResetPassword() {
               </div>
             </div>
 
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={loading}

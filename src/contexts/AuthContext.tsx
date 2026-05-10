@@ -33,6 +33,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const visibilityChangeTimeRef = useRef(0); // Track when visibility changed
   const lastProfileFetchSessionIdRef = useRef<string | null>(null);
   const profileFetchInFlightRef = useRef<string | null>(null);
+  const logoutChannel = useRef<BroadcastChannel | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof BroadcastChannel === "undefined") return;
+
+    logoutChannel.current = new BroadcastChannel("snippr_auth");
+    logoutChannel.current.onmessage = (event) => {
+      if (event.data === "SIGNED_OUT") {
+        setSession(null);
+        setProfile(null);
+        cachedProfileRef.current = null;
+        lastProfileFetchSessionIdRef.current = null;
+        profileFetchInFlightRef.current = null;
+        localStorage.removeItem("snippr_role");
+        localStorage.removeItem("owner");
+        window.location.href = "/login";
+      }
+    };
+
+    return () => logoutChannel.current?.close();
+  }, []);
 
   const readStoredOwnerProfile = () => {
     if (typeof window === "undefined") return null;
@@ -277,9 +298,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signOut = async () => {
-    console.log("🚪 LOGOUT_INITIATED");
+    console.log("LOGOUT_INITIATED");
     try {
-      // Clear local state first to prevent any more API calls
       setSession(null);
       setProfile(null);
       cachedProfileRef.current = null;
@@ -288,23 +308,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.removeItem("snippr_role");
       localStorage.removeItem("owner");
       localStorage.removeItem("snippet_customer_profile");
-      
-      console.log("🚪 LOCAL_STATE_CLEARED");
-      
-      // Now sign out from Supabase
+
       await supabase.auth.signOut();
-      
-      console.log("✅ LOGOUT_COMPLETE");
+      logoutChannel.current?.postMessage("SIGNED_OUT");
     } catch (err) {
-      console.error("❌ LOGOUT_ERROR", err);
-      // Even if logout fails, clear local state
-      setSession(null);
-      setProfile(null);
-      cachedProfileRef.current = null;
-      localStorage.removeItem("snippr_role");
-      localStorage.removeItem("owner");
+      console.error("LOGOUT_ERROR", err);
+    } finally {
+      window.location.href = "/login";
     }
   };
+
+  useEffect(() => {
+    if (!session?.user || typeof window === "undefined") return;
+
+    const tawk = (window as any).Tawk_API;
+    if (!tawk) return;
+
+    const setVisitor = () => {
+      if (!session.user.email) return;
+
+      tawk.setAttributes?.(
+        {
+          name: profile?.name || session.user.email?.split("@")[0] || "Customer",
+          email: session.user.email,
+          hash: "",
+        },
+        (error: any) => {
+          if (error && error !== "INVALID_EMAIL") console.log("Tawk setAttributes error:", error);
+        }
+      );
+    };
+
+    if (typeof tawk.setAttributes === "function") {
+      setVisitor();
+    } else {
+      tawk.onLoad = setVisitor;
+    }
+  }, [session?.user, profile]);
 
   return (
     <AuthContext.Provider value={{ session, user: session?.user ?? null, profile, loading, profileLoading, signOut }}>

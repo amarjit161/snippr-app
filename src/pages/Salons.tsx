@@ -184,7 +184,7 @@ const Salons = () => {
       });
     },
     enabled: !!user,
-    refetchInterval: 30000,
+    refetchInterval: 5 * 60 * 1000,
   });
 
   const loadError = queryError ? "Could not load salons right now." : null;
