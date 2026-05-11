@@ -154,7 +154,7 @@ export default function OwnerLogin() {
         throw profileError;
       }
 
-      let finalOwnerProfile = ownerProfile;
+      let finalOwnerProfile = ownerProfile as OwnerRecord | null;
 
       if (!ownerProfile) {
         console.log("PROFILE_NOT_FOUND - Creating auto-profile for returning user");
@@ -179,7 +179,7 @@ export default function OwnerLogin() {
             id: authData.user!.id, 
             email: trimmedEmail,
             name: trimmedEmail.split("@")[0]
-          } as any;
+          } as OwnerRecord;
         } else {
           finalOwnerProfile = createdProfile;
           console.log("AUTO_PROFILE_CREATED_SUCCESS");
@@ -204,9 +204,10 @@ export default function OwnerLogin() {
       localStorage.setItem("snippr_role", "owner");
       
       navigate(existingSalon ? "/owner-dashboard" : "/register-salon", { replace: true });
-    } catch (error: any) {
-      if (import.meta.env.DEV) console.error("LOGIN_PIPELINE_ERROR:", error.message || error);
-      toast.error(error.message || "Login failed");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Login failed";
+      if (import.meta.env.DEV) console.error("LOGIN_PIPELINE_ERROR:", message);
+      toast.error(message);
     } finally {
       // Small delay before removing the loading state to allow unmount to happen cleanly
       setTimeout(() => setLoading(false), 1000);
@@ -260,8 +261,7 @@ export default function OwnerLogin() {
   };
 
   const handleForgotPasswordOpen = () => {
-    setForgotEmail(email.trim());
-    setIsForgotMode(true);
+    navigate('/forgot-password');
   };
 
   const handleBackToLogin = () => {

@@ -22,7 +22,7 @@ export default function ForgotPassword() {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${window.location.origin}/reset-password?email=${encodeURIComponent(email)}`,
       });
 
       if (error) {
@@ -32,9 +32,10 @@ export default function ForgotPassword() {
       }
 
       setSent(true);
-      toast.success('Password reset email sent!');
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to send reset email');
+      navigate(`/reset-password?email=${encodeURIComponent(email)}`);
+      toast.success('Check your email for a reset code and the reset link.');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send reset email');
     } finally {
       setLoading(false);
     }
@@ -46,7 +47,7 @@ export default function ForgotPassword() {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-extrabold text-gray-900 mb-2">Reset password</h1>
-          <p className="text-gray-600">We'll send you a link to reset your password</p>
+          <p className="text-gray-600">We’ll send you a reset code and a link to open the reset page</p>
         </div>
 
         {/* Card */}
@@ -77,7 +78,7 @@ export default function ForgotPassword() {
                 disabled={loading}
                 className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-semibold py-2.5 rounded-xl transition-all duration-200 mt-6"
               >
-                {loading ? 'Sending...' : 'Send reset link'}
+                {loading ? 'Sending...' : 'Send reset code'}
               </button>
 
               {/* Back to Login */}
@@ -104,7 +105,7 @@ export default function ForgotPassword() {
               <div>
                 <h2 className="text-xl font-bold text-gray-900 mb-2">Check your email</h2>
                 <p className="text-gray-600 text-sm">
-                  We sent a password reset link to <span className="font-semibold">{email}</span>
+                  We sent a reset code and link to <span className="font-semibold">{email}</span>
                 </p>
               </div>
 
