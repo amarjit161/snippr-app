@@ -508,3 +508,4 @@ const Salons = () => {
 };
 
 export default Salons;
+

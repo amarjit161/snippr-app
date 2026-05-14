@@ -16,6 +16,7 @@ import TurnstileCaptcha, { type TurnstileCaptchaHandle } from "@/components/Turn
 import { verifyTurnstileToken } from "@/lib/turnstile";
 import { SlotPicker } from "@/components/booking/SlotPicker";
 import { sendBookingEmail } from "@/services/emailService";
+import { generateOTP, updateBookingWithOTP } from "@/lib/otpUtils";
 import BookingSuccess from "@/components/BookingSuccess";
 
 import salon1 from "@/assets/salon-1.jpg";
@@ -116,6 +117,8 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
     image: string;
     estimatedWait: string;
     queuePosition: number | string;
+    bookingId: string;
+    arrivalOTP: string;
   } | null>(null);
   const turnstileRef = useRef<TurnstileCaptchaHandle | null>(null);
   const firstNameInputRef = useRef<HTMLInputElement | null>(null);
@@ -254,7 +257,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
   useEffect(() => {
     const fetchNextPosition = async () => {
       const { data } = await (supabase
-        .from("customer_bookings" as any) as any)
+        .from("queue" as any) as any)
         .select("position")
         .eq("salon_id", salon.id)
         .order("position", { ascending: false })
@@ -289,7 +292,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       setCheckingAvailability(true);
       try {
         const { data } = await supabase
-          .from("customer_bookings" as any)
+          .from("queue" as any)
           .select("time_slot")
           .eq("salon_id", salon.id)
           .eq("barber_id", selectedBarberId)
@@ -356,7 +359,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
     const interval = setInterval(async () => {
       try {
         const { data } = await supabase
-          .from("customer_bookings" as any)
+          .from("queue" as any)
           .select("time_slot")
           .eq("salon_id", salon.id)
           .eq("barber_id", selectedBarberId)
@@ -437,7 +440,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
     if (!date || !selectedBarberId) return;
 
     const { data } = await supabase
-      .from("customer_bookings" as any)
+      .from("queue" as any)
       .select("time_slot")
       .eq("salon_id", salon.id)
       .eq("barber_id", selectedBarberId)
@@ -510,7 +513,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       // FINAL SAFETY CHECK - Refresh availability one last time before booking
       console.log("🔒 FINAL_CHECK: Refreshing availability before booking...");
       const { data: latestBookings } = await supabase
-        .from("customer_bookings" as any)
+        .from("queue" as any)
         .select("time_slot")
         .eq("salon_id", salon.id)
         .eq("barber_id", selectedBarberId)
@@ -539,7 +542,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
       // Prevent multiple active bookings for the same user across salons.
       const { data: existingActiveBooking } = await supabase
-        .from("customer_bookings" as any)
+        .from("queue" as any)
         .select("id, salon_id")
         .eq("user_id", currentUser.id)
         .in("status", ["waiting", "in_progress"])
@@ -554,7 +557,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
       // Now do the original conflict check
       const { data: conflictCheck } = await supabase
-        .from("customer_bookings" as any)
+        .from("queue" as any)
         .select("id")
         .eq("salon_id", salon.id)
         .eq("barber_id", selectedBarberId)
@@ -574,7 +577,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
       console.log("📍 BOOKING_FETCH_LATEST_POSITION");
       const { data: latestQueueEntry } = await supabase
-        .from("customer_bookings" as any)
+        .from("queue" as any)
         .select("position")
         .eq("salon_id", salon.id)
         .order("position", { ascending: false })
@@ -586,7 +589,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       
       console.log("💾 BOOKING_INSERT_START", { position: nextPosition, date, time });
 
-      const { data: insertedData, error } = await (supabase.from("customer_bookings") as any).insert({
+      const { data: insertedData, error } = await (supabase.from("queue") as any).insert({
         user_id: user?.id || currentUser.id,
         salon_id: salon.id,
         service_id: selectedService.id,
@@ -612,6 +615,19 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       } else {
         console.log("✅ BOOKING_INSERT_SUCCESS", { id: insertedData?.id, position: nextPosition });
         const customerEmail = currentUser.email || user?.email;
+        
+        // Generate OTP for arrival confirmation
+        let arrivalOTP = "";
+        try {
+          arrivalOTP = generateOTP();
+          console.log("🎲 OTP_GENERATED:", arrivalOTP);
+          const otpUpdated = await updateBookingWithOTP(supabase, insertedData.id, arrivalOTP);
+          if (otpUpdated) {
+            console.log("✅ OTP_SAVED_TO_DB");
+          }
+        } catch (otpErr) {
+          console.warn("⚠️ OTP_GENERATION_FAILED", otpErr);
+        }
         
         // Send booking confirmation email
         if (customerEmail && insertedData) {
@@ -644,6 +660,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
               bookingDate: date,
               timeSlot: displayTime,
               amount: selectedService.price || 0,
+              arrivalOTP: arrivalOTP, // Include OTP in email
             });
             console.log("✅ BOOKING_EMAIL_SEND_SUCCESS");
           } catch (emailErr) {
@@ -658,7 +675,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
         setMyQueuePosition(nextPosition);
         
-        console.log("🎉 BOOKING_SUCCESS_SHOW", { position: nextPosition, salonName: salon.name });
+        console.log("🎉 BOOKING_SUCCESS_SHOW", { position: nextPosition, salonName: salon.name, otp: arrivalOTP });
         setConfirmedBookingState({
           salonName: salon.name,
           serviceName: selectedService.name,
@@ -666,6 +683,8 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
           image: salon.image_url || "",
           estimatedWait: estimatedWait,
           queuePosition: nextPosition,
+          bookingId: insertedData.id,
+          arrivalOTP: arrivalOTP,
         });
         setBooking(false);
       }
@@ -1122,3 +1141,4 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
     </motion.div>
   );
 }
+

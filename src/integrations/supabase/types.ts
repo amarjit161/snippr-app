@@ -145,7 +145,7 @@ export type Database = {
             foreignKeyName: "email_notifications_booking_id_fkey"
             columns: ["booking_id"]
             isOneToOne: false
-            referencedRelation: "customer_bookings"
+            referencedRelation: "queue"
             referencedColumns: ["id"]
           },
           {
@@ -204,6 +204,7 @@ export type Database = {
       queue: {
         Row: {
           alt_phone: string | null
+          arrival_otp: string | null
           barber_id: string | null
           booking_date: string | null
           completed_at: string | null
@@ -215,6 +216,8 @@ export type Database = {
           email: string | null
           id: string
           notes: string | null
+          otp_expires_at: string | null
+          otp_verified_at: string | null
           position: number | null
           salon_id: string | null
           service_id: string | null
@@ -225,6 +228,7 @@ export type Database = {
         }
         Insert: {
           alt_phone?: string | null
+          arrival_otp?: string | null
           barber_id?: string | null
           booking_date?: string | null
           completed_at?: string | null
@@ -236,6 +240,8 @@ export type Database = {
           email?: string | null
           id?: string
           notes?: string | null
+          otp_expires_at?: string | null
+          otp_verified_at?: string | null
           position?: number | null
           salon_id?: string | null
           service_id?: string | null
@@ -246,6 +252,7 @@ export type Database = {
         }
         Update: {
           alt_phone?: string | null
+          arrival_otp?: string | null
           barber_id?: string | null
           booking_date?: string | null
           completed_at?: string | null
@@ -257,6 +264,8 @@ export type Database = {
           email?: string | null
           id?: string
           notes?: string | null
+          otp_expires_at?: string | null
+          otp_verified_at?: string | null
           position?: number | null
           salon_id?: string | null
           service_id?: string | null
@@ -732,3 +741,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

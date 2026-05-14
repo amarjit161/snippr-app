@@ -176,3 +176,4 @@ const Header = ({ onSignOut, userName, userEmail, profileName, onAdminToggle, is
 };
 
 export default Header;
+

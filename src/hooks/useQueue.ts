@@ -81,7 +81,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
   const fetchQueue = useCallback(async (salonId: string) => {
     console.log("FETCH_QUEUE_START", salonId);
     const { data, error } = await supabaseAny
-      .from("customer_bookings")
+      .from("queue")
       .select(`
         *,
         services (*),
@@ -191,7 +191,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
   const fetchQueueItemFull = useCallback(async (queueId: string) => {
     try {
       const { data } = await supabaseAny
-        .from("customer_bookings")
+        .from("queue")
         .select("*, services (*), barbers (*), salons (*)")
         .eq("id", queueId)
         .maybeSingle();
@@ -277,7 +277,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
         console.log("QUEUE_FALLBACK_SYNC: No events for 60s, checking for missed updates");
         try {
           const { data } = await supabaseAny
-            .from("customer_bookings")
+            .from("queue")
             .select("id")
             .eq("salon_id", salon.id)
             .order("created_at", { ascending: false })
@@ -309,7 +309,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
     const previous = queueItems;
     setQueueItems((prev) => prev.map((item) => (item.id === queueId ? { ...item, barber_id: barberId } : item)));
 
-    const { error } = await supabaseAny.from("customer_bookings").update({ barber_id: barberId }).eq("id", queueId);
+    const { error } = await supabaseAny.from("queue").update({ barber_id: barberId }).eq("id", queueId);
     if (error) {
       setQueueItems(previous);
       toast.error(error.message || "Failed to assign barber");
@@ -345,7 +345,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
     if (status === "waiting" || status === "accepted") payload.started_at = null;
 
     setActionLoading(queueId);
-    const { error } = await supabaseAny.from("customer_bookings").update(payload).eq("id", queueId);
+    const { error } = await supabaseAny.from("queue").update(payload).eq("id", queueId);
     setActionLoading(null);
 
     if (error) {
@@ -411,7 +411,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
       if (!freshUser) throw new Error("Owner session expired. Please re-login.");
 
       const { data: positionRows } = await (supabase
-        .from("customer_bookings") as any)
+        .from("queue") as any)
         .select("position")
         .eq("salon_id", salon.id)
         .order("position", { ascending: false })
@@ -448,7 +448,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
 
       setQueueItems((prev) => [...prev, optimisticItem]);
 
-      const { data: insertedData, error: insertError } = await (supabase.from("customer_bookings") as any)
+      const { data: insertedData, error: insertError } = await (supabase.from("queue") as any)
         .insert({
           salon_id: salon.id,
           user_id: freshUser.id,
@@ -510,3 +510,4 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
     updateBarber,
   };
 }
+

@@ -259,3 +259,4 @@ export function MinimizedOrderTracker({ booking, onClose, isExpanded = false }: 
     </motion.div>
   );
 }
+

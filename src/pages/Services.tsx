@@ -212,3 +212,4 @@ function BadgeActions({ service, setEditingServiceId, setServiceDraft, onDelete 
     </div>
   );
 }
+

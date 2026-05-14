@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { OwnerShell } from "@/components/dashboard/OwnerShell";
 import { HolidayCalendar } from "@/components/dashboard/HolidayCalendar";
+import { OTPVerifyInput } from "@/components/dashboard/OTPVerifyInput";
 import { toast } from "sonner";
 
 type OwnerRecord = {
@@ -222,7 +223,7 @@ export default function OwnerDashboard() {
         
         const [queueRes, barbersRes, servicesRes] = await Promise.all([
           supabase
-            .from("customer_bookings")
+            .from("queue")
             .select("*, services (*), barbers (*), salons (*)")
             .eq("salon_id", salonData.id)
             .order("created_at", { ascending: false }),
@@ -278,7 +279,7 @@ export default function OwnerDashboard() {
     setQueueLoading(true);
     try {
       const { data, error } = await (supabase as any)
-        .from("customer_bookings")
+        .from("queue")
         .select("*, services (*), barbers (*), salons (*)")
         .eq("salon_id", id)
         .order("created_at", { ascending: false });
@@ -297,7 +298,7 @@ export default function OwnerDashboard() {
   const fetchQueueItemFull = useCallback(async (queueId: string) => {
     try {
       const { data } = await supabase
-        .from("customer_bookings")
+        .from("queue")
         .select("*, services (*), barbers (*), salons (*)")
         .eq("id", queueId)
         .maybeSingle();
@@ -384,7 +385,7 @@ export default function OwnerDashboard() {
         console.log("DASHBOARD_FALLBACK_SYNC: No real-time events for 60s, checking for missed updates");
         try {
           const { data } = await supabase
-            .from("customer_bookings")
+            .from("queue")
             .select("id, status, created_at")
             .eq("salon_id", salon.id)
             .order("created_at", { ascending: false })
@@ -474,7 +475,7 @@ export default function OwnerDashboard() {
     setUpdatingQueueId(item.id);
     try {
       clearAcceptTimer(item.id);
-      const { error } = await supabaseAny.from("customer_bookings").update({ status: "accepted", started_at: null }).eq("id", item.id);
+      const { error } = await supabaseAny.from("queue").update({ status: "accepted", started_at: null }).eq("id", item.id);
       if (error) throw error;
 
       const expiresAt = Date.now() + ACCEPT_WINDOW_MS;
@@ -485,7 +486,7 @@ export default function OwnerDashboard() {
           delete next[item.id];
           return next;
         });
-        await supabaseAny.from("customer_bookings").update({ status: "in_progress", started_at: new Date().toISOString() }).eq("id", item.id);
+        await supabaseAny.from("queue").update({ status: "in_progress", started_at: new Date().toISOString() }).eq("id", item.id);
       }, ACCEPT_WINDOW_MS);
 
       acceptTimersRef.current[item.id] = timer;
@@ -504,7 +505,7 @@ export default function OwnerDashboard() {
     setUpdatingQueueId(queueId);
     try {
       clearAcceptTimer(queueId);
-      const { error } = await supabaseAny.from("customer_bookings").update({ status: "waiting", started_at: null }).eq("id", queueId);
+      const { error } = await supabaseAny.from("queue").update({ status: "waiting", started_at: null }).eq("id", queueId);
       if (error) throw error;
       setQueueItems((prev) => prev.map((row) => (row.id === queueId ? { ...row, status: "waiting", started_at: null } : row)));
       toast.success("Accept undone");
@@ -522,7 +523,7 @@ export default function OwnerDashboard() {
     try {
       const payload: Record<string, unknown> = { status: nextStatus };
       if (nextStatus === "waiting" || nextStatus === "accepted") payload.started_at = null;
-      const { error } = await supabaseAny.from("customer_bookings").update(payload).eq("id", item.id);
+      const { error } = await supabaseAny.from("queue").update(payload).eq("id", item.id);
       
       if (error) throw error;
 
@@ -530,7 +531,7 @@ export default function OwnerDashboard() {
       
       // Local refresh
       const { data } = await supabaseAny
-        .from("customer_bookings")
+        .from("queue")
         .select("*, services (*), barbers (*), salons (*)")
         .eq("salon_id", salon.id)
         .order("created_at", { ascending: true });
@@ -806,6 +807,19 @@ export default function OwnerDashboard() {
                           <p className="text-[11px] text-amber-700">Accepting in {remainingSeconds}s. Undo if needed.</p>
                         </div>
                       ) : null}
+                      
+                      {/* OTP Verification Input - shown for waiting/confirmed status */}
+                      {(item.status === "waiting" || item.status === "confirmed") && (
+                        <OTPVerifyInput
+                          bookingId={item.id}
+                          customerName={customerName}
+                          currentStatus={item.status}
+                          onVerified={() => {
+                            // Refresh the queue when OTP is verified
+                            if (salon?.id) fetchDashboardData(salon.id);
+                          }}
+                        />
+                      )}
                       </>
                     );
                   })}
@@ -936,3 +950,4 @@ export default function OwnerDashboard() {
     </OwnerShell>
   );
 }
+

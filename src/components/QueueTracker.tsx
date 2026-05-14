@@ -26,7 +26,7 @@ const QueueTracker = () => {
 
   const fetchQueue = async (salonId: string) => {
     const { data } = await supabase
-      .from("customer_bookings")
+      .from("queue")
       .select(`
         *,
         services (*),
@@ -46,7 +46,7 @@ const QueueTracker = () => {
 
     // Check for in_progress status too (service started)
     const { data } = await supabase
-      .from("customer_bookings")
+      .from("queue")
       .select(`
         *,
         services (*),
@@ -154,7 +154,7 @@ const QueueTracker = () => {
   const handleCancel = async () => {
     if (!entry) return;
     const { error } = await supabase
-      .from("customer_bookings")
+      .from("queue")
       .update({ status: "cancelled" } as any)
       .eq("user_id", user?.id)
       .eq("status", "waiting");
@@ -344,3 +344,4 @@ const QueueTracker = () => {
 };
 
 export default QueueTracker;
+

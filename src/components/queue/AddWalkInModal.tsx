@@ -124,3 +124,4 @@ export function AddWalkInModal({ open, onOpenChange, services, barbers, onSubmit
     </Dialog>
   );
 }
+

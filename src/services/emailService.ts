@@ -20,6 +20,7 @@ interface BookingEmailData {
   oldTime?: string;
   queuePosition?: number;
   waitTime?: number;
+  arrivalOTP?: string;
 }
 
 type EmailType = 
@@ -88,3 +89,4 @@ export const sendQueueUpdateEmail = async (
     false // Don't send to owner for queue updates
   );
 };
+

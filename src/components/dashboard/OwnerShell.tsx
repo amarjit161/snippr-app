@@ -70,3 +70,4 @@ export function OwnerShell({ children, onLogout }: OwnerShellProps) {
     </div>
   );
 }
+

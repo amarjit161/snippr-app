@@ -16,3 +16,4 @@ export const debug = {
     if (isDev) console.warn(message, ...args);
   },
 };
+

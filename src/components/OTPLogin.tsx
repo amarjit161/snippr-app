@@ -496,3 +496,4 @@ const OTPLogin = ({ initialError }: OTPLoginProps) => {
 };
 
 export default OTPLogin;
+

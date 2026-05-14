@@ -25,3 +25,4 @@ export function SidebarItem({ icon: Icon, label, isActive, onClick }: SidebarIte
     </button>
   );
 }
+

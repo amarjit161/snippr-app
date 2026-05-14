@@ -22,3 +22,4 @@ export const modalMotion = {
   hidden: { opacity: 0, scale: 0.99, y: 4 },
   visible: { opacity: 1, scale: 1, y: 0 },
 };
+

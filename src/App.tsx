@@ -38,6 +38,7 @@ const Team = lazy(() => import("./pages/Team.tsx"));
 const Queue = lazy(() => import("./pages/Queue.tsx"));
 const Careers = lazy(() => import("./pages/Careers.tsx"));
 const HowItWorks = lazy(() => import("./pages/HowItWorks.tsx"));
+const BookingDetail = lazy(() => import("./pages/BookingDetail.tsx"));
 const Support = lazy(() => import("./pages/Support.tsx"));
 const Privacy = lazy(() => import("./pages/Privacy.tsx"));
 const ProfileCompletion = lazy(() => import("./pages/ProfileCompletion.tsx"));
@@ -126,6 +127,7 @@ const AppRoutes = () => {
         <Route path="/salon/:id" element={<Suspense fallback={<PageLoader />}><SalonPage /></Suspense>} />
         <Route path="/admin" element={<Suspense fallback={<PageLoader />}><Admin /></Suspense>} />
         <Route path="/bookings" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
+        <Route path="/booking/:id" element={<Suspense fallback={<PageLoader />}><BookingDetail /></Suspense>} />
         <Route path="/my-profile" element={<Suspense fallback={<PageLoader />}><MyProfile /></Suspense>} />
       </Route>
     </Routes>
@@ -152,3 +154,4 @@ const App = () => (
 );
 
 export default App;
+

@@ -58,3 +58,4 @@ export const useErrorHandler = () => {
 
   return { handleError, handleBookingError };
 };
+

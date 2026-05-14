@@ -50,3 +50,4 @@ export const estimateTravelMinutes = (
   // Assume avg city speed ~20 km/h (mix of walking/transit)
   return Math.max(2, Math.round((distKm / 20) * 60));
 };
+

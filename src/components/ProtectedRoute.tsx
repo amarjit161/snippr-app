@@ -78,3 +78,4 @@ export const ProtectedRoute = () => {
 
   return <Outlet />;
 };
+

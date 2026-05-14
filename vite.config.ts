@@ -54,12 +54,10 @@ export default defineConfig(({ mode }) => {
         }
 
         try {
-          if (process.env.NODE_ENV === 'development') console.log(token);
           const result = await verifyTurnstileWithCloudflare(token, turnstileSecret);
-          if (process.env.NODE_ENV === 'development') console.log(result);
 
           if (!result.success) {
-            console.error("Cloudflare Turnstile verification failed (dev)", result);
+            console.error("Cloudflare Turnstile verification failed (dev)", result["error-codes"] || []);
             res.statusCode = 400;
             res.setHeader("Content-Type", "application/json");
             const isExpiredOrInvalid = (result["error-codes"] || []).some((code) =>
@@ -263,6 +261,9 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
       hmr: {
         overlay: false,
+      },
+      watch: {
+        ignored: ["**/dist/**"],
       },
     },
     build: {

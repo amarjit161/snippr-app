@@ -27,6 +27,8 @@ interface BookingSuccessProps {
   image: string;
   estimatedWait: string;
   queuePosition: number | string;
+  bookingId: string;
+  arrivalOTP: string;
   onViewBookings: () => void;
   onModify: () => void;
 }
@@ -38,6 +40,8 @@ export default function BookingSuccess({
   image,
   estimatedWait,
   queuePosition,
+  bookingId,
+  arrivalOTP,
   onViewBookings,
   onModify,
 }: BookingSuccessProps) {
@@ -71,6 +75,28 @@ export default function BookingSuccess({
 
           {/* Details Bento Grid Layout */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full text-left">
+            {/* OTP Card - Arrival Code */}
+            <div className="md:col-span-2 bg-gradient-to-br from-purple-600 to-purple-800 rounded-2xl p-6 text-white text-center">
+              <p className="text-purple-200 text-xs font-semibold uppercase tracking-wider mb-3">
+                Your Arrival Code (Snipp Code)
+              </p>
+              <div className="flex items-center justify-center gap-2 mb-4">
+                {arrivalOTP?.split('').map((digit, i) => (
+                  <div key={i} 
+                       className="w-14 h-16 bg-white/20 rounded-xl flex items-center justify-center 
+                                  text-3xl font-black text-white border-2 border-white/30">
+                    {digit}
+                  </div>
+                ))}
+              </div>
+              <p className="text-purple-200 text-sm">
+                Show this code to the salon when you arrive
+              </p>
+              <p className="text-purple-300 text-xs mt-1">
+                Valid until booking complete · Do not share with anyone else
+              </p>
+            </div>
+            
             {/* Queue Card */}
             <div className="bg-white p-6 rounded-xl border border-[#630ed4]/5 flex flex-col justify-between aspect-video md:aspect-auto">
               <div>
@@ -128,3 +154,4 @@ export default function BookingSuccess({
     </div>
   );
 }
+

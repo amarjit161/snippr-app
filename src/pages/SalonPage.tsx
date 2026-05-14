@@ -92,3 +92,4 @@ export default function SalonPage() {
     </div>
   );
 }
+

@@ -24,6 +24,14 @@ const normalizeStatus = (status?: string) => {
 
 const isRescheduleLocked = (status?: string) => RESCHEDULE_LOCKED_STATUSES.has(normalizeStatus(status));
 
+// OTP is active for: waiting, confirmed, accepted, in_progress
+// OTP expires (becomes invalid) for: completed, done, cancelled, rejected
+const isOTPActive = (status?: string): boolean => {
+  const normalized = normalizeStatus(status);
+  const activeStatuses = new Set(["waiting", "confirmed", "accepted", "in_progress"]);
+  return activeStatuses.has(normalized);
+};
+
 const toDateLabel = (date?: string) => {
   if (!date) return "Date TBD";
   const parsed = new Date(`${date}T00:00:00`);
@@ -63,6 +71,14 @@ type BookingCardProps = {
 
 const BookingCard = ({ booking: b, onCancel, onManage, showActions, updatingId }: BookingCardProps) => {
   const cardRef = useRef<HTMLElement | null>(null);
+
+  // Debug logging
+  console.log("📍 BookingCard rendered:", {
+    id: b.id,
+    status: b.status,
+    arrival_otp: b.arrival_otp,
+    hasOTP: !!b.arrival_otp,
+  });
 
   const handleMove = (event: React.MouseEvent<HTMLElement>) => {
     if (!cardRef.current) return;
@@ -163,18 +179,44 @@ const BookingCard = ({ booking: b, onCancel, onManage, showActions, updatingId }
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
             <p className="text-4xl font-extrabold text-[#7a43e9]">{formatPrice(price)}</p>
 
+            {/* OTP Display for active bookings - Valid until completed/cancelled */}
+            {isOTPActive(status) && b.arrival_otp && (
+              <div className="w-full">
+                <div className="pt-4 border-t border-gray-100">
+                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-2">
+                    Arrival Code (Show at Salon)
+                  </p>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex gap-1.5">
+                      {b.arrival_otp.split('').map((digit: string, i: number) => (
+                        <div key={i} 
+                             className="w-9 h-10 bg-purple-50 border-2 border-purple-200 rounded-lg 
+                                        flex items-center justify-center text-lg font-black text-purple-700">
+                          {digit}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-gray-400">Valid until done</p>
+                      <p className="text-xs text-green-600 font-medium mt-0.5">● Active</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {showActions ? (
-              <div className="flex gap-3">
+              <div className="flex gap-3 w-full">
                 <Button
                   variant="outline"
-                  className="h-11 rounded-full border-rose-300 px-6 text-rose-600 hover:bg-rose-50"
+                  className="flex-1 h-11 rounded-full border-rose-300 px-6 text-rose-600 hover:bg-rose-50"
                   disabled={updatingId === b.id}
                   onClick={() => onCancel(b.id)}
                 >
                   {updatingId === b.id ? "Cancelling..." : "Cancel"}
                 </Button>
                 <Button
-                  className="h-11 rounded-full px-6"
+                  className="flex-1 h-11 rounded-full px-6"
                   disabled={updatingId === b.id || rescheduleLocked}
                   onClick={() => onManage(b)}
                 >
@@ -207,6 +249,10 @@ export default function Dashboard() {
   const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false);
   const [rescheduleTarget, setRescheduleTarget] = useState<any>(null);
   const [showCompletionCelebration, setShowCompletionCelebration] = useState(false);
+  const [lastFetchTime, setLastFetchTime] = useState<number | null>(null);
+  
+  // Cache validity: 60 seconds
+  const CACHE_VALIDITY_MS = 60000;
 
   useEffect(() => {
     if (!user) {
@@ -259,8 +305,18 @@ export default function Dashboard() {
     return () => ctx.revert();
   }, [fetching, bookings.length, activeTab]);
 
-  const fetchBookings = async () => {
-    setFetching(true);
+  const fetchBookings = async (skipCache = false) => {
+    // Check cache validity
+    if (!skipCache && lastFetchTime && Date.now() - lastFetchTime < CACHE_VALIDITY_MS) {
+      console.log("📦 BOOKINGS: Using cached data (fresh)");
+      setFetching(false);
+      return;
+    }
+
+    // Only show loading for initial fetch or forced refresh
+    if (bookings.length === 0) {
+      setFetching(true);
+    }
 
     const {
       data: { user },
@@ -275,7 +331,7 @@ export default function Dashboard() {
     }
 
     const { data, error } = await supabase
-      .from("customer_bookings")
+      .from("queue")
       .select("*, services (*), salons (*)")
       .eq("user_id", user.id)
       .order("booking_date", { ascending: false })
@@ -283,9 +339,22 @@ export default function Dashboard() {
 
     if (error) {
       console.error("BOOKINGS_FETCH_ERROR:", error);
-      setBookings([]);
+      if (bookings.length === 0) {
+        setBookings([]);
+      }
     } else {
       setBookings(data || []);
+      setLastFetchTime(Date.now());
+      console.log("✅ BOOKINGS: Fetched", data?.length || 0, "bookings from database");
+      // Debug: Log arrival_otp for each booking
+      data?.forEach((booking: any, idx: number) => {
+        console.log(`📌 Booking ${idx + 1}:`, {
+          id: booking.id,
+          status: booking.status,
+          arrival_otp: booking.arrival_otp,
+          booking_date: booking.booking_date,
+        });
+      });
     }
     setFetching(false);
   };
@@ -350,7 +419,7 @@ export default function Dashboard() {
 
       // Update booking status to cancelled
       const { data: updatedBooking, error } = await supabase
-        .from("customer_bookings")
+        .from("queue")
         .update({ status: "cancelled" } as any)
         .eq("id", cancelPendingId)
         .eq("user_id", user.id)
@@ -479,7 +548,7 @@ export default function Dashboard() {
     setUpdatingId(rescheduleTarget.id);
     try {
       const { data, error } = await supabase
-        .from("customer_bookings")
+        .from("queue")
         .update({
           booking_date: newDate,
           time_slot: newTime,
@@ -582,7 +651,7 @@ export default function Dashboard() {
           {
             event: "*",
             schema: "public",
-            table: "customer_bookings",
+            table: "queue",
             filter: `user_id=eq.${user.id}`,
           },
           fetchBookings
@@ -723,3 +792,4 @@ export default function Dashboard() {
     </div>
   );
 }
+

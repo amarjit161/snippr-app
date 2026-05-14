@@ -172,3 +172,4 @@ const SalonCard = ({ salon, index, onSelect }: SalonCardProps) => {
 };
 
 export default SalonCard;
+

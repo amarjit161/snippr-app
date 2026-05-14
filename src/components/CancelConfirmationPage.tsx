@@ -258,3 +258,4 @@ export function CompletionCelebration({ booking, onClose }: CompletionCelebratio
     </motion.div>
   );
 }
+
