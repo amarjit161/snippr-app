@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Clock3, Check, X, Loader2, LogOut, TrendingUp, Users2, CalendarDays, ShieldCheck, ArrowUpRight } from "lucide-react";
 import { toast } from "sonner";
+import OperationsDashboard from "@/pages/admin/OperationsDashboard";
 
 export default function Admin() {
   const { user, signOut } = useAuth();
@@ -56,6 +57,11 @@ export default function Admin() {
       pending,
       cancelled,
     };
+  }, [bookings]);
+
+  const activeSalonId = useMemo(() => {
+    const firstWithSalon = bookings.find((booking) => Boolean(booking.salon_id));
+    return firstWithSalon?.salon_id || "";
   }, [bookings]);
 
   const statusTone = (status: string) => {
@@ -129,9 +135,10 @@ export default function Admin() {
         </div>
 
         <Tabs defaultValue="bookings" className="mt-6">
-          <TabsList className="grid h-auto w-full grid-cols-2 rounded-2xl bg-secondary/40 p-1 sm:w-[420px]">
+          <TabsList className="grid h-auto w-full grid-cols-3 rounded-2xl bg-secondary/40 p-1 sm:w-[620px]">
             <TabsTrigger value="bookings" className="rounded-xl py-2.5">Recent Bookings</TabsTrigger>
             <TabsTrigger value="activity" className="rounded-xl py-2.5">Live Activity</TabsTrigger>
+            <TabsTrigger value="operations" className="rounded-xl py-2.5">Operations</TabsTrigger>
           </TabsList>
 
           <TabsContent value="bookings" className="mt-6">
@@ -220,6 +227,21 @@ export default function Admin() {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          <TabsContent value="operations" className="mt-6">
+            {activeSalonId ? (
+              <OperationsDashboard salonId={activeSalonId} />
+            ) : (
+              <Card className="rounded-3xl">
+                <CardContent className="p-6">
+                  <h3 className="font-display text-lg font-bold">Operations Data Unavailable</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    No `salon_id` was found in recent bookings. Once salon-linked queue data is present, operations analytics will appear here.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
       </div>

@@ -46,30 +46,30 @@ export default function BookingSuccess({
   onModify,
 }: BookingSuccessProps) {
   return (
-    <div className="fixed inset-0 z-50 bg-[#f8f9fa] flex items-center justify-center p-6 sm:p-12 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#f8f9fa] p-4 sm:p-6 md:p-12">
       {/* Decorative Abstract Background Elements */}
       <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-[#630ed4]/5 rounded-full blur-[120px]"></div>
       <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] bg-[#005b3d]/5 rounded-full blur-[100px]"></div>
       
-      <main className="w-full max-w-2xl z-10 my-auto">
+      <main className="z-10 my-auto w-full max-w-2xl">
         {/* Main Confirmation Card */}
-        <div className="bg-white/70 backdrop-blur-2xl rounded-2xl shadow-[0_20px_40px_rgba(99,14,212,0.06)] p-8 md:p-12 text-center flex flex-col items-center">
+        <div className="flex flex-col items-center rounded-2xl bg-white/70 p-5 text-center shadow-[0_20px_40px_rgba(99,14,212,0.06)] backdrop-blur-2xl sm:p-8 md:p-12">
           
           {/* Success Animation Placeholder / Icon */}
-          <div className="relative mb-8">
-            <div className="w-24 h-24 bg-[#6ffbbe] rounded-full flex items-center justify-center shadow-lg">
-              <CheckCircle2 className="text-[#005b3d] w-12 h-12" />
+          <div className="relative mb-6 sm:mb-8">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#6ffbbe] shadow-lg sm:h-24 sm:w-24">
+              <CheckCircle2 className="h-10 w-10 text-[#005b3d] sm:h-12 sm:w-12" />
             </div>
             {/* Particle Accents */}
-            <div className="absolute -top-2 -right-2 w-4 h-4 bg-[#7c3aed] rounded-full animate-pulse"></div>
-            <div className="absolute -bottom-1 -left-3 w-3 h-3 bg-[#005b3d] rounded-full opacity-40"></div>
+            <div className="absolute -top-2 -right-2 h-4 w-4 rounded-full bg-[#7c3aed] animate-pulse"></div>
+            <div className="absolute -bottom-1 -left-3 h-3 w-3 rounded-full bg-[#005b3d] opacity-40"></div>
           </div>
           
           {/* Title Section */}
-          <h1 className="font-headline font-extrabold text-4xl md:text-5xl text-[#630ed4] tracking-tight mb-4">
+          <h1 className="mb-4 text-3xl font-extrabold tracking-tight text-[#630ed4] font-headline sm:text-4xl md:text-5xl">
             Booking Confirmed!
           </h1>
-          <p className="text-[#4a4455] text-lg max-w-md mx-auto mb-10">
+          <p className="mx-auto mb-8 max-w-md text-base text-[#4a4455] sm:mb-10 sm:text-lg">
             You're all set. We've notified the stylist and they're preparing for your arrival.
           </p>
 
@@ -97,48 +97,51 @@ export default function BookingSuccess({
               </p>
             </div>
             
+=======
+          <div className="grid w-full grid-cols-1 gap-4 text-left md:grid-cols-2">
+>>>>>>> 5bab213 (Save local changes: update components, hooks, services, and migrations)
             {/* Queue Card */}
-            <div className="bg-white p-6 rounded-xl border border-[#630ed4]/5 flex flex-col justify-between aspect-video md:aspect-auto">
+            <div className="flex aspect-video flex-col justify-between rounded-xl border border-[#630ed4]/5 bg-white p-5 sm:p-6 md:aspect-auto">
               <div>
                 <span className="font-label text-[10px] font-bold uppercase tracking-widest text-[#7b7487] mb-2 block">Current Queue</span>
-                <h2 className="font-headline font-extrabold text-5xl text-[#630ed4]">#{queuePosition}</h2>
+                <h2 className="text-4xl font-extrabold text-[#630ed4] font-headline sm:text-5xl">#{queuePosition}</h2>
               </div>
             </div>
             
             {/* Time Card */}
-            <div className="bg-[#630ed4] text-white p-6 rounded-xl flex flex-col justify-between">
+            <div className="flex flex-col justify-between rounded-xl bg-[#630ed4] p-5 text-white sm:p-6">
               <div>
                 <span className="font-label text-[10px] font-bold uppercase tracking-widest text-white/60 mb-2 block">Estimated Wait</span>
                 <div className="flex items-baseline gap-1">
-                  <span className="font-headline font-extrabold text-4xl">{estimatedWait.replace(/\D/g, '') || "15"}</span>
-                  <span className="font-headline font-bold text-xl">mins</span>
+                  <span className="text-3xl font-extrabold font-headline sm:text-4xl">{estimatedWait.replace(/\D/g, '') || "15"}</span>
+                  <span className="text-lg font-bold font-headline sm:text-xl">mins</span>
                 </div>
               </div>
             </div>
             
             {/* Salon Info Card */}
-            <div className="md:col-span-2 bg-[#f3f4f5] p-6 rounded-xl flex flex-col md:flex-row items-center justify-between gap-6">
-              <div className="flex items-center gap-4 w-full md:w-auto">
-                <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0">
+            <div className="md:col-span-2 flex flex-col items-center justify-between gap-4 rounded-xl bg-[#f3f4f5] p-5 sm:p-6 md:flex-row md:gap-6">
+              <div className="flex w-full items-center gap-4 md:w-auto">
+                <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-xl">
                   <img alt="Salon" className="w-full h-full object-cover" src={getSalonImageSrc(image)} />
                 </div>
                 <div>
-                  <h3 className="font-headline font-bold text-xl text-[#191c1d]">{salonName}</h3>
+                  <h3 className="text-lg font-bold text-[#191c1d] font-headline sm:text-xl">{salonName}</h3>
                   <p className="text-[#4a4455] text-sm">{serviceName}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 bg-white py-2 px-4 rounded-full border border-[#ccc3d8]/20 shadow-sm w-full md:w-auto justify-center">
-                 <span className="text-sm font-medium">{address || "Location unavailable"}</span>
+              <div className="flex w-full justify-center rounded-full border border-[#ccc3d8]/20 bg-white px-4 py-2 shadow-sm md:w-auto">
+                 <span className="text-center text-sm font-medium">{address || "Location unavailable"}</span>
               </div>
             </div>
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 w-full mt-10">
-            <button onClick={onViewBookings} className="flex-1 text-white font-bold py-4 px-8 rounded-full shadow-lg hover:brightness-110 transition-all active:scale-95 flex items-center justify-center gap-2" style={{ background: 'linear-gradient(to right, #630ed4, #7c3aed)' }}>
+          <div className="mt-8 flex w-full flex-col gap-4 sm:mt-10 sm:flex-row">
+            <button onClick={onViewBookings} className="flex flex-1 items-center justify-center gap-2 rounded-full px-6 py-4 font-bold text-white shadow-lg transition-all active:scale-95 hover:brightness-110 sm:px-8" style={{ background: 'linear-gradient(to right, #630ed4, #7c3aed)' }}>
               View Bookings
             </button>
-            <button onClick={onModify} className="flex-1 bg-[#f0dbff] text-[#2c0051] font-bold py-4 px-8 rounded-full hover:bg-[#ddb7ff] transition-all active:scale-95 flex items-center justify-center gap-2">
+            <button onClick={onModify} className="flex flex-1 items-center justify-center gap-2 rounded-full bg-[#f0dbff] px-6 py-4 font-bold text-[#2c0051] transition-all active:scale-95 hover:bg-[#ddb7ff] sm:px-8">
               Back to Salons
             </button>
           </div>
@@ -146,7 +149,7 @@ export default function BookingSuccess({
         </div>
         
         {/* Footer Help */}
-        <p className="text-center text-[#7b7487] text-xs mt-8">
+        <p className="mt-8 text-center text-xs text-[#7b7487]">
           A confirmation email has been sent to your registered address.<br/>
           Need help? Contact <span className="text-[#630ed4] font-semibold">Snippr Concierge</span>
         </p>

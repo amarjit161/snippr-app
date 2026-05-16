@@ -54,6 +54,28 @@ const formatTimeSlot = (timeSlot?: string) => {
 
 const formatPrice = (amount: number) => `₹${amount.toLocaleString("en-IN")}`;
 
+const BOOKING_SELECT = `
+  id,
+  salon_id,
+  user_id,
+  service_id,
+  barber_id,
+  position,
+  status,
+  created_at,
+  started_at,
+  completed_at,
+  booking_date,
+  customer_first_name,
+  customer_last_name,
+  customer_phone,
+  email,
+  time_slot,
+  notes,
+  services (id, name, price, duration),
+  salons (id, name, owner_id, address, location, city, image_url)
+`;
+
 const isPastDate = (date?: string) => {
   if (!date) return false;
   const today = new Date();
@@ -71,6 +93,7 @@ type BookingCardProps = {
 
 const BookingCard = ({ booking: b, onCancel, onManage, showActions, updatingId }: BookingCardProps) => {
   const cardRef = useRef<HTMLElement | null>(null);
+  const isTouchPointer = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
 
   // Debug logging
   console.log("📍 BookingCard rendered:", {
@@ -81,6 +104,7 @@ const BookingCard = ({ booking: b, onCancel, onManage, showActions, updatingId }
   });
 
   const handleMove = (event: React.MouseEvent<HTMLElement>) => {
+    if (isTouchPointer) return;
     if (!cardRef.current) return;
 
     const rect = cardRef.current.getBoundingClientRect();
@@ -129,6 +153,7 @@ const BookingCard = ({ booking: b, onCancel, onManage, showActions, updatingId }
       className="overflow-hidden rounded-3xl border border-[#e5e2ea] bg-white shadow-sm will-change-transform"
       onMouseMove={handleMove}
       onMouseEnter={() => {
+        if (isTouchPointer) return;
         if (!cardRef.current) return;
         gsap.to(cardRef.current, { boxShadow: "0 18px 42px rgba(79,55,138,0.12)", duration: 0.18 });
       }}
@@ -330,9 +355,9 @@ export default function Dashboard() {
       return;
     }
 
-    const { data, error } = await supabase
-      .from("queue")
-      .select("*, services (*), salons (*)")
+        const { data, error } = await supabase
+      .from("customer_bookings")
+      .select(BOOKING_SELECT)
       .eq("user_id", user.id)
       .order("booking_date", { ascending: false })
       .order("created_at", { ascending: false });

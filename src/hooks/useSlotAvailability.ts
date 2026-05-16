@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { publicSupabase } from "@/integrations/supabase/publicClient";
 
 interface TimeSlot {
@@ -167,7 +168,7 @@ export function useSlotAvailability(
       // Step 4: booked slots for the selected day.
         console.log("🔄 FETCHING_BOOKED_SLOTS for:", { salonId, selectedDate });
       const { data: bookedRecords, error: bookingsError } = await publicSupabase
-        .from("queue" as any)
+        .from("customer_bookings" as any)
         .select("time_slot, barber_id, status")
         .eq("salon_id", salonId)
         .eq("booking_date", selectedDate)
@@ -308,15 +309,9 @@ export function useSlotAvailability(
     }
   }, [fetchSlots, salonId, date]);
 
-  // Auto-refresh every 30 seconds
-  useEffect(() => {
-    const interval = setInterval(() => fetchSlots(date), 30000);
-    return () => clearInterval(interval);
-  }, [fetchSlots, date]);
-
   // Real-time subscription to queue changes
   useEffect(() => {
-    if (!salonId) return;
+    if (!salonId || !date) return;
 
     const subscription = publicSupabase
       .channel(`slots-${salonId}-${date}`)
@@ -326,9 +321,11 @@ export function useSlotAvailability(
           event: "*",
           schema: "public",
           table: "queue",
-          filter: `salon_id=eq.${salonId}&booking_date=eq.${date}`,
+          filter: `salon_id=eq.${salonId}`,
         },
-        () => {
+        (payload) => {
+          const payloadDate = (payload.new as any)?.booking_date || (payload.old as any)?.booking_date;
+          if (payloadDate !== date) return;
           if (import.meta.env.DEV) console.log("🔄 Slot availability changed - refreshing...");
           fetchSlots(date);
         }

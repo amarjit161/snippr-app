@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Search } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { publicSupabase } from "@/integrations/supabase/publicClient";
 import { Input } from "@/components/ui/input";
 import Header from "@/components/Header";
@@ -166,7 +167,7 @@ const Salons = () => {
     queryKey: ["salons", userCoords],
     queryFn: async () => {
       console.log("FETCH_SALONS_OPTIMIZED_START");
-      const { data, error } = await publicSupabase
+      const { data, error } = await supabase
         .from("salon_with_stats" as any)
         .select("*");
 

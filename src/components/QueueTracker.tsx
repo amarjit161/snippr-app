@@ -21,17 +21,27 @@ const QueueTracker = () => {
   const [isVisible, setIsVisible] = useState(true);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const prevPosition = useRef<number | null>(null);
+  const entryIdRef = useRef<string | null>(null);
 
   const AVG_SERVICE_TIME = 20;
+
+  useEffect(() => {
+    entryIdRef.current = entry?.id || null;
+  }, [entry?.id]);
 
   const fetchQueue = async (salonId: string) => {
     const { data } = await supabase
       .from("queue")
       .select(`
-        *,
-        services (*),
-        salons (*),
-        barbers (*)
+        id,
+        salon_id,
+        user_id,
+        service_id,
+        position,
+        status,
+        created_at,
+        services (id, name, price, duration),
+        salons (id, name, latitude, longitude)
       `)
       .eq("salon_id", salonId)
       .eq("status", "waiting")
@@ -48,10 +58,15 @@ const QueueTracker = () => {
     const { data } = await supabase
       .from("queue")
       .select(`
-        *,
-        services (*),
-        salons (*),
-        barbers (*)
+        id,
+        salon_id,
+        user_id,
+        service_id,
+        position,
+        status,
+        created_at,
+        services (id, name, price, duration),
+        salons (id, name, latitude, longitude)
       `)
       .eq("user_id", user.id)
       .in("status", ["waiting", "in_progress"])
@@ -75,7 +90,7 @@ const QueueTracker = () => {
 
       await fetchQueue(data.salon_id);
     } else {
-      if (entry && prevPosition.current === -1) {
+      if (prevPosition.current === -1) {
         toast.success("✅ Service completed! See you next time!", { duration: 6000 });
       }
       setEntry(null);
@@ -128,16 +143,17 @@ const QueueTracker = () => {
   };
 
   useEffect(() => {
+    if (!user?.id) return;
     fetchMyQueue();
 
     const channel = supabase
-      .channel(`queue-tracker-updates-${user?.id ?? "guest"}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "queue", filter: `user_id=eq.${user?.id}` }, (payload) => {
+      .channel(`queue-tracker-updates-${user.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "queue", filter: `user_id=eq.${user.id}` }, (payload) => {
         const eventType = payload.eventType;
         const nextStatus = String(((payload as any).new?.status || "")).toLowerCase();
         const payloadId = (payload as any).new?.id || (payload as any).old?.id;
 
-        if (entry && payloadId === entry.id) {
+        if (entryIdRef.current && payloadId === entryIdRef.current) {
           if (eventType === "DELETE" || (nextStatus && !["waiting", "in_progress"].includes(nextStatus))) {
             clearTrackerState();
             return;
@@ -149,7 +165,7 @@ const QueueTracker = () => {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [user, entry?.id]);
+  }, [user?.id]);
 
   const handleCancel = async () => {
     if (!entry) return;

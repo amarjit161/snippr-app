@@ -103,7 +103,7 @@ export function SlotPicker({
 
   if (!date) {
     return (
-      <div className="text-center py-8 text-gray-500">
+      <div className="py-8 text-center text-gray-500">
         <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
         <p>Select a date to view available slots</p>
       </div>
@@ -116,7 +116,7 @@ export function SlotPicker({
         {/* Header skeleton */}
         <div className="h-8 bg-gray-200 rounded-lg animate-pulse" />
         {/* Slot skeletons */}
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6">
           {[...Array(12)].map((_, i) => (
             <div
               key={i}
@@ -133,11 +133,11 @@ export function SlotPicker({
   return (
     <div className="space-y-5">
       {/* Header with availability counter */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs text-gray-600 font-medium">Total Availability</p>
           <p
-            className={`text-2xl sm:text-3xl font-bold mt-1 ${
+            className={`mt-1 text-2xl font-bold sm:text-3xl ${
               availableCount === 0
                 ? "text-red-700"
                 : availableCount < totalCount / 3
@@ -156,7 +156,7 @@ export function SlotPicker({
         <button
           onClick={() => refresh()}
           disabled={loading}
-          className="p-2.5 rounded-lg border-2 border-gray-300 hover:border-purple-300 transition disabled:opacity-50"
+          className="self-start rounded-lg border-2 border-gray-300 p-2.5 transition hover:border-purple-300 disabled:opacity-50 sm:self-auto"
           title="Refresh availability"
         >
           <RotateCcw
@@ -166,7 +166,7 @@ export function SlotPicker({
       </div>
 
       {/* Live indicator */}
-      <div className="flex items-center gap-2 text-xs text-gray-600">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
         <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
         <span>
           Live · Updated {getTimeAgo()} ago
@@ -175,7 +175,7 @@ export function SlotPicker({
 
       {/* Holiday closed state */}
       {holidayInfo ? (
-        <div className="text-center py-10 px-4">
+        <div className="px-4 py-10 text-center">
           <div className="text-6xl mb-4">
             {holidayInfo.type === "national"
               ? "🇮🇳"
@@ -209,7 +209,7 @@ export function SlotPicker({
               (group) =>
                 group.slots.length > 0 && (
                   <div key={group.label}>
-                    <div className="flex items-center justify-between mb-2.5">
+                    <div className="mb-2.5 flex items-center justify-between gap-2">
                       <p className="text-sm font-semibold text-gray-700">
                         {group.emoji} {group.label}
                       </p>
@@ -267,7 +267,7 @@ export function SlotPicker({
           </div>
 
           {/* Legend */}
-          <div className="border-t pt-4 grid grid-cols-3 gap-3 text-xs">
+          <div className="grid grid-cols-1 gap-3 border-t pt-4 text-xs sm:grid-cols-3">
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 rounded border-2 border-gray-200 bg-white" />
               <span className="text-gray-600">Available</span>

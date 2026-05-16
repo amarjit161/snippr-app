@@ -169,18 +169,42 @@ export default function Index() {
   };
 
   return (
-    <div className="min-h-screen bg-[#faf9fc] text-[#1a1c1e] antialiased">
-      <header data-landing-header className="sticky top-0 z-50 mx-auto flex w-full items-center justify-between bg-[rgba(250,249,252,0.8)] px-6 py-4 shadow-sm backdrop-blur-xl">
-        <div className="flex items-center gap-8">
-          <span className="text-2xl font-extrabold tracking-tight text-violet-900">snippr</span>
-          <nav className="hidden items-center gap-6 md:flex">
+    <div className="min-h-screen overflow-x-hidden bg-[#faf9fc] text-[#1a1c1e] antialiased">
+      <header data-landing-header className="sticky top-0 z-50 mx-auto flex w-full flex-col gap-3 bg-[rgba(250,249,252,0.8)] px-4 py-3 shadow-sm backdrop-blur-xl sm:px-6 md:flex-row md:items-center md:justify-between md:py-4">
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-xl font-extrabold tracking-tight text-violet-900 sm:text-2xl">snippr</span>
+          <nav className="flex items-center gap-4 overflow-x-auto md:hidden">
             <button className="border-b-2 border-violet-700 font-bold text-violet-700" onClick={() => navigate("/salons")}>Explore</button>
             <button className={navLinkClass} onClick={goToBookings}>Bookings</button>
             <button className={navLinkClass} onClick={() => navigate("/queue")}>Live Queue</button>
           </nav>
+          <div className="flex items-center gap-3 md:hidden">
+            {user ? (
+              <button
+                onClick={goToBookings}
+                className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border-2 border-[#6750a4]/20 bg-[#e8e8eb] text-sm font-bold text-[#4f378a]"
+                aria-label="User profile"
+              >
+                {avatarInitial}
+              </button>
+            ) : (
+              <button
+                onClick={() => navigate("/login")}
+                className="rounded-full border border-[#e3e2e5] bg-white px-3 py-2 text-xs font-semibold text-[#4f378a] shadow-sm"
+                aria-label="Sign in"
+              >
+                Sign in
+              </button>
+            )}
+          </div>
         </div>
-
-        <div className="flex items-center gap-4">
+        <div className="hidden items-center gap-8 md:flex">
+          <nav className="flex items-center gap-6">
+            <button className="border-b-2 border-violet-700 font-bold text-violet-700" onClick={() => navigate("/salons")}>Explore</button>
+            <button className={navLinkClass} onClick={goToBookings}>Bookings</button>
+            <button className={navLinkClass} onClick={() => navigate("/queue")}>Live Queue</button>
+          </nav>
+          <div className="flex items-center gap-4">
           {user ? (
             <button
               onClick={goToBookings}
@@ -200,10 +224,11 @@ export default function Index() {
             </button>
           )}
         </div>
+        </div>
       </header>
 
       <main>
-        <section data-landing-hero className="mx-auto flex max-w-7xl flex-col items-center gap-12 px-6 pb-16 pt-24 lg:flex-row lg:px-16">
+        <section data-landing-hero className="mx-auto flex max-w-7xl flex-col items-center gap-10 px-4 pb-16 pt-12 sm:px-6 sm:pt-16 lg:flex-row lg:px-16 lg:pt-24">
           <div className="flex-1 space-y-8">
             <div className="flex flex-wrap gap-3">
               <span className="rounded-full bg-[#e9ddff] px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-[#4f378a]">AI Wait Time</span>
@@ -211,26 +236,26 @@ export default function Index() {
               <span className="rounded-full bg-[#ffdf93] px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-[#503d00]">Smart ETA</span>
             </div>
 
-            <h1 className="text-5xl font-extrabold leading-[1.1] tracking-tight lg:text-7xl">
+            <h1 className="text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl lg:text-7xl">
               Skip the wait at <br />
               <span className="italic text-[#4f378a]">premium</span> salons.
             </h1>
 
-            <p className="max-w-xl text-xl leading-relaxed text-[#494551]">
+            <p className="max-w-xl text-base leading-relaxed text-[#494551] sm:text-lg lg:text-xl">
               snippr uses predictive intelligence to choreograph your salon visit. No more waiting areas just arrive exactly when your stylist is ready.
             </p>
 
-            <div className="flex flex-col gap-4 sm:flex-row">
+            <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap">
               <button
                 onClick={() => navigate("/salons")}
-                className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-[#4f378a] to-[#6750a4] px-8 py-4 text-lg font-bold text-white shadow-lg transition-all hover:opacity-90"
+                className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-[#4f378a] to-[#6750a4] px-6 py-3.5 text-base font-bold text-white shadow-lg transition-all hover:opacity-90 sm:px-8 sm:py-4 sm:text-lg"
               >
                 Join Queue
                 <ArrowRight className="h-5 w-5" />
               </button>
               <button
                 onClick={() => navigate("/how-it-works")}
-                className="rounded-2xl bg-[#e8e8eb] px-8 py-4 text-lg font-bold text-[#1a1c1e] transition-all hover:bg-[#e3e2e5]"
+                className="rounded-2xl bg-[#e8e8eb] px-6 py-3.5 text-base font-bold text-[#1a1c1e] transition-all hover:bg-[#e3e2e5] sm:px-8 sm:py-4 sm:text-lg"
               >
                 How it works
               </button>
@@ -238,11 +263,11 @@ export default function Index() {
           </div>
 
           <div className="relative flex-1">
-            <div className="relative z-10 w-full overflow-hidden rounded-3xl shadow-2xl">
+            <div className="relative z-10 w-full overflow-hidden rounded-[2rem] shadow-2xl">
               <img src={heroImage} alt="Modern salon interior" className="h-full w-full object-cover" />
             </div>
 
-            <div className="absolute -bottom-6 -left-6 z-20 max-w-[240px] rounded-2xl bg-white p-6 shadow-xl">
+            <div className="relative z-20 mt-4 max-w-[240px] rounded-2xl bg-white p-5 shadow-xl sm:absolute sm:-bottom-6 sm:-left-6 sm:mt-0 sm:p-6">
               <div className="mb-4 flex items-center gap-3">
                 <div className="h-3 w-3 animate-pulse rounded-full bg-[#ab3500]" />
                 <span className="text-xs font-bold uppercase tracking-widest text-[#ab3500]">Live Now</span>
@@ -254,9 +279,9 @@ export default function Index() {
         </section>
 
         <section data-landing-feature className="mx-auto max-w-7xl px-6 py-24 lg:px-16">
-          <div className="mb-12 flex items-end justify-between">
+          <div className="mb-12 flex flex-col gap-4 sm:items-end sm:justify-between lg:flex-row">
             <div>
-              <h2 className="text-3xl font-bold">Explore Salons</h2>
+              <h2 className="text-2xl font-bold sm:text-3xl">Explore Salons</h2>
               <p className="mt-2 font-medium text-[#494551]">Top rated destinations near your current location</p>
             </div>
             <button onClick={() => navigate("/salons")} className="flex items-center gap-2 font-bold text-[#4f378a] hover:underline">
@@ -266,13 +291,13 @@ export default function Index() {
           </div>
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-            <div className="group relative h-[400px] cursor-pointer overflow-hidden rounded-3xl md:col-span-2" onClick={() => navigate("/salons")}>
+            <div className="group relative min-h-[320px] cursor-pointer overflow-hidden rounded-3xl md:col-span-2 lg:h-[400px]" onClick={() => navigate("/salons")}>
               <img src={activeSalon.image} alt={activeSalon.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
               <div className={`absolute inset-0 bg-gradient-to-t ${activeSalon.accent}`} />
-              <div className="absolute bottom-0 left-0 w-full p-8 text-white">
-                <div className="flex items-end justify-between gap-4">
+              <div className="absolute bottom-0 left-0 w-full p-5 text-white sm:p-8">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
                   <div>
-                    <h3 className="text-2xl font-bold">{activeSalon.name}</h3>
+                    <h3 className="text-xl font-bold sm:text-2xl">{activeSalon.name}</h3>
                     <p className="font-medium opacity-90">{activeSalon.tag}</p>
                     <p className="mt-2 text-sm text-white/80">{activeSalon.location}</p>
                   </div>
@@ -296,12 +321,12 @@ export default function Index() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-4 sm:gap-6">
               {nextSalons.map((salon) => {
                 const Icon = salon.name.includes("Aura") ? SparklesIcon : Scissors;
 
                 return (
-                  <div key={salon.name} className="group flex-1 rounded-3xl border border-transparent bg-white p-6 shadow-sm transition-all hover:border-[#4f378a]/10 hover:shadow-md">
+                  <div key={salon.name} className="group flex-1 rounded-3xl border border-transparent bg-white p-5 shadow-sm transition-all hover:border-[#4f378a]/10 hover:shadow-md sm:p-6">
                     <div className="mb-4 flex items-start justify-between">
                       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#4f378a]/10 text-[#4f378a]">
                         <Icon />
@@ -334,7 +359,7 @@ export default function Index() {
         </section>
 
         <section data-landing-cta className="px-6 py-24">
-          <div className="relative mx-auto max-w-4xl overflow-hidden rounded-3xl bg-gradient-to-br from-[#4f378a] to-[#6750a4] p-12 text-center text-white">
+          <div className="relative mx-auto max-w-4xl overflow-hidden rounded-3xl bg-gradient-to-br from-[#4f378a] to-[#6750a4] p-6 text-center text-white sm:p-12">
             <div className="absolute -right-32 -top-32 h-64 w-64 rounded-full bg-white/5 blur-3xl" />
             <div className="absolute -bottom-32 -left-32 h-64 w-64 rounded-full bg-[#cfbcff]/20 blur-3xl" />
 
@@ -342,17 +367,17 @@ export default function Index() {
               <span className="h-2 w-2 animate-pulse rounded-full bg-[#ffb59d]" />
               App under build
             </div>
-            <h2 className="relative z-10 mb-6 text-4xl font-extrabold">Ready to cut the queue?</h2>
-            <p className="relative z-10 mx-auto mb-10 max-w-xl text-lg opacity-90">
+            <h2 className="relative z-10 mb-6 text-3xl font-extrabold sm:text-4xl">Ready to cut the queue?</h2>
+            <p className="relative z-10 mx-auto mb-10 max-w-xl text-base opacity-90 sm:text-lg">
               snippr app is coming soon. We are building something iconic for your next salon run.
             </p>
 
-            <div className="relative z-10 flex flex-wrap justify-center gap-4">
-              <button disabled className="flex cursor-not-allowed items-center gap-2 rounded-2xl bg-white px-8 py-4 font-bold text-[#4f378a] opacity-90">
+            <div className="relative z-10 flex flex-col justify-center gap-4 sm:flex-row sm:flex-wrap">
+              <button disabled className="flex cursor-not-allowed items-center justify-center gap-2 rounded-2xl bg-white px-8 py-4 font-bold text-[#4f378a] opacity-90">
                 <Apple className="h-5 w-5" />
                 App Store - Soon
               </button>
-              <button disabled className="flex cursor-not-allowed items-center gap-2 rounded-2xl bg-white/20 px-8 py-4 font-bold text-white backdrop-blur-md opacity-85">
+              <button disabled className="flex cursor-not-allowed items-center justify-center gap-2 rounded-2xl bg-white/20 px-8 py-4 font-bold text-white backdrop-blur-md opacity-85">
                 <ShoppingBag className="h-5 w-5" />
                 Google Play - Soon
               </button>
@@ -363,7 +388,7 @@ export default function Index() {
         </section>
       </main>
 
-      <footer className="mt-12 bg-slate-50 px-8 py-16">
+      <footer className="mt-12 bg-slate-50 px-4 py-16 sm:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="mb-12 flex flex-col items-start justify-between gap-12 md:flex-row">
             <div className="max-w-sm">
@@ -373,7 +398,7 @@ export default function Index() {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-12 sm:grid-cols-3">
+            <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 sm:gap-12">
               <div>
                 <h5 className="mb-4 text-sm font-bold text-slate-900">Product</h5>
                 <ul className="space-y-3 text-xs text-slate-500">
@@ -412,7 +437,7 @@ export default function Index() {
         </div>
       </footer>
 
-      <nav className="fixed bottom-0 left-0 z-50 flex w-full items-center justify-around rounded-t-3xl bg-[rgba(250,249,252,0.86)] px-4 pb-6 pt-3 shadow-[0_-8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl md:hidden">
+      <nav className="fixed bottom-0 left-0 z-50 flex w-full items-center justify-around rounded-t-3xl bg-[rgba(250,249,252,0.86)] px-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl md:hidden">
         <button className="flex scale-90 flex-col items-center justify-center rounded-2xl bg-violet-100 px-6 py-2 text-violet-800 transition-all" onClick={() => navigate("/salons")}>
           <Search className="h-5 w-5" />
           <span className="mt-1 text-[10px] font-bold uppercase tracking-widest">Explore</span>

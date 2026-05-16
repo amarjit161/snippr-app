@@ -27,7 +27,7 @@ const Header = ({ onSignOut, userName, userEmail, profileName, onAdminToggle, is
 
   return (
   <header className="sticky top-0 z-50 border-b border-border/70 bg-card/85 backdrop-blur-md">
-    <div className="container flex h-16 items-center justify-between">
+    <div className="container flex h-auto flex-wrap items-center justify-between gap-3 py-3 sm:h-16">
       <div className="flex items-center gap-2">
         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-indigo-500 text-primary-foreground shadow-sm">
           <Scissors className="h-5 w-5 text-primary-foreground" />
@@ -38,17 +38,17 @@ const Header = ({ onSignOut, userName, userEmail, profileName, onAdminToggle, is
       </div>
 
       {isPublic && location.pathname !== "/auth" && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-2">
           <Button variant="ghost" onClick={() => navigate("/salons")} className="hidden sm:flex text-muted-foreground">
             <Search className="mr-2 h-4 w-4" /> Browse Salons
           </Button>
-          <Button variant="outline" onClick={() => navigate("/owner-login")} className="gap-2 rounded-xl">
+          <Button variant="outline" onClick={() => navigate("/owner-login")} className="gap-2 rounded-xl px-3 sm:px-4">
             Owner Login
           </Button>
-          <Button variant="outline" onClick={() => navigate("/owner-register")} className="gap-2 rounded-xl">
+          <Button variant="outline" onClick={() => navigate("/owner-register")} className="gap-2 rounded-xl px-3 sm:px-4">
             Owner Signup
           </Button>
-          <Button onClick={() => navigate("/auth?role=customer")} className="gap-2 rounded-xl">
+          <Button onClick={() => navigate("/auth?role=customer")} className="gap-2 rounded-xl px-3 sm:px-4">
             Get Started <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
@@ -86,7 +86,7 @@ const Header = ({ onSignOut, userName, userEmail, profileName, onAdminToggle, is
           onClick={() => setProfileOpen(false)}
         />
 
-        <div className="fixed right-0 top-0 z-50 flex h-full w-72 animate-[slideIn_0.14s_cubic-bezier(0.16,1,0.3,1)] flex-col bg-white shadow-lg">
+        <div className="fixed right-0 top-0 z-50 flex h-full w-[88vw] max-w-72 animate-[slideIn_0.14s_cubic-bezier(0.16,1,0.3,1)] flex-col bg-white shadow-lg sm:w-72">
           <button
             onClick={() => setProfileOpen(false)}
             className="absolute right-4 top-4 rounded-full p-2 hover:bg-gray-100"
