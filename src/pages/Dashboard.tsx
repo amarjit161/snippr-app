@@ -390,7 +390,7 @@ export default function Dashboard() {
       bookings.filter(
         (b) =>
           String(b.booking_date || "") >= today &&
-          ["waiting", "confirmed", "in_progress"].includes(normalizeStatus(b.status))
+          ["waiting", "confirmed", "accepted", "in_progress"].includes(normalizeStatus(b.status))
       ),
     [bookings, today]
   );

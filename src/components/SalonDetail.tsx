@@ -540,12 +540,18 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
       console.log("RLS_AUTH_VERIFIED", currentUser.id);
 
-      // Prevent multiple active bookings for the same user across salons.
+      const today = new Date().toISOString().split("T")[0];
+
+      // Prevent multiple active upcoming bookings for the same user across salons.
+      // Old waiting rows should not block a fresh booking if they are no longer visible in My Bookings.
       const { data: existingActiveBooking } = await supabase
         .from("queue" as any)
-        .select("id, salon_id")
+        .select("id, salon_id, booking_date, status")
         .eq("user_id", currentUser.id)
-        .in("status", ["waiting", "in_progress"])
+        .gte("booking_date", today)
+        .in("status", ["waiting", "confirmed", "accepted", "in_progress"])
+        .order("booking_date", { ascending: true })
+        .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
