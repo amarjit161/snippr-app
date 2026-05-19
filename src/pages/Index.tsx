@@ -18,11 +18,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import gsap from "gsap";
+import salon1 from "@/assets/salon-1.jpg";
 import salon2 from "@/assets/salon-2.jpg";
 import salon3 from "@/assets/salon-3.jpg";
 import salon4 from "@/assets/salon-4.jpg";
 
-const heroImage = "https://lh3.googleusercontent.com/aida-public/AB6AXuCoI_jZdpbU7WAHr4TBPgjxpF1ABoa9pXOq0hiKsoo38v5El1zmqa9lkv5RidzoO8jdyhOuzv1CDwRXFP-bDVTjBnqtjgJ17LqghNnYUiXXnvZkrGyhs9awWZK92AHSXqpLD2JhfcHH6SyobKibycSVKNFYfUpC8yKjundT_oTA1l6-ABSmHzBKhKNc3QTGgeNj24CoxdxTyEj7IvA9Q0-HLxKgu39Yuv8d88qh40arMjTq8i_DbmwCF8RV_V-TBPzEGdeski_DV1Y";
+const heroImage = salon1;
 
 const navLinkClass = "text-slate-600 font-medium hover:text-violet-600 transition-colors";
 

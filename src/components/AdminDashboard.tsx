@@ -38,23 +38,10 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
     const { data } = await supabase
       .from("queue")
       .select(`
-        id,
-        salon_id,
-        user_id,
-        service_id,
-        barber_id,
-        position,
-        status,
-        created_at,
-        started_at,
-        completed_at,
-        booking_date,
-        customer_first_name,
-        customer_last_name,
-        customer_phone,
-        services (id, name, price, duration),
-        salons (id, name),
-        barbers (id, name)
+        *,
+        services (*),
+        salons (*),
+        barbers (*)
       `)
       .eq("salon_id", selectedSalonId)
       .in("status", ["waiting", "in_progress"])
@@ -68,12 +55,10 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
     const { data: completed } = await supabase
       .from("queue")
       .select(`
-        id,
-        salon_id,
-        status,
-        created_at,
-        completed_at,
-        services (id, price, duration)
+        *,
+        services (*),
+        salons (*),
+        barbers (*)
       `)
       .eq("salon_id", selectedSalonId)
       .eq("status", "completed");
@@ -87,14 +72,14 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
 
     // Peak hour
     const hourCounts: Record<number, number> = {};
-      const { data: allEntries } = await supabase
-        .from("customer_bookings")
-        .select("id, created_at")
+    const { data: allEntries } = await supabase
+      .from("queue")
+      .select(`
+        *,
+        services (*),
+        salons (*),
+        barbers (*)
       `)
-=======
-      .from("customer_bookings")
-      .select("id, created_at")
->>>>>>> 5bab213 (Save local changes: update components, hooks, services, and migrations)
       .eq("salon_id", selectedSalonId);
     (allEntries ?? []).forEach((e) => {
       const h = new Date(e.created_at).getHours();
@@ -113,7 +98,7 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
     if (!selectedSalonId) return;
     const channel = supabase
       .channel("admin-queue-" + selectedSalonId)
-      .on("postgres_changes", { event: "*", schema: "public", table: "queue", filter: `salon_id=eq.${selectedSalonId}` }, () => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "queue" }, () => {
         fetchQueue();
         fetchAnalytics();
       })

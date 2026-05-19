@@ -47,25 +47,6 @@ type ProfileLookup = { user_id: string; name: string | null };
 
 type QueueDatePreset = "today" | "tomorrow" | "custom";
 
-const QUEUE_DASHBOARD_SELECT = `
-  id,
-  created_at,
-  updated_at,
-  started_at,
-  completed_at,
-  status,
-  user_id,
-  time_slot,
-  booking_date,
-  barber_id,
-  customer_first_name,
-  customer_last_name,
-  customer_phone,
-  services (name, price, duration),
-  barbers (name),
-  salons (id, name, owner_id)
-`;
-
 const formatMoney = (value: number) => `INR ${value.toLocaleString("en-IN")}`;
 const todayISO = () => new Date().toISOString().split("T")[0];
 const tomorrowISO = () => {
@@ -242,8 +223,8 @@ export default function OwnerDashboard() {
         
         const [queueRes, barbersRes, servicesRes] = await Promise.all([
           supabase
-            .from("customer_bookings")
-            .select(QUEUE_DASHBOARD_SELECT)
+            .from("queue")
+            .select("*, services (*), barbers (*), salons (*)")
             .eq("salon_id", salonData.id)
             .order("created_at", { ascending: false }),
           supabase.from("barbers").select("*").eq("salon_id", salonData.id),
@@ -297,9 +278,9 @@ export default function OwnerDashboard() {
   const fetchDashboardData = useCallback(async (id: string) => {
     setQueueLoading(true);
     try {
-            const { data, error } = await (supabase as any)
-        .from("customer_bookings")
-        .select(QUEUE_DASHBOARD_SELECT)
+      const { data, error } = await (supabase as any)
+        .from("queue")
+        .select("*, services (*), barbers (*), salons (*)")
         .eq("salon_id", id)
         .order("created_at", { ascending: false });
 
@@ -317,8 +298,8 @@ export default function OwnerDashboard() {
   const fetchQueueItemFull = useCallback(async (queueId: string) => {
     try {
       const { data } = await supabase
-        .from("customer_bookings")
-        .select(QUEUE_DASHBOARD_SELECT)
+        .from("queue")
+        .select("*, services (*), barbers (*), salons (*)")
         .eq("id", queueId)
         .maybeSingle();
       return data as QueueRow | null;
@@ -374,18 +355,20 @@ export default function OwnerDashboard() {
     if (!salon?.id) return;
 
     console.log("DASHBOARD_REALTIME_SUBSCRIPTION_START", salon.id);
+    let lastEventTime = Date.now();
 
     const channel = supabase
-      .channel(`customer_bookings-updates-${salon.id}`)
+      .channel(`queue-updates-${salon.id}`)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
-          table: "customer_bookings",
+          table: "queue",
           filter: `salon_id=eq.${salon.id}`
         },
         (payload) => {
+          lastEventTime = Date.now();
           console.log("DASHBOARD_QUEUE_REALTIME_EVENT", payload.eventType, payload.new?.id);
           // Merge the update intelligently without full refetch (no flicker!)
           mergeQueueUpdate(payload);
@@ -393,15 +376,8 @@ export default function OwnerDashboard() {
       )
       .subscribe((status) => {
         console.log("DASHBOARD_REALTIME_STATUS", status);
-        if (status === "SUBSCRIBED") {
-          fetchDashboardData(salon.id);
-        }
-        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          window.setTimeout(() => fetchDashboardData(salon.id), 1500);
-        }
       });
 
-<<<<<<< HEAD
     // Safety fallback: If no real-time events in 60 seconds, do a smart comparison check
     const interval = setInterval(async () => {
       const now = Date.now();
@@ -428,25 +404,47 @@ export default function OwnerDashboard() {
         } catch (err) {
           console.error("DASHBOARD_FALLBACK_ERROR", err);
         }
-=======
-    const recoverDashboard = () => fetchDashboardData(salon.id);
-    const recoverWhenVisible = () => {
-      if (!document.hidden) {
-        recoverDashboard();
->>>>>>> 5bab213 (Save local changes: update components, hooks, services, and migrations)
       }
-    };
-    window.addEventListener("online", recoverDashboard);
-    document.addEventListener("visibilitychange", recoverWhenVisible);
+    }, 30000); // Check every 30 seconds
 
-        const recoverDashboard = () => fetchDashboardData(salon.id);
-        const recoverWhenVisible = () => {
-          if (!document.hidden) {
-            recoverDashboard();
-          }
-        };
-        window.addEventListener("online", recoverDashboard);
-        document.addEventListener("visibilitychange", recoverWhenVisible);
+    return () => {
+      console.log("DASHBOARD_REALTIME_SUBSCRIPTION_CLEANUP");
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
+  }, [salon?.id, mergeQueueUpdate, fetchDashboardData, queueItems]);
+
+  const summaryCards = useMemo(() => {
+    const today = todayISO();
+    const items = queueItems || [];
+    const bookingsToday = items.filter((item) => item.created_at?.startsWith(today)).length;
+    const activeQueue = items.filter((item) => ["waiting", "accepted", "in_service"].includes(item.status)).length;
+    const waiting = items.filter((item) => item.status === "waiting");
+    const avgDuration = waiting.length === 0 ? 0 : Math.round(waiting.reduce((sum, item) => sum + (item.services?.duration || 0), 0) / waiting.length);
+    const revenueToday = items.filter((item) => item.status === "done").reduce((sum, item) => sum + (item.services?.price || 0), 0);
+
+    return { bookingsToday, activeQueue, avgDuration, revenueToday };
+  }, [queueItems]);
+
+  const selectedQueueDate = useMemo(() => {
+    if (queueDatePreset === "today") return todayISO();
+    if (queueDatePreset === "tomorrow") return tomorrowISO();
+    return customQueueDate || todayISO();
+  }, [customQueueDate, queueDatePreset]);
+
+  const filteredQueueItems = useMemo(
+    () => queueItems.filter((item) => getQueueDate(item) === selectedQueueDate),
+    [queueItems, selectedQueueDate]
+  );
+  const canAcceptSelectedDate = selectedQueueDate === todayISO();
+
+  const clearAcceptTimer = useCallback((queueId: string) => {
+    const timer = acceptTimersRef.current[queueId];
+    if (timer) {
+      clearTimeout(timer);
+    }
+    delete acceptTimersRef.current[queueId];
+    setPendingAccepts((prev) => {
       if (!prev[queueId]) return prev;
       const next = { ...prev };
       delete next[queueId];
@@ -532,9 +530,9 @@ export default function OwnerDashboard() {
       toast.success(`Queue moved to ${formatStatus(nextStatus)}`);
       
       // Local refresh
-            const { data } = await supabaseAny
-        .from("customer_bookings")
-        .select(QUEUE_DASHBOARD_SELECT)
+      const { data } = await supabaseAny
+        .from("queue")
+        .select("*, services (*), barbers (*), salons (*)")
         .eq("salon_id", salon.id)
         .order("created_at", { ascending: true });
       if (data) setQueueItems(data as QueueRow[]);

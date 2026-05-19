@@ -43,59 +43,56 @@ interface SalonDetailProps {
 const generateTimeSlots = (): string[] => {
   const slots: string[] = [];
   let hours = 10;
-      setSlots(updatedSlots);
-            console.log("✅ SLOTS_GENERATED_SUCCESSFULLY:", {
-              totalSlots: updatedSlots.length,
-              availableSlots: updatedSlots.filter(s => s.available).length,
-              salonId,
-              date: selectedDate,
-              openTime,
-              closeTime
-            });
-      setLastUpdated(new Date());
-    } catch (error) {
-      if (requestId !== requestSequenceRef.current) {
-        return;
-      }
-      console.error("❌ SLOT_AVAILABILITY_ERROR:", error);
-      setSlots([]);
-    } finally {
-      if (requestId !== requestSequenceRef.current) {
-        return;
-      }
-      setLoading(false);
+  let minutes = 0;
+
+  while (hours < 21 || (hours === 21 && minutes === 0)) {
+    const period = hours >= 12 ? "PM" : "AM";
+    const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+    const timeStr = `${String(displayHours).padStart(2, " ")}:${String(minutes).padStart(2, "0")} ${period}`;
+    slots.push(timeStr);
+
+    minutes += 30;
+    if (minutes === 60) {
+      minutes = 0;
+      hours += 1;
     }
-  }, [date, selectedBarberId, salon.id, currentStep, bookedSlots.size]);
+  }
 
-  // PERIODIC REFRESH - Fallback if real-time doesn't work (check every 3 seconds while booking)
-  useEffect(() => {
-    if (!date || !selectedBarberId || currentStep !== 4) return;
+  return slots;
+};
 
-    const interval = setInterval(async () => {
-      try {
-        const { data } = await supabase
-          .from("queue" as any)
-          .select("time_slot")
-          .eq("salon_id", salon.id)
-          .eq("barber_id", selectedBarberId)
-          .eq("booking_date", date)
-          .in("status", ["waiting", "in_progress"]);
+const TIME_SLOTS = generateTimeSlots();
 
-        const booked = new Set((data || []).map((b: any) => b.time_slot));
-        
-        // If availability changed, update silently (don't spam logs)
-        if (booked.size !== bookedSlots.size) {
-          console.log(`🔃 PERIODIC_REFRESH: Availability changed from ${TIME_SLOTS.length - bookedSlots.size} to ${TIME_SLOTS.length - booked.size}`);
-          setBookedSlots(booked);
-          setLastAvailabilityUpdate(new Date());
-        }
-      } catch (error) {
-        console.error("❌ PERIODIC_REFRESH_FAILED:", error);
-      }
-    }, 3000); // Check every 3 seconds
+type BarberRow = {
+  id: string;
+  name: string;
+  chair_number: number | null;
+  specialization: string | null;
+};
 
-    return () => clearInterval(interval);
-  }, [date, selectedBarberId, salon.id, currentStep, bookedSlots.size]);
+type CustomerProfile = {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  altPhone?: string;
+};
+
+const EMPTY_PROFILE: CustomerProfile = {
+  firstName: "",
+  lastName: "",
+  phone: "",
+};
+
+export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProps) {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { handleBookingError } = useErrorHandler();
+  const { location } = useGeolocation();
+  const [services, setServices] = useState<Tables<"services">[]>([]);
+  const [barbers, setBarbers] = useState<BarberRow[]>([]);
+  const [selectedService, setSelectedService] = useState<Tables<"services"> | null>(null);
+  const [selectedBarberId, setSelectedBarberId] = useState<string>("");
+  const [customer, setCustomer] = useState({ firstName: "", lastName: "", phone: "", altPhone: "", notes: "" });
   const [savedProfile, setSavedProfile] = useState<CustomerProfile>(EMPTY_PROFILE);
   const [profileDraft, setProfileDraft] = useState<CustomerProfile>(EMPTY_PROFILE);
   const [hasSavedProfile, setHasSavedProfile] = useState(false);
@@ -324,7 +321,7 @@ const generateTimeSlots = (): string[] => {
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "INSERT,UPDATE",
           schema: "public",
           table: "queue",
           filter: `salon_id=eq.${salon.id}`,
@@ -355,7 +352,6 @@ const generateTimeSlots = (): string[] => {
     };
   }, [date, selectedBarberId, salon.id]);
 
-<<<<<<< HEAD
   // PERIODIC REFRESH - Fallback if real-time doesn't work (check every 3 seconds while booking)
   useEffect(() => {
     if (!date || !selectedBarberId || currentStep !== 4) return;
@@ -385,9 +381,6 @@ const generateTimeSlots = (): string[] => {
 
     return () => clearInterval(interval);
   }, [date, selectedBarberId, salon.id, currentStep, bookedSlots.size]);
-=======
-  // Realtime plus the final pre-insert conflict check cover slot freshness without mobile polling.
->>>>>>> 5bab213 (Save local changes: update components, hooks, services, and migrations)
 
   const travelMin = location && salon.lat && salon.lng
     ? estimateTravelMinutes(location.lat, location.lng, salon.lat, salon.lng)

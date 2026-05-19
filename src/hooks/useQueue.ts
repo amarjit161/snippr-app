@@ -83,24 +83,10 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
     const { data, error } = await supabaseAny
       .from("queue")
       .select(`
-        id,
-        created_at,
-        started_at,
-        completed_at,
-        status,
-        user_id,
-        service_id,
-        barber_id,
-        position,
-        customer_first_name,
-        customer_last_name,
-        customer_phone,
-        booking_date,
-        time_slot,
-        notes,
-        services (id, name, price, duration),
-        salons (id, name),
-        barbers (id, name, chair_number, specialization)
+        *,
+        services (*),
+        salons (*),
+        barbers (*)
       `)
       .eq("salon_id", salonId)
       .order("position", { ascending: true, nullsFirst: false })
@@ -205,27 +191,8 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
   const fetchQueueItemFull = useCallback(async (queueId: string) => {
     try {
       const { data } = await supabaseAny
-        .from("customer_bookings")
-        .select(`
-          id,
-          created_at,
-          started_at,
-          completed_at,
-          status,
-          user_id,
-          service_id,
-          barber_id,
-          position,
-          customer_first_name,
-          customer_last_name,
-          customer_phone,
-          booking_date,
-          time_slot,
-          notes,
-          services (id, name, price, duration),
-          barbers (id, name, chair_number, specialization),
-          salons (id, name)
-        `)
+        .from("queue")
+        .select("*, services (*), barbers (*), salons (*)")
         .eq("id", queueId)
         .maybeSingle();
       return data;
@@ -234,12 +201,42 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
       return null;
     }
   }, [supabaseAny]);
-    const recoverQueue = () => fetchQueue(salon.id);
-    const recoverWhenVisible = () => {
-      if (!document.hidden) {
-        recoverQueue();
+
+  // Intelligent merge for real-time updates (no flicker)
+  const mergeQueueItemUpdate = useCallback((payload: any) => {
+    const { eventType, new: newRow, old: oldRow } = payload;
+
+    setQueueItems((prev) => {
+      if (eventType === "DELETE" && oldRow) {
+        return prev.filter((item) => item.id !== oldRow.id);
       }
-    };
+
+      if (eventType === "INSERT" && newRow) {
+        // Fetch full item asynchronously
+        fetchQueueItemFull(newRow.id).then((fullItem) => {
+          if (fullItem) {
+            setQueueItems((current) => {
+              const exists = current.some((item) => item.id === fullItem.id);
+              if (exists) return current;
+              return [fullItem, ...current];
+            });
+          }
+        });
+        // Add placeholder immediately
+        return [{ ...newRow, services: null, barbers: null } as QueueItem, ...prev];
+      }
+
+      if (eventType === "UPDATE" && newRow) {
+        // Fetch full item asynchronously to get latest data
+        fetchQueueItemFull(newRow.id).then((fullItem) => {
+          if (fullItem) {
+            setQueueItems((current) =>
+              current.map((item) => (item.id === fullItem.id ? fullItem : item))
+            );
+          }
+        });
+        // Update optimistically first
+        return prev.map((item) => (item.id === newRow.id ? { ...item, ...newRow } as QueueItem : item));
       }
 
       return prev;
@@ -250,6 +247,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
     if (!salon?.id) return;
 
     console.log("QUEUE_REALTIME_SUBSCRIPTION_START", salon.id);
+    let lastEventTime = Date.now();
 
     const channel = supabase
       .channel(`owner-queue-${salon.id}`)
@@ -262,6 +260,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
           filter: `salon_id=eq.${salon.id}`,
         },
         async (payload: any) => {
+          lastEventTime = Date.now();
           console.log("QUEUE_REALTIME_EVENT", payload.eventType, payload.new?.id);
           // Merge intelligently instead of refetch (no flicker!)
           mergeQueueItemUpdate(payload);
@@ -269,15 +268,8 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
       )
       .subscribe((status) => {
         console.log("QUEUE_REALTIME_STATUS", status);
-        if (status === "SUBSCRIBED") {
-          fetchQueue(salon.id);
-        }
-        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          window.setTimeout(() => fetchQueue(salon.id), 1500);
-        }
       });
 
-<<<<<<< HEAD
     // Smart fallback: check every 60s if missed any items
     const interval = setInterval(async () => {
       const now = Date.now();
@@ -303,24 +295,15 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
         } catch (err) {
           console.error("QUEUE_FALLBACK_ERROR", err);
         }
-=======
-    const recoverQueue = () => fetchQueue(salon.id);
-    const recoverWhenVisible = () => {
-      if (!document.hidden) {
-        recoverQueue();
->>>>>>> 5bab213 (Save local changes: update components, hooks, services, and migrations)
       }
-    };
-    window.addEventListener("online", recoverQueue);
-    document.addEventListener("visibilitychange", recoverWhenVisible);
+    }, 30000);
 
     return () => {
       console.log("QUEUE_REALTIME_SUBSCRIPTION_CLEANUP");
       supabase.removeChannel(channel);
-      window.removeEventListener("online", recoverQueue);
-      document.removeEventListener("visibilitychange", recoverWhenVisible);
+      clearInterval(interval);
     };
-  }, [fetchQueue, salon?.id, mergeQueueItemUpdate]);
+  }, [fetchQueue, salon?.id, mergeQueueItemUpdate, queueItems, supabaseAny]);
 
   const updateBarber = useCallback(async (queueId: string, barberId: string | null) => {
     const previous = queueItems;
@@ -376,6 +359,14 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
     console.log("STATUS_UPDATE_API_SUCCESS", queueId, status);
     toast.success(`Status updated to ${status.replace("_", " ")}`);
     
+    // Refetch after a slightly longer delay to ensure DB is updated
+    // This prevents the optimistic update from being overwritten by stale data
+    setTimeout(() => {
+      console.log("REFETCH_AFTER_UPDATE_CALLING", queueId);
+      if (salon?.id) {
+        fetchQueue(salon.id);
+      }
+    }, 300);
   }, [queueItems, supabaseAny, salon?.id, fetchQueue]);
 
   const startAccept = useCallback(async (queueId: string) => {

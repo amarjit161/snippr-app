@@ -355,8 +355,8 @@ export default function Dashboard() {
       return;
     }
 
-        const { data, error } = await supabase
-      .from("customer_bookings")
+    const { data, error } = await supabase
+      .from("queue")
       .select(BOOKING_SELECT)
       .eq("user_id", user.id)
       .order("booking_date", { ascending: false })
