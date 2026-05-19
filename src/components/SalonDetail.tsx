@@ -16,7 +16,7 @@ import TurnstileCaptcha, { type TurnstileCaptchaHandle } from "@/components/Turn
 import { verifyTurnstileToken } from "@/lib/turnstile";
 import { SlotPicker } from "@/components/booking/SlotPicker";
 import { sendBookingEmail } from "@/services/emailService";
-import { generateOTP, updateBookingWithOTP } from "@/lib/otpUtils";
+import { generateOTP } from "@/lib/otpUtils";
 import BookingSuccess from "@/components/BookingSuccess";
 
 import salon1 from "@/assets/salon-1.jpg";
@@ -592,6 +592,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
       const nextPosition = Number(latestQueueEntry?.position || 0) + 1;
       const createdAt = new Date().toISOString();
+      const arrivalOTP = generateOTP();
       
       console.log("💾 BOOKING_INSERT_START", { position: nextPosition, date, time });
 
@@ -611,6 +612,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         notes: customer.notes.trim() || null,
         booking_date: date,
         time_slot: time,
+        arrival_otp: arrivalOTP,
       }).select().single();
 
       if (error) {
@@ -621,20 +623,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       } else {
         console.log("✅ BOOKING_INSERT_SUCCESS", { id: insertedData?.id, position: nextPosition });
         const customerEmail = currentUser.email || user?.email;
-        
-        // Generate OTP for arrival confirmation
-        let arrivalOTP = "";
-        try {
-          arrivalOTP = generateOTP();
-          console.log("🎲 OTP_GENERATED:", arrivalOTP);
-          const otpUpdated = await updateBookingWithOTP(supabase, insertedData.id, arrivalOTP);
-          if (otpUpdated) {
-            console.log("✅ OTP_SAVED_TO_DB");
-          }
-        } catch (otpErr) {
-          console.warn("⚠️ OTP_GENERATION_FAILED", otpErr);
-        }
-        
+
         // Send booking confirmation email
         if (customerEmail && insertedData) {
           try {

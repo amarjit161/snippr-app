@@ -12,6 +12,7 @@ import { CancelConfirmation } from "@/components/CancelConfirmation";
 import { CancelPopup, CompletionCelebration } from "@/components/CancelConfirmationPage";
 import { RescheduleModal } from "@/components/RescheduleModal";
 import { sendBookingEmail } from "@/services/emailService";
+import { generateOTP } from "@/lib/otpUtils";
 
 type BookingTab = "upcoming" | "past" | "cancelled";
 const RESCHEDULE_LOCKED_STATUSES = new Set(["accepted", "confirmed", "in_progress", "done", "completed"]);
@@ -71,6 +72,8 @@ const BOOKING_SELECT = `
   customer_phone,
   email,
   time_slot,
+  arrival_otp,
+  otp_verified_at,
   notes,
   services (id, name, price, duration),
   salons (id, name, owner_id, address, location, city, image_url)
@@ -368,7 +371,29 @@ export default function Dashboard() {
         setBookings([]);
       }
     } else {
-      setBookings(data || []);
+      const bookingsWithOtp = await Promise.all(
+        (data || []).map(async (booking: any) => {
+          if (!isOTPActive(booking.status) || booking.arrival_otp) {
+            return booking;
+          }
+
+          const arrivalOtp = generateOTP();
+          const { error: otpError } = await supabase
+            .from("queue")
+            .update({ arrival_otp: arrivalOtp } as any)
+            .eq("id", booking.id)
+            .eq("user_id", user.id);
+
+          if (otpError) {
+            console.warn("BOOKING_OTP_BACKFILL_FAILED:", otpError);
+            return booking;
+          }
+
+          return { ...booking, arrival_otp: arrivalOtp };
+        })
+      );
+
+      setBookings(bookingsWithOtp);
       setLastFetchTime(Date.now());
       console.log("✅ BOOKINGS: Fetched", data?.length || 0, "bookings from database");
       // Debug: Log arrival_otp for each booking
