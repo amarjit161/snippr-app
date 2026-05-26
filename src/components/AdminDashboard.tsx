@@ -25,12 +25,39 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from("salons").select("id, name, owner_id, image_url, address, city, wait_time, distance").eq("owner_id", user.id).then(({ data }) => {
-      if (data) {
-        setSalons(data);
-        if (data.length > 0) setSelectedSalonId(data[0].id);
-      }
-    });
+    
+    // Only select columns that exist in salons table
+    supabase
+      .from("salons")
+      .select("id, name, owner_id, image_url, address, city, phone, open_time, close_time")
+      .eq("owner_id", user.id)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("ADMIN_SALONS_FETCH_ERROR", {
+            owner_id: user.id,
+            error_message: error.message
+          });
+          setSalons([]);
+          return;
+        }
+        
+        if (data && data.length > 0) {
+          // Apply safe defaults to each salon
+          const safeSalons = data.map(salon => ({
+            ...salon,
+            name: salon.name ?? "Salon",
+            image_url: salon.image_url ?? "/default-salon.jpg",
+            address: salon.address ?? "Address not available",
+            city: salon.city ?? "City not specified"
+          }));
+          setSalons(safeSalons);
+          setSelectedSalonId(safeSalons[0].id);
+          console.log("ADMIN_SALONS_LOADED", { count: safeSalons.length });
+        } else {
+          setSalons([]);
+          console.warn("NO_SALONS_FOUND_FOR_OWNER", { owner_id: user.id });
+        }
+      });
   }, [user]);
 
   const fetchQueue = async () => {

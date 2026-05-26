@@ -135,30 +135,60 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
   useEffect(() => {
     const fetchServices = async () => {
       try {
-        console.log("📋 FETCHING_SERVICES for salon:", salon.id);
-        const { data, error } = await publicSupabase
-          .from("services")
-          .select("*")
-          .eq("salon_id", salon.id);
-
-        if (error) {
-          console.error("❌ SERVICES_FETCH_ERROR:", error);
+        if (!salon?.id) {
+          console.warn("SERVICES_FETCH_SKIPPED: No salon ID");
           setServices([]);
           return;
         }
 
-        console.log("✅ SERVICES_FETCHED:", data?.length || 0, "services found");
-        setServices(data || []);
+        console.log("SERVICES_FETCH_START", { salon_id: salon.id });
+        const { data, error } = await publicSupabase
+          .from("services")
+          .select("id, name, price, duration, description")
+          .eq("salon_id", salon.id)
+          .order("name");
+
+        if (error) {
+          console.error("SERVICES_FETCH_ERROR", {
+            salon_id: salon.id,
+            error_code: error.code,
+            error_message: error.message,
+            status: error.status
+          });
+          setServices([]);
+          return;
+        }
+
+        const services = data || [];
+        console.log("SERVICES_FETCH_SUCCESS", { 
+          salon_id: salon.id, 
+          count: services.length 
+        });
+        
+        // Apply null-safe defaults to each service
+        const safeServices = services.map(svc => ({
+          ...svc,
+          name: svc.name ?? "Service",
+          price: svc.price ?? 0,
+          duration: svc.duration ?? 30,
+          description: svc.description ?? ""
+        }));
+        
+        setServices(safeServices);
       } catch (err) {
-        console.error("❌ SERVICES_FETCH_EXCEPTION:", err);
+        console.error("SERVICES_FETCH_EXCEPTION", {
+          salon_id: salon.id,
+          error_name: (err as any).name,
+          error_message: (err as any).message
+        });
         setServices([]);
       }
     };
 
-    if (salon.id) {
+    if (salon?.id) {
       fetchServices();
     }
-  }, [salon.id]);
+  }, [salon?.id]);
 
   useEffect(() => {
     const checkOwnerBooking = async () => {
@@ -187,33 +217,69 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
   useEffect(() => {
     const loadBarbers = async () => {
       try {
-        console.log("💈 FETCHING_BARBERS for salon:", salon.id);
+        if (!salon?.id) {
+          console.warn("BARBERS_FETCH_SKIPPED: No salon ID");
+          setBarbers([]);
+          setSelectedBarberId("");
+          return;
+        }
+
+        console.log("BARBERS_FETCH_START", { salon_id: salon.id });
         const { data, error } = await publicSupabase
-          .from("barbers" as any)
+          .from("barbers")
           .select("id, name, chair_number, specialization")
           .eq("salon_id", salon.id)
           .order("name");
 
         if (error) {
-          console.error("❌ BARBERS_FETCH_ERROR:", error);
+          console.error("BARBERS_FETCH_ERROR", {
+            salon_id: salon.id,
+            error_code: error.code,
+            error_message: error.message,
+            status: error.status
+          });
           setBarbers([]);
+          setSelectedBarberId("");
           return;
         }
 
-        console.log("✅ BARBERS_FETCHED:", data?.length || 0, "barbers found");
-        const nextBarbers = (data || []) as any as BarberRow[];
-        setBarbers(nextBarbers);
-        setSelectedBarberId((current) => current || nextBarbers[0]?.id || "");
+        const barbers = data || [];
+        console.log("BARBERS_FETCH_SUCCESS", { 
+          salon_id: salon.id, 
+          count: barbers.length 
+        });
+
+        // Apply null-safe defaults to each barber
+        const safeBarbers = barbers.map(barber => ({
+          ...barber,
+          name: barber.name ?? "Barber",
+          chair_number: barber.chair_number ?? 0,
+          specialization: barber.specialization ?? ""
+        })) as BarberRow[];
+
+        setBarbers(safeBarbers);
+        
+        // Set first barber as default if available
+        if (safeBarbers.length > 0) {
+          setSelectedBarberId((current) => current || safeBarbers[0]?.id || "");
+        } else {
+          setSelectedBarberId("");
+        }
       } catch (err) {
-        console.error("❌ BARBERS_FETCH_EXCEPTION:", err);
+        console.error("BARBERS_FETCH_EXCEPTION", {
+          salon_id: salon.id,
+          error_name: (err as any).name,
+          error_message: (err as any).message
+        });
         setBarbers([]);
+        setSelectedBarberId("");
       }
     };
 
-    if (salon.id) {
+    if (salon?.id) {
       loadBarbers();
     }
-  }, [salon.id]);
+  }, [salon?.id]);
 
   useEffect(() => {
     firstNameInputRef.current?.focus();
@@ -628,12 +694,22 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       }).select().single();
 
       if (error) {
-        console.error("❌ BOOKING_INSERT_ERROR", error);
+        console.error("BOOKING_INSERT_ERROR", {
+          salon_id: salon.id,
+          error_code: error.code,
+          error_message: error.message,
+          status: error.status,
+          details: error.details
+        });
         handleBookingError(error as any, refreshAvailability);
         setBooking(false);
         return;
       } else {
-        console.log("✅ BOOKING_INSERT_SUCCESS", { id: insertedData?.id, position: nextPosition });
+        console.log("BOOKING_INSERT_SUCCESS", { 
+          id: insertedData?.id, 
+          position: nextPosition,
+          salon_id: salon.id
+        });
         const customerEmail = currentUser.email || user?.email;
 
         // Send booking confirmation email
@@ -884,21 +960,29 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
                   <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 md:gap-5 lg:gap-6">
                     {barbers.map((barber) => {
                       const selected = selectedBarberId === barber.id;
+                      const barberName = barber?.name ?? "Barber";
+                      const barberInitial = barberName.charAt(0).toUpperCase();
+                      const specialization = barber?.specialization ?? "";
                       return (
                         <button
-                          key={barber.id}
-                          onClick={() => setSelectedBarberId(barber.id)}
+                          key={barber?.id ?? "unknown"}
+                          onClick={() => {
+                            if (barber?.id) setSelectedBarberId(barber.id);
+                          }}
                           className={`flex items-center gap-3 sm:gap-4 rounded-lg sm:rounded-xl border-2 p-4 sm:p-5 md:p-6 text-left transition-all ${selected ? "border-[#4f378a] bg-[#f0e9ff]" : "border-transparent bg-white shadow-sm hover:border-[#cbc4d2]"}`}
                         >
                           <div className={`flex h-12 sm:h-14 md:h-16 w-12 sm:w-14 md:w-16 flex-shrink-0 items-center justify-center rounded-full text-lg sm:text-xl md:text-2xl font-bold ${selected ? "bg-[#4f378a] text-white" : "bg-[#c9a74d] text-[#503d00]"}`}>
-                            {(barber?.name ?? "B").charAt(0).toUpperCase()}
+                            {barberInitial}
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between gap-2 mb-1">
-                              <p className="truncate font-bold text-[#1a1c1e] text-sm sm:text-base">{barber?.name ?? "Barber"}</p>
+                              <p className="truncate font-bold text-[#1a1c1e] text-sm sm:text-base">{barberName}</p>
                               <span className="rounded-full px-2 sm:px-3 py-0.5 sm:py-1 text-xs font-bold uppercase tracking-wide text-green-700 bg-green-50 whitespace-nowrap">Online</span>
                             </div>
-                            <p className="mb-1 text-xs text-[#494551]">Chair {barber.chair_number ?? 1}</p>
+                            <p className="mb-1 text-xs text-[#494551]">Chair {barber?.chair_number ?? 1}</p>
+                            {specialization && (
+                              <p className="mb-1 text-xs text-[#494551]">{specialization}</p>
+                            )}
                             <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#1a1c1e]">
                               <Star className="h-3.5 sm:h-4 w-3.5 sm:w-4 fill-amber-500 text-amber-500" /> 4.9
                             </span>

@@ -26,11 +26,13 @@ export default function SalonPage() {
       setErrorMessage(null);
 
       try {
+        // Only select columns that actually exist in the salons table
         const fetchPromise = publicSupabase
           .from("salons")
-          .select("id, name, owner_id, image_url, address, city, wait_time, distance, tag, accent, description, services, barbers")
+          .select("id, name, owner_id, image_url, address, city, phone, open_time, close_time, location, latitude, longitude, pincode")
           .eq("id", id)
           .maybeSingle();
+        
         const timeoutPromise = new Promise<any>((_, reject) => 
           setTimeout(() => reject(new Error("Network timeout")), 8000)
         );
@@ -38,15 +40,39 @@ export default function SalonPage() {
         const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
 
         if (error) {
-          console.error("Failed to load salon:", error);
+          console.error("SALON_DETAIL_FETCH_ERROR", {
+            salon_id: id,
+            error_code: error.code,
+            error_message: error.message,
+            status: error.status
+          });
           setErrorMessage("Could not load salon details. Please check your connection.");
           setSalon(null);
+        } else if (!data) {
+          console.warn("SALON_NOT_FOUND", { salon_id: id });
+          setErrorMessage("Salon not found.");
+          setSalon(null);
         } else {
-          setSalon(data ?? null);
-          if (!data) setErrorMessage("Salon not found.");
+          // Apply safe defaults for all fields
+          const safeSalon = {
+            ...data,
+            name: data.name ?? "Salon",
+            image_url: data.image_url ?? "/default-salon.jpg",
+            address: data.address ?? "Address not available",
+            city: data.city ?? "City not specified",
+            phone: data.phone ?? "",
+            open_time: data.open_time ?? "09:00",
+            close_time: data.close_time ?? "20:00"
+          };
+          setSalon(safeSalon);
+          console.log("SALON_DETAIL_LOADED_SUCCESS", { salon_id: id, name: safeSalon.name });
         }
       } catch (err: any) {
-        console.error("Timeout or exception loading salon:", err);
+        console.error("SALON_DETAIL_FETCH_EXCEPTION", {
+          salon_id: id,
+          error_name: err.name,
+          error_message: err.message
+        });
         setErrorMessage("Connection timed out. Please try again.");
         setSalon(null);
       } finally {
