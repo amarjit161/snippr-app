@@ -52,6 +52,14 @@ const createSupabaseClient = () => {
         try {
           const res = await fetch(url, { ...options, signal: controller.signal });
           const end = performance.now();
+          
+          // Handle 401 Unauthorized by clearing auth state instead of retrying infinitely
+          if (res.status === 401) {
+            console.warn(`🔐 AUTH_FAILURE [${Math.round(end - start)}ms]:`, url);
+            // Don't retry on 401 - let auth context handle it
+            return res;
+          }
+          
           if (end - start > 5000) {
             console.warn(`🐢 SLOW_FETCH [${Math.round(end - start)}ms]:`, url);
           }

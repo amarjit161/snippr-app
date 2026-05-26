@@ -226,9 +226,10 @@ export default function OwnerDashboard() {
             .from("queue")
             .select("*, services (*), barbers (*), salons (*)")
             .eq("salon_id", salonData.id)
-            .order("created_at", { ascending: false }),
-          supabase.from("barbers").select("*").eq("salon_id", salonData.id),
-          supabase.from("services").select("*").eq("salon_id", salonData.id)
+            .order("created_at", { ascending: false })
+            .limit(200),
+          supabase.from("barbers").select("id, name, chair_number, specialization").eq("salon_id", salonData.id).limit(50),
+          supabase.from("services").select("id, name, price, duration").eq("salon_id", salonData.id).limit(50)
         ]);
 
         if (queueRes.data) {
@@ -282,7 +283,8 @@ export default function OwnerDashboard() {
         .from("queue")
         .select("*, services (*), barbers (*), salons (*)")
         .eq("salon_id", id)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(200); // Add limit for performance
 
       if (error) throw error;
       setQueueItems((data as QueueRow[]) || []);
@@ -356,27 +358,32 @@ export default function OwnerDashboard() {
 
     console.log("DASHBOARD_REALTIME_SUBSCRIPTION_START", salon.id);
     let lastEventTime = Date.now();
+    let channel: any = null;
 
-    const channel = supabase
-      .channel(`queue-updates-${salon.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "queue",
-          filter: `salon_id=eq.${salon.id}`
-        },
-        (payload) => {
-          lastEventTime = Date.now();
-          console.log("DASHBOARD_QUEUE_REALTIME_EVENT", payload.eventType, payload.new?.id);
-          // Merge the update intelligently without full refetch (no flicker!)
-          mergeQueueUpdate(payload);
-        }
-      )
-      .subscribe((status) => {
-        console.log("DASHBOARD_REALTIME_STATUS", status);
-      });
+    try {
+      channel = supabase
+        .channel(`queue-updates-${salon.id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "queue",
+            filter: `salon_id=eq.${salon.id}`
+          },
+          (payload) => {
+            lastEventTime = Date.now();
+            console.log("DASHBOARD_QUEUE_REALTIME_EVENT", payload.eventType, payload.new?.id);
+            // Merge the update intelligently without full refetch (no flicker!)
+            mergeQueueUpdate(payload);
+          }
+        )
+        .subscribe((status) => {
+          console.log("DASHBOARD_REALTIME_STATUS", status);
+        });
+    } catch (err) {
+      console.error("DASHBOARD_REALTIME_SUBSCRIPTION_ERROR", err);
+    }
 
     // Safety fallback: If no real-time events in 60 seconds, do a smart comparison check
     const interval = setInterval(async () => {
@@ -409,7 +416,14 @@ export default function OwnerDashboard() {
 
     return () => {
       console.log("DASHBOARD_REALTIME_SUBSCRIPTION_CLEANUP");
-      supabase.removeChannel(channel);
+      if (channel) {
+        try {
+          supabase.removeChannel(channel);
+          console.log("DASHBOARD_REALTIME_CHANNEL_CLEANUP_SUCCESS");
+        } catch (err) {
+          console.error("DASHBOARD_REALTIME_CHANNEL_CLEANUP_ERROR", err);
+        }
+      }
       clearInterval(interval);
     };
   }, [salon?.id, mergeQueueUpdate, fetchDashboardData, queueItems]);
@@ -534,7 +548,8 @@ export default function OwnerDashboard() {
         .from("queue")
         .select("*, services (*), barbers (*), salons (*)")
         .eq("salon_id", salon.id)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: true })
+        .limit(200);
       if (data) setQueueItems(data as QueueRow[]);
       
     } catch (error: any) {
@@ -611,11 +626,17 @@ export default function OwnerDashboard() {
 
           <div className="flex items-center gap-3 rounded-xl border border-[#e3e2e5] bg-white px-4 py-3 shadow-sm">
             <div className="h-10 w-10 overflow-hidden rounded-full border-2 border-violet-200 bg-slate-100">
-              <img src={profileImage} alt="Owner" className="h-full w-full object-cover" />
+              <img 
+                src={profileImage} 
+                alt="Owner" 
+                loading="lazy"
+                decoding="async"
+                className="h-full w-full object-cover" 
+              />
             </div>
             <div className="text-right">
-              <p className="text-sm font-bold">{owner.name}</p>
-              <p className="text-xs text-[#494551]">{owner.email}</p>
+              <p className="text-sm font-bold">{owner?.name ?? "Owner"}</p>
+              <p className="text-xs text-[#494551]">{owner?.email ?? "email@example.com"}</p>
             </div>
             <Button variant="outline" className="h-9 rounded-xl" onClick={() => navigate("/settings")}>Settings</Button>
           </div>

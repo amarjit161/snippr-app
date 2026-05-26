@@ -293,26 +293,32 @@ export default function Index() {
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             <div className="group relative min-h-[320px] cursor-pointer overflow-hidden rounded-3xl md:col-span-2 lg:h-[400px]" onClick={() => navigate("/salons")}>
-              <img src={activeSalon.image} alt={activeSalon.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
-              <div className={`absolute inset-0 bg-gradient-to-t ${activeSalon.accent}`} />
+              <img 
+                src={activeSalon?.image ?? "/default-salon.jpg"} 
+                alt={activeSalon?.name ?? "Salon"} 
+                loading="lazy"
+                decoding="async"
+                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" 
+              />
+              <div className={`absolute inset-0 bg-gradient-to-t ${activeSalon?.accent ?? ""}`} />
               <div className="absolute bottom-0 left-0 w-full p-5 text-white sm:p-8">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
                   <div>
-                    <h3 className="text-xl font-bold sm:text-2xl">{activeSalon.name}</h3>
-                    <p className="font-medium opacity-90">{activeSalon.tag}</p>
-                    <p className="mt-2 text-sm text-white/80">{activeSalon.location}</p>
+                    <h3 className="text-xl font-bold sm:text-2xl">{activeSalon?.name ?? "Salon"}</h3>
+                    <p className="font-medium opacity-90">{activeSalon?.tag ?? ""}</p>
+                    <p className="mt-2 text-sm text-white/80">{activeSalon?.location ?? ""}</p>
                   </div>
                   <div className="flex items-center gap-2 rounded-full bg-white/20 px-4 py-2 backdrop-blur-md">
                     <Star className="h-4 w-4 fill-current text-yellow-400" />
-                    <span className="font-bold">{activeSalon.rating}</span>
+                    <span className="font-bold">{activeSalon?.rating ?? "4.8"}</span>
                   </div>
                 </div>
 
                 <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-white/90">
-                  <span className="rounded-full bg-white/15 px-3 py-1 font-semibold backdrop-blur-sm">{activeSalon.distance}</span>
+                  <span className="rounded-full bg-white/15 px-3 py-1 font-semibold backdrop-blur-sm">{activeSalon?.distance ?? ""}</span>
                   <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 font-semibold backdrop-blur-sm">
                     <Clock3 className="h-4 w-4" />
-                    {activeSalon.wait}
+                    {activeSalon?.wait ?? ""}
                   </span>
                 </div>
               </div>
@@ -324,20 +330,20 @@ export default function Index() {
 
             <div className="flex flex-col gap-4 sm:gap-6">
               {nextSalons.map((salon) => {
-                const Icon = salon.name.includes("Aura") ? SparklesIcon : Scissors;
+                const Icon = (salon?.name ?? "").includes("Aura") ? SparklesIcon : Scissors;
 
                 return (
-                  <div key={salon.name} className="group flex-1 rounded-3xl border border-transparent bg-white p-5 shadow-sm transition-all hover:border-[#4f378a]/10 hover:shadow-md sm:p-6">
+                  <div key={salon?.name ?? "salon"} className="group flex-1 rounded-3xl border border-transparent bg-white p-5 shadow-sm transition-all hover:border-[#4f378a]/10 hover:shadow-md sm:p-6">
                     <div className="mb-4 flex items-start justify-between">
                       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#4f378a]/10 text-[#4f378a]">
                         <Icon />
                       </div>
-                      <span className="rounded-full bg-[#e8e8eb] px-3 py-1 text-xs font-bold text-[#494551]">{salon.distance}</span>
+                      <span className="rounded-full bg-[#e8e8eb] px-3 py-1 text-xs font-bold text-[#494551]">{salon?.distance ?? ""}</span>
                     </div>
-                    <h4 className="text-lg font-bold transition-colors group-hover:text-[#4f378a]">{salon.name}</h4>
-                    <p className="mb-2 mt-1 text-sm text-[#494551]">{salon.tag}</p>
-                    <p className="mb-4 text-xs font-medium text-[#6b6474]">{salon.location}</p>
-                    <div className={`flex items-center gap-2 text-sm font-bold ${salon.wait === "Immediate start" ? "text-green-600" : "text-[#ab3500]"}`}>
+                    <h4 className="text-lg font-bold transition-colors group-hover:text-[#4f378a]">{salon?.name ?? "Salon"}</h4>
+                    <p className="mb-2 mt-1 text-sm text-[#494551]">{salon?.tag ?? ""}</p>
+                    <p className="mb-4 text-xs font-medium text-[#6b6474]">{salon?.location ?? ""}</p>
+                    <div className={`flex items-center gap-2 text-sm font-bold ${(salon?.wait ?? "") === "Immediate start" ? "text-green-600" : "text-[#ab3500]"}`}>
                       {salon.wait === "Immediate start" ? <CheckCircle className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}
                       {salon.wait}
                     </div>

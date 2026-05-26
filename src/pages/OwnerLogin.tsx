@@ -145,7 +145,7 @@ export default function OwnerLogin() {
       console.log("PROFILE_FETCH_START");
       const { data: ownerProfile, error: profileError } = await supabase
         .from("owners")
-        .select("*")
+        .select("id, email, name, phone, business_name, is_verified, is_active, created_at")
         .eq("id", authData.user!.id)
         .maybeSingle();
  
@@ -169,7 +169,7 @@ export default function OwnerLogin() {
             is_verified: true,
             is_active: true,
           })
-          .select("*")
+          .select("id, email, name, phone, business_name, is_verified, is_active, created_at")
           .maybeSingle();
 
         if (createError) {

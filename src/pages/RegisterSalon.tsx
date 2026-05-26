@@ -307,7 +307,7 @@ export default function RegisterSalon() {
 
   return (
     <div className="min-h-screen bg-background pb-28">
-      <Header userName={owner.name || owner.email} isAdmin={false} />
+      <Header userName={owner?.name || owner?.email || "Owner"} isAdmin={false} />
 
       <main className="mx-auto max-w-7xl space-y-6 px-4 py-8 md:px-6">
         <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -363,9 +363,9 @@ export default function RegisterSalon() {
             <div className="space-y-4">
               {services.map((service, index) => (
                 <div key={`service-${index}`} className="grid gap-3 rounded-xl border border-border p-4 md:grid-cols-12">
-                  <Input placeholder="Service name" value={service.name} onChange={(e) => updateService(index, "name", e.target.value)} className="md:col-span-5" />
-                  <Input type="number" placeholder="Price" value={service.price} onChange={(e) => updateService(index, "price", e.target.value)} className="md:col-span-3" />
-                  <Input type="number" placeholder="Duration" value={service.duration} onChange={(e) => updateService(index, "duration", e.target.value)} className="md:col-span-3" />
+                  <Input placeholder="Service name" value={service?.name ?? ""} onChange={(e) => updateService(index, "name", e.target.value)} className="md:col-span-5" />
+                  <Input type="number" placeholder="Price" value={service?.price ?? ""} onChange={(e) => updateService(index, "price", e.target.value)} className="md:col-span-3" />
+                  <Input type="number" placeholder="Duration" value={service?.duration ?? ""} onChange={(e) => updateService(index, "duration", e.target.value)} className="md:col-span-3" />
                   <Button type="button" variant="outline" className="md:col-span-1" onClick={() => setServices((prev) => prev.filter((_, i) => i !== index))}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -384,9 +384,9 @@ export default function RegisterSalon() {
             <div className="space-y-4">
               {barbers.map((barber, index) => (
                 <div key={`barber-${index}`} className="grid gap-3 rounded-xl border border-border p-4 md:grid-cols-12">
-                  <Input placeholder="Name" value={barber.name} onChange={(e) => updateBarber(index, "name", e.target.value)} className="md:col-span-4" />
-                  <Input type="number" placeholder="Chair Number" value={barber.chair} onChange={(e) => updateBarber(index, "chair", e.target.value)} className="md:col-span-3" />
-                  <Input placeholder="Specialization" value={barber.specialization} onChange={(e) => updateBarber(index, "specialization", e.target.value)} className="md:col-span-4" />
+                  <Input placeholder="Name" value={barber?.name ?? ""} onChange={(e) => updateBarber(index, "name", e.target.value)} className="md:col-span-4" />
+                  <Input type="number" placeholder="Chair Number" value={barber?.chair ?? ""} onChange={(e) => updateBarber(index, "chair", e.target.value)} className="md:col-span-3" />
+                  <Input placeholder="Specialization" value={barber?.specialization ?? ""} onChange={(e) => updateBarber(index, "specialization", e.target.value)} className="md:col-span-4" />
                   <Button type="button" variant="outline" className="md:col-span-1" onClick={() => setBarbers((prev) => prev.filter((_, i) => i !== index))}>
                     <Trash2 className="h-4 w-4" />
                   </Button>

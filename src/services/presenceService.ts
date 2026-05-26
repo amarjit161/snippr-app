@@ -8,7 +8,10 @@ export const presenceService = {
   },
 
   async listSalon(salonId: string) {
-    const { data } = await publicSupabase.from("queue_presence").select("*").eq("salon_id", salonId);
+    const { data } = await publicSupabase
+      .from("queue_presence")
+      .select("id, salon_id, barber_id, last_seen")
+      .eq("salon_id", salonId);
     return data || [];
   },
 

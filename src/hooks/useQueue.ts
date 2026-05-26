@@ -248,27 +248,32 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
 
     console.log("QUEUE_REALTIME_SUBSCRIPTION_START", salon.id);
     let lastEventTime = Date.now();
+    let channel: any = null;
 
-    const channel = supabase
-      .channel(`owner-queue-${salon.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "queue",
-          filter: `salon_id=eq.${salon.id}`,
-        },
-        async (payload: any) => {
-          lastEventTime = Date.now();
-          console.log("QUEUE_REALTIME_EVENT", payload.eventType, payload.new?.id);
-          // Merge intelligently instead of refetch (no flicker!)
-          mergeQueueItemUpdate(payload);
-        }
-      )
-      .subscribe((status) => {
-        console.log("QUEUE_REALTIME_STATUS", status);
-      });
+    try {
+      channel = supabase
+        .channel(`owner-queue-${salon.id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "queue",
+            filter: `salon_id=eq.${salon.id}`,
+          },
+          async (payload: any) => {
+            lastEventTime = Date.now();
+            console.log("QUEUE_REALTIME_EVENT", payload.eventType, payload.new?.id);
+            // Merge intelligently instead of refetch (no flicker!)
+            mergeQueueItemUpdate(payload);
+          }
+        )
+        .subscribe((status) => {
+          console.log("QUEUE_REALTIME_STATUS", status);
+        });
+    } catch (err) {
+      console.error("QUEUE_REALTIME_SUBSCRIPTION_ERROR", err);
+    }
 
     // Smart fallback: check every 60s if missed any items
     const interval = setInterval(async () => {
@@ -300,7 +305,14 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
 
     return () => {
       console.log("QUEUE_REALTIME_SUBSCRIPTION_CLEANUP");
-      supabase.removeChannel(channel);
+      if (channel) {
+        try {
+          supabase.removeChannel(channel);
+          console.log("QUEUE_REALTIME_CHANNEL_CLEANUP_SUCCESS");
+        } catch (err) {
+          console.error("QUEUE_REALTIME_CHANNEL_CLEANUP_ERROR", err);
+        }
+      }
       clearInterval(interval);
     };
   }, [fetchQueue, salon?.id, mergeQueueItemUpdate, queueItems, supabaseAny]);
@@ -410,6 +422,33 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
       const { data: { user: freshUser } } = await supabase.auth.getUser();
       if (!freshUser) throw new Error("Owner session expired. Please re-login.");
 
+      // VALIDATION: Check if barber is available at current time
+      const createdAt = new Date().toISOString();
+      const todayBookingDate = createdAt.slice(0, 10);
+      const bookingTimeSlot = createdAt.slice(11, 16);
+      
+      // Check if this barber already has a booking for this exact time slot today
+      const { data: conflictBookings, error: conflictError } = await supabaseAny
+        .from("queue")
+        .select("id, barber_id, booking_date, time_slot")
+        .eq("salon_id", salon.id)
+        .eq("barber_id", payload.barberId)
+        .eq("booking_date", todayBookingDate)
+        .eq("time_slot", bookingTimeSlot);
+
+      if (conflictError) {
+        console.error("AVAILABILITY_CHECK_ERROR", conflictError);
+        toast.error("Could not check barber availability");
+        return;
+      }
+
+      // Allow overlap detection - warn user but don't block
+      if (conflictBookings && conflictBookings.length > 0) {
+        const barberName = barbers.find((b) => b.id === payload.barberId)?.name || "Barber";
+        toast.warning(`⚠️ ${barberName} already has a booking at this time`);
+        // Don't return - let database constraints handle it
+      }
+
       const { data: positionRows } = await (supabase
         .from("queue") as any)
         .select("position")
@@ -418,9 +457,6 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
         .limit(1);
 
       const nextPosition = ((positionRows?.[0]?.position as number | undefined) || 0) + 1;
-      const createdAt = new Date().toISOString();
-      const todayBookingDate = createdAt.slice(0, 10);
-      const bookingTimeSlot = createdAt.slice(11, 16);
       const tempId = `temp-${Date.now()}`;
 
       const selectedService = services.find((service) => service.id === payload.serviceId) || null;
@@ -468,7 +504,14 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
 
       if (insertError || !insertedData) {
         setQueueItems((prev) => prev.filter((item) => item.id !== tempId));
-        toast.error(insertError?.message || "Failed to add walk-in customer");
+        
+        // Provide better error message for specific constraint violations
+        if (insertError?.message?.includes("duplicate key") || insertError?.message?.includes("Unique violation")) {
+          const barberName = selectedBarber?.name || "Barber";
+          toast.error(`❌ ${barberName} is fully booked at ${bookingTimeSlot}. Choose another time or barber.`);
+        } else {
+          toast.error(insertError?.message || "Failed to add walk-in customer");
+        }
         return;
       }
 

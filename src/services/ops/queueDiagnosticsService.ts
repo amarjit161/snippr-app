@@ -26,7 +26,7 @@ export const queueDiagnosticsService = {
   async recentConflicts(salonId: string, limit = 200) {
     const { data, error } = await publicSupabase
       .from("queue_conflict_diagnostics")
-      .select("*")
+      .select("id, salon_id, event_type, error_msg, created_at")
       .eq("salon_id", salonId)
       .order("created_at", { ascending: false })
       .limit(limit);

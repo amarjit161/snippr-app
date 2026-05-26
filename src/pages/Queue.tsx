@@ -164,7 +164,7 @@ export default function Queue() {
                                 <option value="">Unassigned barber</option>
                                 {barbers.map((barber) => (
                                   <option key={barber.id} value={barber.id}>
-                                    {barber.name} {barber.chair_number ? `(Chair ${barber.chair_number})` : ""}
+                                    {barber?.name ?? "Barber"} {barber?.chair_number ? `(Chair ${barber.chair_number})` : ""}
                                   </option>
                                 ))}
                               </select>

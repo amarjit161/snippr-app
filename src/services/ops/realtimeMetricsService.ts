@@ -40,7 +40,7 @@ export const realtimeMetricsService = {
   async recentWindows(salonId: string, limit = 48) {
     const { data, error } = await publicSupabase
       .from("realtime_metrics_aggregates")
-      .select("*")
+      .select("id, salon_id, metric_name, metric_value, metric_window_start, created_at")
       .eq("salon_id", salonId)
       .order("metric_window_start", { ascending: false })
       .limit(limit);

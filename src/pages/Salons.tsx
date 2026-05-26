@@ -195,16 +195,31 @@ const Salons = () => {
     if (!user) return;
     
     console.log("SALONS_SUBSCRIPTION_INIT");
-    const channel = publicSupabase
-      .channel("salon-updates-v2")
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "salons" }, () => {
-        console.log("SALONS_REALTIME: SALON_UPDATE_DETECTED");
-        queryClient.invalidateQueries({ queryKey: ["salons"] });
-      })
-      .subscribe();
+    let channel: any = null;
+    
+    try {
+      channel = publicSupabase
+        .channel("salon-updates-v2")
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "salons" }, () => {
+          console.log("SALONS_REALTIME: SALON_UPDATE_DETECTED");
+          queryClient.invalidateQueries({ queryKey: ["salons"] });
+        })
+        .subscribe((status: any) => {
+          console.log("SALONS_SUBSCRIPTION_STATUS", status);
+        });
+    } catch (err) {
+      console.error("SALONS_SUBSCRIPTION_ERROR", err);
+    }
       
     return () => { 
-      publicSupabase.removeChannel(channel); 
+      if (channel) {
+        try {
+          publicSupabase.removeChannel(channel);
+          console.log("SALONS_SUBSCRIPTION_CLEANUP_SUCCESS");
+        } catch (err) {
+          console.error("SALONS_SUBSCRIPTION_CLEANUP_ERROR", err);
+        }
+      }
     };
   }, [user, queryClient]);
 
@@ -249,23 +264,23 @@ const Salons = () => {
         ...salons
           .filter((salon) =>
             [
-              salon.name,
-              salon.address,
-              (salon as any).city,
-              salon.location,
-              String((salon as any).pincode ?? ""),
+              salon?.name,
+              salon?.address,
+              (salon as any)?.city,
+              salon?.location,
+              String((salon as any)?.pincode ?? ""),
             ]
               .filter(Boolean)
               .some((field) => String(field).toLowerCase().includes(suggestionQuery))
           )
           .slice(0, 6)
           .map((salon) => ({
-            label: salon.name,
-            value: salon.name,
+            label: salon?.name ?? "Salon",
+            value: salon?.name ?? "Salon",
             category: "salon" as const,
             subtitle:
-              salon.address ||
-              ((salon as any).city
+              salon?.address ||
+              ((salon as any)?.city
                 ? `${(salon as any).city} · salon`
                 : "Salon result"),
           })),

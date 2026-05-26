@@ -26,7 +26,7 @@ export const queueSyncService = {
     const { data: legacyData, error: legacyError } = await publicSupabase
       .from("customer_bookings")
       .insert(legacyPayload)
-      .select("*")
+      .select("id, status, customer_name, customer_email, customer_phone, created_at")
       .maybeSingle();
 
     if (legacyError) {

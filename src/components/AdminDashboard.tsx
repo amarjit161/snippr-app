@@ -25,7 +25,7 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from("salons").select("*").eq("owner_id", user.id).then(({ data }) => {
+    supabase.from("salons").select("id, name, owner_id, image_url, address, city, wait_time, distance").eq("owner_id", user.id).then(({ data }) => {
       if (data) {
         setSalons(data);
         if (data.length > 0) setSelectedSalonId(data[0].id);

@@ -1,3 +1,4 @@
+import React from "react";
 import heroImage from "@/assets/salon-1.jpg";
 import salon2 from "@/assets/salon-2.jpg";
 import salon3 from "@/assets/salon-3.jpg";
@@ -195,12 +196,18 @@ export function TopRatedSalonsSection() {
         <div className="stagger-cards grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {topSalons.length > 0 ? topSalons.map((salon) => (
             <article
-              key={salon.name}
+              key={salon?.name ?? "salon"}
               className="stagger-item overflow-hidden rounded-2xl border border-border bg-white shadow-md opacity-100 transition-all duration-300 hover:scale-105 hover:shadow-xl"
             >
-              <img src={salon.image} alt={salon.name} className="h-48 w-full object-cover" />
+              <img 
+                src={salon?.image ?? "/default-salon.jpg"} 
+                alt={salon?.name ?? "Salon"} 
+                loading="lazy"
+                decoding="async"
+                className="h-48 w-full object-cover" 
+              />
               <div className="space-y-3 p-5">
-                <h3 className="text-lg font-semibold">{salon.name}</h3>
+                <h3 className="text-lg font-semibold">{salon?.name ?? "Unknown Salon"}</h3>
                 <div className="flex items-center justify-between text-sm">
                   <span className="inline-flex items-center gap-1 text-amber-500">
                     <Star className="h-4 w-4 fill-current" /> {salon.rating}

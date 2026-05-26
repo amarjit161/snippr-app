@@ -93,7 +93,7 @@ export function AddWalkInModal({ open, onOpenChange, services, barbers, onSubmit
             {services.length === 0 ? <option value="">No active services</option> : null}
             {services.map((service) => (
               <option key={service.id} value={service.id}>
-                {service.name} • INR {service.price}
+                {service?.name ?? "Service"} • INR {service?.price ?? 0}
               </option>
             ))}
           </select>
@@ -106,7 +106,7 @@ export function AddWalkInModal({ open, onOpenChange, services, barbers, onSubmit
             {barbers.length === 0 ? <option value="">No barbers available</option> : null}
             {barbers.map((barber) => (
               <option key={barber.id} value={barber.id}>
-                {barber.name} {barber.chair_number ? `(Chair ${barber.chair_number})` : ""}
+                {barber?.name ?? "Barber"} {barber?.chair_number ? `(Chair ${barber.chair_number})` : ""}
               </option>
             ))}
           </select>

@@ -1,3 +1,4 @@
+import React from "react";
 import { Clock, MapPin, Star, Users } from "lucide-react";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
@@ -104,7 +105,7 @@ const SalonCard = ({ salon, index, onSelect }: SalonCardProps) => {
       <div className="relative h-56 overflow-hidden">
         <img
           src={getSalonImageSrc(salon.image_url)}
-          alt={salon.name}
+          alt={salon?.name ?? "Salon"}
           loading="lazy"
           decoding="async"
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
@@ -134,7 +135,7 @@ const SalonCard = ({ salon, index, onSelect }: SalonCardProps) => {
       <div className="p-6">
         <div className="flex justify-between items-start mb-2">
           <h3 className="font-headline font-bold text-xl text-[#191c1d] line-clamp-1">
-            {salon.name}
+            {salon?.name ?? "Unknown Salon"}
           </h3>
           <div className="flex items-center gap-1 text-[#191c1d]">
             <Star className="text-[#630ed4] w-[18px] h-[18px] fill-[#630ed4]" />
@@ -171,5 +172,5 @@ const SalonCard = ({ salon, index, onSelect }: SalonCardProps) => {
   );
 };
 
-export default SalonCard;
+export default React.memo(SalonCard);
 

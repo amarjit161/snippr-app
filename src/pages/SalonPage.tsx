@@ -26,7 +26,11 @@ export default function SalonPage() {
       setErrorMessage(null);
 
       try {
-        const fetchPromise = publicSupabase.from("salons").select("*").eq("id", id).maybeSingle();
+        const fetchPromise = publicSupabase
+          .from("salons")
+          .select("id, name, owner_id, image_url, address, city, wait_time, distance, tag, accent, description, services, barbers")
+          .eq("id", id)
+          .maybeSingle();
         const timeoutPromise = new Promise<any>((_, reject) => 
           setTimeout(() => reject(new Error("Network timeout")), 8000)
         );

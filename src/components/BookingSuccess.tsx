@@ -120,7 +120,13 @@ export default function BookingSuccess({
             <div className="md:col-span-2 bg-[#f3f4f5] p-6 rounded-xl flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="flex items-center gap-4 w-full md:w-auto">
                 <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0">
-                  <img alt="Salon" className="w-full h-full object-cover" src={getSalonImageSrc(image)} />
+                  <img 
+                    alt="Salon" 
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-full object-cover" 
+                    src={getSalonImageSrc(image)} 
+                  />
                 </div>
                 <div>
                   <h3 className="font-headline font-bold text-xl text-[#191c1d]">{salonName}</h3>

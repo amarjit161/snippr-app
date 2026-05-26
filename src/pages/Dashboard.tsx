@@ -168,7 +168,13 @@ const BookingCard = ({ booking: b, onCancel, onManage, showActions, updatingId }
     >
       <div className="grid gap-0 md:grid-cols-[190px_1fr]">
         <div className="h-52 w-full overflow-hidden md:h-full">
-          <img src={salonImage} alt={salonName} className="h-full w-full object-cover" />
+          <img 
+            src={salonImage} 
+            alt={salonName} 
+            loading="lazy"
+            decoding="async"
+            className="h-full w-full object-cover" 
+          />
         </div>
 
         <div className="p-6 sm:p-7">

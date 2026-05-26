@@ -48,9 +48,10 @@ export default function Services() {
           console.log("SALON_ID_READY:", validatedSalon.id);
           const { data, error: fetchError } = await supabaseAny
             .from("services")
-            .select("*")
+            .select("id, name, price, duration, description")
             .eq("salon_id", validatedSalon.id)
-            .order("name");
+            .order("name")
+            .limit(100);
           
           if (fetchError) throw fetchError;
           setServices((data as ServiceRow[]) || []);
@@ -68,7 +69,12 @@ export default function Services() {
   const refresh = async () => {
     if (!salon?.id) return;
     try {
-      const { data, error } = await supabaseAny.from("services").select("*").eq("salon_id", salon.id).order("name");
+      const { data, error } = await supabaseAny
+        .from("services")
+        .select("id, name, price, duration, description")
+        .eq("salon_id", salon.id)
+        .order("name")
+        .limit(100);
       if (error) throw error;
       setServices((data as ServiceRow[]) || []);
     } catch (error: any) {
@@ -82,7 +88,7 @@ export default function Services() {
       toast.error("Salon identification missing");
       return;
     }
-    if (!newService.name.trim() || !newService.price || !newService.duration) {
+    if (!(newService?.name?.trim()) || !newService?.price || !newService?.duration) {
       toast.error("Please enter valid service details");
       return;
     }
@@ -93,10 +99,10 @@ export default function Services() {
       if (!currentUser) throw new Error("Owner session expired. Please re-login.");
 
       const { error } = await (supabase.from("services") as any).insert({ 
-        salon_id: salon.id, 
-        name: newService.name.trim(), 
-        price: Number(newService.price), 
-        duration: Number(newService.duration) 
+        salon_id: salon?.id, 
+        name: (newService?.name ?? "").trim(), 
+        price: Number(newService?.price ?? 0), 
+        duration: Number(newService?.duration ?? 0) 
       });
 
       if (error) {
@@ -188,8 +194,8 @@ export default function Services() {
                   <>
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-semibold">{service.name}</p>
-                        <p className="text-sm text-[#494551]">INR {service.price} • {service.duration} mins</p>
+                        <p className="font-semibold">{service?.name ?? "Service"}</p>
+                        <p className="text-sm text-[#494551]">INR {service?.price ?? 0} • {service?.duration ?? 0} mins</p>
                       </div>
                       <BadgeActions setEditingServiceId={setEditingServiceId} setServiceDraft={setServiceDraft} service={service} onDelete={handleDelete} />
                     </div>
@@ -207,7 +213,7 @@ export default function Services() {
 function BadgeActions({ service, setEditingServiceId, setServiceDraft, onDelete }: any) {
   return (
     <div className="flex gap-2">
-      <Button type="button" variant="outline" className="rounded-xl" onClick={() => { setEditingServiceId(service.id); setServiceDraft({ name: service.name, price: String(service.price), duration: String(service.duration) }); }}><Pencil className="h-4 w-4" /></Button>
+      <Button type="button" variant="outline" className="rounded-xl" onClick={() => { setEditingServiceId(service?.id); setServiceDraft({ name: service?.name ?? "", price: String(service?.price ?? 0), duration: String(service?.duration ?? 0) }); }}><Pencil className="h-4 w-4" /></Button>
       <Button type="button" variant="outline" className="rounded-xl" onClick={() => onDelete(service.id)}><Trash2 className="h-4 w-4" /></Button>
     </div>
   );

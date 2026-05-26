@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Bell, Clock, MapPin, Navigation, Users, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -218,7 +218,7 @@ const QueueTracker = () => {
             <p className="font-display font-bold text-card-foreground">
               {isInProgress ? "In Progress ✂️" : "Live Queue"}
             </p>
-            <p className="text-xs text-muted-foreground">{salon.name}</p>
+            <p className="text-xs text-muted-foreground">{salon?.name ?? "Salon"}</p>
           </div>
         </div>
         {!isInProgress && (
@@ -243,7 +243,7 @@ const QueueTracker = () => {
           className="rounded-lg bg-success/10 p-4 text-center space-y-1"
         >
           <p className="font-display text-lg font-bold text-success">Your service is in progress</p>
-          <p className="text-sm text-muted-foreground">{service.name} • {service.duration} min</p>
+          <p className="text-sm text-muted-foreground">{service?.name ?? "Service"} • {service?.duration ?? 0} min</p>
         </motion.div>
       ) : (
         <>
@@ -310,11 +310,11 @@ const QueueTracker = () => {
       )}
 
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span className="font-medium text-foreground">{service.name}</span>
+        <span className="font-medium text-foreground">{service?.name ?? "Service"}</span>
         <span>•</span>
-        <span>{service.duration} min</span>
+        <span>{service?.duration ?? 0} min</span>
         <span>•</span>
-        <span>₹{service.price?.toLocaleString("en-IN")}</span>
+        <span>₹{service?.price?.toLocaleString("en-IN") ?? "0"}</span>
       </div>
 
       <p className="text-xs text-muted-foreground">
@@ -359,5 +359,5 @@ const QueueTracker = () => {
   );
 };
 
-export default QueueTracker;
+export default React.memo(QueueTracker);
 

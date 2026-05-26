@@ -24,7 +24,7 @@ export const realtimeDebugService = {
   async inspectDelayedEvents(salonId: string, limit = 200) {
     const { data, error } = await publicSupabase
       .from("delayed_queue_events")
-      .select("*")
+      .select("id, salon_id, event_type, available_at, created_at")
       .eq("salon_id", salonId)
       .order("created_at", { ascending: false })
       .limit(limit);

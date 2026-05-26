@@ -34,6 +34,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const lastProfileFetchSessionIdRef = useRef<string | null>(null);
   const profileFetchInFlightRef = useRef<string | null>(null);
   const logoutChannel = useRef<BroadcastChannel | null>(null);
+  const authStateDebounceRef = useRef<NodeJS.Timeout | null>(null); // Debounce auth state changes
+  const lastAuthStateChangeRef = useRef<string | null>(null); // Prevent duplicate auth state processing
+  const lastTokenRefreshTimeRef = useRef<number>(0); // Track last token refresh to prevent spam
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof BroadcastChannel === "undefined") return;
@@ -122,7 +125,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       try {
         const { data, error } = await supabaseWithTimeout(
-          supabase.from("owners").select("*").eq("id", sessionId).maybeSingle()
+          supabase.from("owners").select("id, name, email, phone, business_name, created_at").eq("id", sessionId).maybeSingle()
         );
 
         if (error) throw error;
@@ -192,106 +195,136 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
+        const stateKey = `${event}:${currentSession?.user?.id ?? "null"}`;
+        
+        // Prevent duplicate processing of same auth state change within 500ms
+        if (lastAuthStateChangeRef.current === stateKey) {
+          console.log("AUTH_STATE_CHANGED: IGNORED_DUPLICATE", event);
+          return;
+        }
+        
+        lastAuthStateChangeRef.current = stateKey;
         console.log("AUTH_STATE_CHANGED:", event, currentSession?.user?.email || "No session");
 
-        if (event === "TOKEN_REFRESHED") {
-          console.log("AUTH: Token refreshed successfully");
+        // Debounce rapid auth state changes (e.g., token refresh spam)
+        if (authStateDebounceRef.current) {
+          clearTimeout(authStateDebounceRef.current);
         }
 
-        if (event === "SIGNED_OUT") {
-          setSession(null);
-          setProfile(null);
-          cachedProfileRef.current = null;
-          lastProfileFetchSessionIdRef.current = null;
-          profileFetchInFlightRef.current = null;
-          localStorage.removeItem("snippr_role");
-          localStorage.removeItem("owner");
-          setLoading(false);
-          return;
-        }
-
-        if (event === "USER_UPDATED") {
-          if (currentSession) {
-            await fetchProfile(currentSession, true);
-          }
-          return;
-        }
-
-        setSession(currentSession);
-        setLoading(false); // Resolve loading on any state change
-
-        // Auto-create customer profile on first sign-in if it doesn't exist
-        if (event === 'SIGNED_IN' && currentSession?.user) {
+        authStateDebounceRef.current = setTimeout(async () => {
           try {
-            const { data: existingProfile } = await supabaseWithTimeout(
-              supabase.from('customer_profiles').select('id').eq('id', currentSession.user.id).maybeSingle()
-            );
-
-            if (!existingProfile) {
-              // Create empty profile for new customer
-              const { error } = await supabaseWithTimeout(
-                supabase.from('customer_profiles').insert([{
-                  id: currentSession.user.id,
-                  email: currentSession.user.email || '',
-                  profile_complete_pct: 20, // Email only = 20%
-                }])
-              );
-
-              if (import.meta.env.DEV && error) console.log('Auto-create profile:', error);
+            if (event === "TOKEN_REFRESHED") {
+              // Prevent token refresh spam - only allow one refresh every 30 seconds
+              const now = Date.now();
+              if (now - lastTokenRefreshTimeRef.current < 30000) {
+                console.log("AUTH: Token refresh throttled (last refresh <30s ago)");
+                return;
+              }
+              lastTokenRefreshTimeRef.current = now;
+              console.log("AUTH: Token refreshed successfully");
             }
-          } catch (err) {
-            if (import.meta.env.DEV) console.error('Error auto-creating profile:', err);
-          }
-        }
-        
-        // Check if this is likely a visibility change event (within 1 second of visibility becoming visible)
-        const isVisibilityChangeEvent = Date.now() - visibilityChangeTimeRef.current < 1000;
-        
-        // Only fetch/refetch profile on initial sign in, not on every token refresh
-        if (event === "SIGNED_IN" && currentSession) {
-          // Auto-create customer profile if SSO login and no profile exists
-          if (currentSession.user) {
-            const { data: existing } = await supabaseWithTimeout(
-              supabase.from('customer_profiles').select('id').eq('id', currentSession.user.id).maybeSingle()
-            );
-            
-            if (!existing) {
-              console.log("AUTH_SSO: Creating auto-profile for new SSO user");
-              // New SSO user — create profile from Google data
-              const meta = currentSession.user.user_metadata;
+
+            if (event === "SIGNED_OUT") {
+              setSession(null);
+              setProfile(null);
+              cachedProfileRef.current = null;
+              lastProfileFetchSessionIdRef.current = null;
+              profileFetchInFlightRef.current = null;
+              localStorage.removeItem("snippr_role");
+              localStorage.removeItem("owner");
+              setLoading(false);
+              return;
+            }
+
+            if (event === "USER_UPDATED") {
+              if (currentSession) {
+                await fetchProfile(currentSession, true);
+              }
+              return;
+            }
+
+            setSession(currentSession);
+            setLoading(false); // Resolve loading on any state change
+
+            // Auto-create customer profile on first sign-in if it doesn't exist
+            if (event === 'SIGNED_IN' && currentSession?.user) {
               try {
-                await supabaseWithTimeout(
-                  supabase.from('customer_profiles').insert({
-                    id: currentSession.user.id,
-                    first_name: meta?.full_name?.split(' ')[0] || meta?.name?.split(' ')[0] || '',
-                    last_name: meta?.full_name?.split(' ').slice(1).join(' ') || '',
-                    email: currentSession.user.email,
-                    phone: null, // will be collected via PhoneVerifyModal
-                    gender: null, // will be collected in profile completion
-                  })
+                const { data: existingProfile } = await supabaseWithTimeout(
+                  supabase.from('customer_profiles').select('id').eq('id', currentSession.user.id).maybeSingle()
                 );
+
+                if (!existingProfile) {
+                  // Create empty profile for new customer
+                  const { error } = await supabaseWithTimeout(
+                    supabase.from('customer_profiles').insert([{
+                      id: currentSession.user.id,
+                      email: currentSession.user.email || '',
+                      profile_complete_pct: 20, // Email only = 20%
+                    }])
+                  );
+
+                  if (import.meta.env.DEV && error) console.log('Auto-create profile:', error);
+                }
               } catch (err) {
-                console.error("AUTH_SSO: Failed to create profile", err);
+                if (import.meta.env.DEV) console.error('Error auto-creating profile:', err);
               }
             }
+            
+            // Check if this is likely a visibility change event (within 1 second of visibility becoming visible)
+            const isVisibilityChangeEvent = Date.now() - visibilityChangeTimeRef.current < 1000;
+            
+            // Only fetch/refetch profile on initial sign in, not on every token refresh
+            if (event === "SIGNED_IN" && currentSession) {
+              // Auto-create customer profile if SSO login and no profile exists
+              if (currentSession.user) {
+                const { data: existing } = await supabaseWithTimeout(
+                  supabase.from('customer_profiles').select('id').eq('id', currentSession.user.id).maybeSingle()
+                );
+                
+                if (!existing) {
+                  console.log("AUTH_SSO: Creating auto-profile for new SSO user");
+                  // New SSO user — create profile from Google data
+                  const meta = currentSession.user.user_metadata;
+                  try {
+                    await supabaseWithTimeout(
+                      supabase.from('customer_profiles').insert({
+                        id: currentSession.user.id,
+                        first_name: meta?.full_name?.split(' ')[0] || meta?.name?.split(' ')[0] || '',
+                        last_name: meta?.full_name?.split(' ').slice(1).join(' ') || '',
+                        email: currentSession.user.email,
+                        phone: null, // will be collected via PhoneVerifyModal
+                        gender: null, // will be collected in profile completion
+                      })
+                    );
+                  } catch (err) {
+                    console.error("AUTH_SSO: Failed to create profile", err);
+                  }
+                }
+              }
+              
+              // Skip refetch if this was triggered by visibility change & we already have cached profile
+              if ((isVisibilityChangeEvent && cachedProfileRef.current) || lastProfileFetchSessionIdRef.current === currentSession.user.id) {
+                console.log("AUTH_STATE: Skipping refetch due to visibility change, using cache");
+                setProfile(cachedProfileRef.current);
+              } else {
+                await fetchProfile(currentSession, true); // Force refresh on sign in
+              }
+            } else if (event === "INITIAL_SESSION" && currentSession) {
+              await fetchProfile(currentSession, false); // Use cache for initial session
+            }
+            // Don't refetch on TOKEN_REFRESHED or other events - use cached profile
+          } catch (err) {
+            console.error("AUTH_STATE_CHANGE_HANDLER_ERROR:", err);
           }
-          
-          // Skip refetch if this was triggered by visibility change & we already have cached profile
-          if ((isVisibilityChangeEvent && cachedProfileRef.current) || lastProfileFetchSessionIdRef.current === currentSession.user.id) {
-            console.log("AUTH_STATE: Skipping refetch due to visibility change, using cache");
-            setProfile(cachedProfileRef.current);
-          } else {
-            await fetchProfile(currentSession, true); // Force refresh on sign in
-          }
-        } else if (event === "INITIAL_SESSION" && currentSession) {
-          await fetchProfile(currentSession, false); // Use cache for initial session
-        }
-        // Don't refetch on TOKEN_REFRESHED or other events - use cached profile
+        }, 300); // Debounce by 300ms to batch rapid changes
       }
     );
 
     return () => {
       clearTimeout(failsafe);
+      if (authStateDebounceRef.current) {
+        clearTimeout(authStateDebounceRef.current);
+      }
       subscription.unsubscribe();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };

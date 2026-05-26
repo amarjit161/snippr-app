@@ -34,7 +34,7 @@ export const MyProfile = () => {
       try {
         const fetchPromise = supabase
           .from('customer_profiles')
-          .select('*')
+          .select('id, first_name, last_name, email, phone, gender, profile_complete_pct, created_at')
           .eq('id', user.id)
           .maybeSingle();
 

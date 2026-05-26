@@ -445,9 +445,9 @@ export default function OwnerRegistration() {
       const { error: servicesError } = await (supabase.from("services") as any).insert(
         services.map((service) => ({
           salon_id: salonData.id,
-          name: service.name.trim(),
-          price: Number(service.price),
-          duration: Number(service.duration),
+          name: (service?.name ?? "Service").trim(),
+          price: Number(service?.price ?? 0),
+          duration: Number(service?.duration ?? 0),
         }))
       );
 
@@ -466,9 +466,9 @@ export default function OwnerRegistration() {
       const { error: barbersError } = await (supabase.from("barbers") as any).insert(
         barbers.map((barber) => ({
           salon_id: salonData.id,
-          name: barber.name.trim(),
-          chair_number: Number(barber.chair) || 1,
-          specialization: barber.specialization.trim(),
+          name: (barber?.name ?? "Barber").trim(),
+          chair_number: Number(barber?.chair ?? 1) || 1,
+          specialization: (barber?.specialization ?? "").trim(),
         }))
       );
 
@@ -480,7 +480,7 @@ export default function OwnerRegistration() {
 
       // 7. FINALIZATION
       console.log("STEP 7: FINALIZATION");
-      await triggerOwnerVerificationEmail(finalOwner.email, finalOwner.name);
+      await triggerOwnerVerificationEmail(finalOwner?.email ?? "", finalOwner?.name ?? "Owner");
       localStorage.setItem("owner", JSON.stringify(finalOwner));
       localStorage.removeItem(STORAGE_KEY);
       

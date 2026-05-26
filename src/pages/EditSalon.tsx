@@ -135,7 +135,7 @@ export default function EditSalon() {
 
   return (
     <div className="min-h-screen bg-background pb-20">
-      <Header userName={owner.name || owner.email} isAdmin={false} />
+      <Header userName={owner?.name || owner?.email || "Owner"} isAdmin={false} />
 
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-8 md:px-6">
         <section className="rounded-2xl bg-white p-6 shadow-md">

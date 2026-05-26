@@ -316,41 +316,53 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
     checkAvailability();
 
     // REAL-TIME UPDATES - Listen for THIS SALON's queue changes only with proper filtering
-    const subscription = supabase
-      .channel(`bookings-${salon.id}-${date}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT,UPDATE",
-          schema: "public",
-          table: "queue",
-          filter: `salon_id=eq.${salon.id}`,
-        },
-        (payload) => {
-          // Only process if booking is for current date
-          const payloadDate = payload.new?.booking_date || payload.old?.booking_date;
-          if (payloadDate === date && selectedBarberId) {
-            console.log("🔄 REAL_TIME_UPDATE: Booking changed for current date", {
-              eventType: payload.eventType,
-              bookingDate: payloadDate
-            });
-            console.log("🔁 REFRESHING availability due to real-time event");
-            checkAvailability();
+    let subscription: any = null;
+    try {
+      subscription = supabase
+        .channel(`bookings-${salon?.id}-${date}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT,UPDATE",
+            schema: "public",
+            table: "queue",
+            filter: `salon_id=eq.${salon?.id}`,
+          },
+          (payload) => {
+            // Only process if booking is for current date
+            const payloadDate = payload?.new?.booking_date || payload?.old?.booking_date;
+            if (payloadDate === date && selectedBarberId) {
+              console.log("🔄 REAL_TIME_UPDATE: Booking changed for current date", {
+                eventType: payload.eventType,
+                bookingDate: payloadDate
+              });
+              console.log("🔁 REFRESHING availability due to real-time event");
+              checkAvailability();
+            }
           }
-        }
-      )
-      .subscribe((status) => {
-        console.log(`📡 SUBSCRIPTION_STATUS: ${status}`, { 
-          salonId: salon.id,
-          date, 
-          barberId: selectedBarberId 
+        )
+        .subscribe((status) => {
+          console.log(`📡 SUBSCRIPTION_STATUS: ${status}`, { 
+            salonId: salon?.id,
+            date, 
+            barberId: selectedBarberId 
+          });
         });
-      });
+    } catch (err) {
+      console.error("BOOKING_REALTIME_SUBSCRIPTION_ERROR", err);
+    }
 
     return () => {
-      subscription.unsubscribe();
+      if (subscription) {
+        try {
+          supabase.removeChannel(subscription);
+          console.log("BOOKING_REALTIME_SUBSCRIPTION_CLEANUP_SUCCESS");
+        } catch (err) {
+          console.error("BOOKING_REALTIME_SUBSCRIPTION_CLEANUP_ERROR", err);
+        }
+      }
     };
-  }, [date, selectedBarberId, salon.id]);
+  }, [date, selectedBarberId, salon?.id]);
 
   // PERIODIC REFRESH - Fallback if real-time doesn't work (check every 3 seconds while booking)
   useEffect(() => {
@@ -643,18 +655,18 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
             await sendBookingEmail('booking_confirmed', {
               bookingId: insertedData.id,
-              salonId: salon.id,
-              salonName: salon.name,
-              salonAddress: salon.address || salon.location || '',
-              customerName: `${activeCustomer.firstName} ${activeCustomer.lastName}`.trim() || 'Customer',
+              salonId: salon?.id,
+              salonName: salon?.name ?? "Unknown Salon",
+              salonAddress: salon?.address || salon?.location || '',
+              customerName: `${activeCustomer?.firstName ?? ""} ${activeCustomer?.lastName ?? ""}`.trim() || 'Customer',
               customerEmail,
-              customerPhone: activeCustomer.phone,
+              customerPhone: activeCustomer?.phone,
               ownerEmail: ownerData?.email || '',
-              serviceName: selectedService.name,
+              serviceName: selectedService?.name ?? "Service",
               barberName: '', // We could fetch this if needed
               bookingDate: date,
               timeSlot: displayTime,
-              amount: selectedService.price || 0,
+              amount: selectedService?.price || 0,
               arrivalOTP: arrivalOTP, // Include OTP in email
             });
             console.log("✅ BOOKING_EMAIL_SEND_SUCCESS");
@@ -670,12 +682,12 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
         setMyQueuePosition(nextPosition);
         
-        console.log("🎉 BOOKING_SUCCESS_SHOW", { position: nextPosition, salonName: salon.name, otp: arrivalOTP });
+        console.log("🎉 BOOKING_SUCCESS_SHOW", { position: nextPosition, salonName: salon?.name ?? "Salon", otp: arrivalOTP });
         setConfirmedBookingState({
-          salonName: salon.name,
-          serviceName: selectedService.name,
-          address: salon.address || salon.location || "",
-          image: salon.image_url || "",
+          salonName: salon?.name ?? "Unknown Salon",
+          serviceName: selectedService?.name ?? "Service",
+          address: salon?.address || salon?.location || "",
+          image: salon?.image_url || "",
           estimatedWait: estimatedWait,
           queuePosition: nextPosition,
           bookingId: insertedData.id,
@@ -879,11 +891,11 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
                           className={`flex items-center gap-3 sm:gap-4 rounded-lg sm:rounded-xl border-2 p-4 sm:p-5 md:p-6 text-left transition-all ${selected ? "border-[#4f378a] bg-[#f0e9ff]" : "border-transparent bg-white shadow-sm hover:border-[#cbc4d2]"}`}
                         >
                           <div className={`flex h-12 sm:h-14 md:h-16 w-12 sm:w-14 md:w-16 flex-shrink-0 items-center justify-center rounded-full text-lg sm:text-xl md:text-2xl font-bold ${selected ? "bg-[#4f378a] text-white" : "bg-[#c9a74d] text-[#503d00]"}`}>
-                            {barber.name.charAt(0).toUpperCase()}
+                            {(barber?.name ?? "B").charAt(0).toUpperCase()}
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between gap-2 mb-1">
-                              <p className="truncate font-bold text-[#1a1c1e] text-sm sm:text-base">{barber.name}</p>
+                              <p className="truncate font-bold text-[#1a1c1e] text-sm sm:text-base">{barber?.name ?? "Barber"}</p>
                               <span className="rounded-full px-2 sm:px-3 py-0.5 sm:py-1 text-xs font-bold uppercase tracking-wide text-green-700 bg-green-50 whitespace-nowrap">Online</span>
                             </div>
                             <p className="mb-1 text-xs text-[#494551]">Chair {barber.chair_number ?? 1}</p>

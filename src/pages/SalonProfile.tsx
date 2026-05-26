@@ -203,7 +203,13 @@ export default function SalonProfile() {
                   {uploading && <p className="mt-3 inline-flex items-center text-sm text-[#494551]"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Uploading...</p>}
                 </div>
                 <div className="overflow-hidden rounded-xl border border-[#e3e2e5] bg-[#f4f3f6]">
-                  <img src={imagePreview || salon.image_url || "/default-salon.jpg"} alt={salon.name} className="h-40 w-full object-cover" />
+                  <img 
+                    src={imagePreview || salon?.image_url || "/default-salon.jpg"} 
+                    alt={salon?.name ?? "Salon"} 
+                    loading="lazy"
+                    decoding="async"
+                    className="h-40 w-full object-cover" 
+                  />
                 </div>
               </div>
             </CardContent>

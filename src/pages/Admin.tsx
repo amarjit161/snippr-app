@@ -17,8 +17,9 @@ export default function Admin() {
   const fetchBookings = async () => {
     const { data, error } = await supabase
       .from("bookings")
-      .select("*")
-      .order("created_at", { ascending: false });
+      .select("id, customer_name, customer_email, service_name, status, created_at, notes")
+      .order("created_at", { ascending: false })
+      .limit(100); // Add limit for performance
     
     if (error) {
       toast.error("Failed to load bookings");
