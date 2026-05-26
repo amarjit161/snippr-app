@@ -144,7 +144,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         console.log("SERVICES_FETCH_START", { salon_id: salon.id });
         const { data, error } = await publicSupabase
           .from("services")
-          .select("id, name, price, duration, description")
+          .select("id, name, price, duration")
           .eq("salon_id", salon.id)
           .order("name");
 
@@ -170,8 +170,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
           ...svc,
           name: svc.name ?? "Service",
           price: svc.price ?? 0,
-          duration: svc.duration ?? 30,
-          description: svc.description ?? ""
+          duration: svc.duration ?? 30
         }));
         
         setServices(safeServices);

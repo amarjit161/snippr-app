@@ -48,7 +48,7 @@ export default function Services() {
           console.log("SALON_ID_READY:", validatedSalon.id);
           const { data, error: fetchError } = await supabaseAny
             .from("services")
-            .select("id, name, price, duration, description")
+            .select("id, name, price, duration")
             .eq("salon_id", validatedSalon.id)
             .order("name")
             .limit(100);
@@ -71,7 +71,7 @@ export default function Services() {
     try {
       const { data, error } = await supabaseAny
         .from("services")
-        .select("id, name, price, duration, description")
+        .select("id, name, price, duration")
         .eq("salon_id", salon.id)
         .order("name")
         .limit(100);
