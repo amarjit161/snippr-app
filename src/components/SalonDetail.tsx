@@ -15,6 +15,9 @@ import type { Tables } from "@/integrations/supabase/types";
 import TurnstileCaptcha, { type TurnstileCaptchaHandle } from "@/components/TurnstileCaptcha";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 import { SlotPicker } from "@/components/booking/SlotPicker";
+import { ServiceSelector } from "@/components/booking/ServiceSelector";
+import { AssignmentLoader } from "@/components/booking/AssignmentLoader";
+import { useSmartBarberAssignment, type BarberAssignmentResult } from "@/hooks/useSmartBarberAssignment";
 import { sendBookingEmail } from "@/services/emailService";
 import { generateOTP } from "@/lib/otpUtils";
 import BookingSuccess from "@/components/BookingSuccess";
@@ -91,7 +94,10 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
   const [services, setServices] = useState<Tables<"services">[]>([]);
   const [barbers, setBarbers] = useState<BarberRow[]>([]);
   const [selectedService, setSelectedService] = useState<Tables<"services"> | null>(null);
+  const [selectedServices, setSelectedServices] = useState<Tables<"services">[]>([]);
   const [selectedBarberId, setSelectedBarberId] = useState<string>("");
+  const { assignBestBarber, isAssigning, error: assignmentError, result: assignmentResult } = useSmartBarberAssignment();
+  const [assignedBarber, setAssignedBarber] = useState<BarberAssignmentResult | null>(null);
   const [customer, setCustomer] = useState({ firstName: "", lastName: "", phone: "", altPhone: "", notes: "" });
   const [savedProfile, setSavedProfile] = useState<CustomerProfile>(EMPTY_PROFILE);
   const [profileDraft, setProfileDraft] = useState<CustomerProfile>(EMPTY_PROFILE);
@@ -319,6 +325,32 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
     }
   }, [hasSavedProfile]);
 
+  // AUTO-ASSIGNMENT - Trigger when step 3 reached with services selected
+  useEffect(() => {
+    const triggerAssignment = async () => {
+      if (currentStep !== 3 || selectedServices.length === 0 || assignmentResult) return;
+
+      console.log("🎯 AUTO_ASSIGNMENT_TRIGGER", {
+        salon_id: salon.id,
+        serviceCount: selectedServices.length,
+        bookingDate: date || new Date().toISOString().split("T")[0]
+      });
+
+      const bookingDate = date || new Date().toISOString().split("T")[0];
+      const result = await assignBestBarber(salon.id, selectedServices, bookingDate);
+      
+      if (result) {
+        setAssignedBarber(result);
+        setSelectedBarberId(result.barberId); // Set for compatibility with slot checking
+        console.log("✅ AUTO_ASSIGNMENT_SUCCESS", result);
+      } else {
+        console.error("❌ AUTO_ASSIGNMENT_FAILED");
+      }
+    };
+
+    triggerAssignment();
+  }, [currentStep, selectedServices.length, salon.id, date]);
+
   useEffect(() => {
     const fetchNextPosition = async () => {
       const { data } = await (supabase
@@ -351,7 +383,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
   // CHECK AVAILABILITY - Real-time slot booking status
   useEffect(() => {
-    if (!date || !selectedBarberId) return;
+    if (!date || !assignmentResult?.barberId) return;
 
     const checkAvailability = async () => {
       setCheckingAvailability(true);
@@ -360,14 +392,14 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
           .from("queue" as any)
           .select("time_slot")
           .eq("salon_id", salon.id)
-          .eq("barber_id", selectedBarberId)
+          .eq("barber_id", assignmentResult.barberId)
           .eq("booking_date", date)
           .in("status", ["waiting", "in_progress"]);
 
         const booked = new Set((data || []).map((b: any) => b.time_slot));
         console.log(`✅ AVAILABILITY_CHECK: ${TIME_SLOTS.length - booked.size}/${TIME_SLOTS.length} slots available for ${date}`, {
           bookedSlots: Array.from(booked),
-          barber: selectedBarberId
+          barber: assignmentResult.barberId
         });
         setBookedSlots(booked);
         setLastAvailabilityUpdate(new Date());
@@ -396,7 +428,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
           (payload) => {
             // Only process if booking is for current date
             const payloadDate = payload?.new?.booking_date || payload?.old?.booking_date;
-            if (payloadDate === date && selectedBarberId) {
+            if (payloadDate === date && assignmentResult?.barberId) {
               console.log("🔄 REAL_TIME_UPDATE: Booking changed for current date", {
                 eventType: payload.eventType,
                 bookingDate: payloadDate
@@ -410,7 +442,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
           console.log(`📡 SUBSCRIPTION_STATUS: ${status}`, { 
             salonId: salon?.id,
             date, 
-            barberId: selectedBarberId 
+            barberId: assignmentResult?.barberId 
           });
         });
     } catch (err) {
@@ -427,11 +459,11 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         }
       }
     };
-  }, [date, selectedBarberId, salon?.id]);
+  }, [date, assignmentResult?.barberId, salon?.id]);
 
   // PERIODIC REFRESH - Fallback if real-time doesn't work (check every 3 seconds while booking)
   useEffect(() => {
-    if (!date || !selectedBarberId || currentStep !== 4) return;
+    if (!date || !assignmentResult?.barberId || currentStep !== 4) return;
 
     const interval = setInterval(async () => {
       try {
@@ -439,7 +471,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
           .from("queue" as any)
           .select("time_slot")
           .eq("salon_id", salon.id)
-          .eq("barber_id", selectedBarberId)
+          .eq("barber_id", assignmentResult.barberId)
           .eq("booking_date", date)
           .in("status", ["waiting", "in_progress"]);
 
@@ -457,7 +489,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
     }, 3000); // Check every 3 seconds
 
     return () => clearInterval(interval);
-  }, [date, selectedBarberId, salon.id, currentStep, bookedSlots.size]);
+  }, [date, assignmentResult?.barberId, salon.id, currentStep, bookedSlots.size]);
 
   const travelMin = location && salon.lat && salon.lng
     ? estimateTravelMinutes(location.lat, location.lng, salon.lat, salon.lng)
@@ -534,7 +566,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
     setTouched({ firstName: true, lastName: true, phone: true });
 
-    if (!selectedService || !date || !time || !activeCustomer.firstName.trim() || !activeCustomer.lastName.trim() || !activeCustomer.phone.trim()) {
+    if (selectedServices.length === 0 || !date || !time || !activeCustomer.firstName.trim() || !activeCustomer.lastName.trim() || !activeCustomer.phone.trim()) {
       toast.error("Please fill all booking details");
       return;
     }
@@ -547,8 +579,8 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       return;
     }
 
-    if (!selectedBarberId) {
-      toast.error("Please select a barber");
+    if (!assignmentResult?.barberId) {
+      toast.error("Stylist assignment is still in progress. Please wait...");
       return;
     }
 
@@ -558,7 +590,19 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       return;
     }
 
-    console.log("📋 BOOKING_ATTEMPT_START", { salon: salon.id, date, time, barber: selectedBarberId });
+    const totalDuration = selectedServices.reduce((sum, s) => sum + (s.duration || 30), 0);
+    const totalPrice = selectedServices.reduce((sum, s) => sum + (s.price || 0), 0);
+    const serviceNames = selectedServices.map(s => s.name).join(", ");
+
+    console.log("📋 BOOKING_ATTEMPT_START", { 
+      salon: salon.id, 
+      date, 
+      time, 
+      barber: assignmentResult.barberId,
+      services: selectedServices.length,
+      totalDuration,
+      totalPrice
+    });
     setVerifyingCaptcha(true);
 
     try {
@@ -593,7 +637,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         .from("queue" as any)
         .select("time_slot")
         .eq("salon_id", salon.id)
-        .eq("barber_id", selectedBarberId)
+        .eq("barber_id", assignmentResult.barberId)
         .eq("booking_date", date)
         .in("status", ["waiting", "in_progress"]);
 
@@ -643,7 +687,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         .from("queue" as any)
         .select("id")
         .eq("salon_id", salon.id)
-        .eq("barber_id", selectedBarberId)
+        .eq("barber_id", assignmentResult.barberId)
         .eq("booking_date", date)
         .eq("time_slot", time)
         .in("status", ["waiting", "in_progress"])
@@ -671,13 +715,13 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       const createdAt = new Date().toISOString();
       const arrivalOTP = generateOTP();
       
-      console.log("💾 BOOKING_INSERT_START", { position: nextPosition, date, time });
+      console.log("💾 BOOKING_INSERT_START", { position: nextPosition, date, time, services: selectedServices.length });
 
       const { data: insertedData, error } = await (supabase.from("queue") as any).insert({
         user_id: user?.id || currentUser.id,
         salon_id: salon.id,
-        service_id: selectedService.id,
-        barber_id: selectedBarberId,
+        service_id: selectedServices[0]?.id || null, // Legacy: first service
+        barber_id: assignmentResult.barberId,
         status: "waiting",
         position: nextPosition,
         created_at: createdAt,
@@ -690,6 +734,10 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         booking_date: date,
         time_slot: time,
         arrival_otp: arrivalOTP,
+        total_duration: totalDuration,
+        total_price: totalPrice,
+        service_count: selectedServices.length,
+        is_multi_service: selectedServices.length > 1,
       }).select().single();
 
       if (error) {
@@ -737,12 +785,12 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
               customerEmail,
               customerPhone: activeCustomer?.phone,
               ownerEmail: ownerData?.email || '',
-              serviceName: selectedService?.name ?? "Service",
-              barberName: '', // We could fetch this if needed
+              serviceName: serviceNames,
+              barberName: assignmentResult?.barberName || '', 
               bookingDate: date,
               timeSlot: displayTime,
-              amount: selectedService?.price || 0,
-              arrivalOTP: arrivalOTP, // Include OTP in email
+              amount: totalPrice,
+              arrivalOTP: arrivalOTP,
             });
             console.log("✅ BOOKING_EMAIL_SEND_SUCCESS");
           } catch (emailErr) {
@@ -760,10 +808,10 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         console.log("🎉 BOOKING_SUCCESS_SHOW", { position: nextPosition, salonName: salon?.name ?? "Salon", otp: arrivalOTP });
         setConfirmedBookingState({
           salonName: salon?.name ?? "Unknown Salon",
-          serviceName: selectedService?.name ?? "Service",
+          serviceName: serviceNames,
           address: salon?.address || salon?.location || "",
           image: salon?.image_url || "",
-          estimatedWait: estimatedWait,
+          estimatedWait: `${assignmentResult?.estimatedWait || 15} min`,
           queuePosition: nextPosition,
           bookingId: insertedData.id,
           arrivalOTP: arrivalOTP,
@@ -907,90 +955,34 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
               </motion.section>
             )}
 
-            {/* STEP 2: SERVICE */}
+            {/* STEP 2: MULTI-SERVICE SELECTION */}
             {currentStep === 2 && (
               <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 sm:space-y-5 md:space-y-6 rounded-xl sm:rounded-2xl bg-[#f4f3f6] p-4 sm:p-6 md:p-8 lg:p-10">
                 <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
                   <span className="flex h-8 sm:h-9 md:h-10 w-8 sm:w-9 md:w-10 items-center justify-center rounded-full bg-[#4f378a] text-xs font-bold text-white">2</span>
-                  <h2 className="font-display text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold">Select Service</h2>
+                  <h2 className="font-display text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold">Select Services</h2>
                 </div>
-                {services.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-[#cbc4d2] p-6 text-center text-[#494551]">No services available</div>
-                ) : (
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:gap-5 lg:gap-6">
-                    {services.map((svc) => (
-                      <button
-                        key={svc.id}
-                        onClick={() => setSelectedService(svc)}
-                        className={`rounded-lg sm:rounded-xl border-2 p-4 sm:p-5 md:p-6 text-left transition-all ${
-                          selectedService?.id === svc.id
-                            ? "border-[#4f378a] bg-[#f0e9ff]"
-                            : "border-transparent bg-white shadow-sm hover:border-[#cbc4d2]"
-                        }`}
-                      >
-                        <div className="mb-3 sm:mb-4 flex items-start justify-between gap-2">
-                          <span className={`rounded-full px-2 sm:px-3 py-1 text-[10px] sm:text-xs font-bold uppercase tracking-wider ${selectedService?.id === svc.id ? "bg-[#4f378a] text-white" : "bg-[#e3e2e5] text-[#494551]"}`}>
-                            {selectedService?.id === svc.id ? "Selected" : "Standard"}
-                          </span>
-                          <span className="font-bold text-[#1a1c1e] text-sm sm:text-base">INR {svc.price}</span>
-                        </div>
-                        <p className="text-base sm:text-lg font-bold text-[#1a1c1e] mb-2">{svc.name}</p>
-                        <div className="flex items-center gap-2 text-xs sm:text-sm text-[#494551]">
-                          <Clock className="h-4 w-4" />
-                          <span>{svc.duration} mins</span>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <ServiceSelector
+                  services={services}
+                  selectedServices={selectedServices}
+                  onServicesChange={setSelectedServices}
+                  isLoading={false}
+                />
               </motion.section>
             )}
 
-            {/* STEP 3: BARBER */}
+            {/* STEP 3: SMART AUTO-ASSIGNMENT */}
             {currentStep === 3 && (
               <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 sm:space-y-5 md:space-y-6 rounded-xl sm:rounded-2xl bg-[#f4f3f6] p-4 sm:p-6 md:p-8 lg:p-10">
                 <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
                   <span className="flex h-8 sm:h-9 md:h-10 w-8 sm:w-9 md:w-10 items-center justify-center rounded-full bg-[#4f378a] text-xs font-bold text-white">3</span>
-                  <h2 className="font-display text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold">Choose Barber</h2>
+                  <h2 className="font-display text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold">Find Your Stylist</h2>
                 </div>
-                {barbers.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-[#cbc4d2] p-6 text-center text-[#494551]">No barbers available right now</div>
-                ) : (
-                  <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 md:gap-5 lg:gap-6">
-                    {barbers.map((barber) => {
-                      const selected = selectedBarberId === barber.id;
-                      const barberName = barber?.name ?? "Barber";
-                      const barberInitial = barberName.charAt(0).toUpperCase();
-                      const specialization = barber?.specialization ?? "";
-                      return (
-                        <button
-                          key={barber?.id ?? "unknown"}
-                          onClick={() => {
-                            if (barber?.id) setSelectedBarberId(barber.id);
-                          }}
-                          className={`flex items-center gap-3 sm:gap-4 rounded-lg sm:rounded-xl border-2 p-4 sm:p-5 md:p-6 text-left transition-all ${selected ? "border-[#4f378a] bg-[#f0e9ff]" : "border-transparent bg-white shadow-sm hover:border-[#cbc4d2]"}`}
-                        >
-                          <div className={`flex h-12 sm:h-14 md:h-16 w-12 sm:w-14 md:w-16 flex-shrink-0 items-center justify-center rounded-full text-lg sm:text-xl md:text-2xl font-bold ${selected ? "bg-[#4f378a] text-white" : "bg-[#c9a74d] text-[#503d00]"}`}>
-                            {barberInitial}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between gap-2 mb-1">
-                              <p className="truncate font-bold text-[#1a1c1e] text-sm sm:text-base">{barberName}</p>
-                              <span className="rounded-full px-2 sm:px-3 py-0.5 sm:py-1 text-xs font-bold uppercase tracking-wide text-green-700 bg-green-50 whitespace-nowrap">Online</span>
-                            </div>
-                            <p className="mb-1 text-xs text-[#494551]">Chair {barber?.chair_number ?? 1}</p>
-                            {specialization && (
-                              <p className="mb-1 text-xs text-[#494551]">{specialization}</p>
-                            )}
-                            <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#1a1c1e]">
-                              <Star className="h-3.5 sm:h-4 w-3.5 sm:w-4 fill-amber-500 text-amber-500" /> 4.9
-                            </span>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                <AssignmentLoader
+                  isLoading={isAssigning}
+                  assignmentResult={assignmentResult}
+                  error={assignmentError}
+                />
               </motion.section>
             )}
 
@@ -1018,18 +1010,18 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
                 <div className="space-y-2.5 sm:space-y-3">
                   <label className="block text-sm sm:text-base font-semibold text-[#4f378a]">Select Your Time</label>
-                  {date && selectedBarberId ? (
+                  {date && assignmentResult?.barberId ? (
                     <SlotPicker
-                      key={`${selectedBarberId}-${date}`}
+                      key={`${assignmentResult.barberId}-${date}`}
                       salonId={salon.id}
                       date={date}
-                      barberId={selectedBarberId}
+                      barberId={assignmentResult.barberId}
                       selectedSlot={time}
                       onSlotSelect={(timeValue) => setTime(timeValue)}
                     />
                   ) : (
                     <div className="rounded-lg bg-gray-50 border-2 border-gray-200 p-4 sm:p-5 text-center">
-                      <p className="text-sm text-gray-600">👆 Please select a date and barber first</p>
+                      <p className="text-sm text-gray-600">👆 Please select a date and wait for stylist assignment</p>
                     </div>
                   )}
                 </div>
@@ -1060,17 +1052,18 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
                       toast.error("Please fill in your details");
                       return;
                     }
-                    if (currentStep === 2 && !selectedService) {
-                      toast.error("Please select a service");
+                    if (currentStep === 2 && selectedServices.length === 0) {
+                      toast.error("Please select at least one service");
                       return;
                     }
-                    if (currentStep === 3 && !selectedBarberId) {
-                      toast.error("Please select a barber");
+                    if (currentStep === 3 && !assignmentResult) {
+                      toast.error("Please wait for stylist assignment to complete...");
                       return;
                     }
                     setCurrentStep(currentStep + 1);
                   }}
-                  className="flex-1 rounded-lg bg-[#4f378a] py-3 sm:py-3.5 md:py-4 px-3 sm:px-4 md:px-6 font-semibold text-sm sm:text-base text-white transition hover:bg-[#6750a4] active:scale-95"
+                  disabled={isAssigning && currentStep === 3}
+                  className="flex-1 rounded-lg bg-[#4f378a] py-3 sm:py-3.5 md:py-4 px-3 sm:px-4 md:px-6 font-semibold text-sm sm:text-base text-white transition hover:bg-[#6750a4] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Next
                 </button>
@@ -1103,22 +1096,28 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
                     <span className="font-bold text-xs sm:text-sm md:text-base text-right">{customerName || "Enter name"}</span>
                   </div>
                   <div className="flex items-center justify-between border-b border-white/10 py-2.5 sm:py-3 md:py-4">
-                    <span className="text-xs sm:text-sm font-medium text-white/60">Service</span>
-                    <span className="font-bold text-xs sm:text-sm md:text-base text-right">{selectedService?.name || "Choose service"}</span>
+                    <span className="text-xs sm:text-sm font-medium text-white/60">Services</span>
+                    <span className="font-bold text-xs sm:text-sm md:text-base text-right">
+                      {selectedServices.length > 0
+                        ? selectedServices.map(s => s.name).join(", ")
+                        : "Select services"}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between border-b border-white/10 py-2.5 sm:py-3 md:py-4">
-                    <span className="text-xs sm:text-sm font-medium text-white/60">Barber</span>
-                    <span className="font-bold text-xs sm:text-sm md:text-base text-right">{selectedBarber?.name || "Choose barber"}</span>
+                    <span className="text-xs sm:text-sm font-medium text-white/60">Stylist</span>
+                    <span className="font-bold text-xs sm:text-sm md:text-base text-right">{assignmentResult?.barberName || "Assigning..."}</span>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:gap-4 pt-4 sm:pt-5 md:pt-6">
                     <div className="rounded-lg bg-white/10 p-3 sm:p-3.5 md:p-5 backdrop-blur-sm">
-                      <p className="mb-1 sm:mb-1.5 text-xs text-white/60">Wait Time</p>
-                      <p className="font-display text-lg sm:text-xl md:text-2xl font-bold">{estimatedWait}</p>
+                      <p className="mb-1 sm:mb-1.5 text-xs text-white/60">Est. Wait</p>
+                      <p className="font-display text-lg sm:text-xl md:text-2xl font-bold">{assignmentResult?.estimatedWait || estimatedWait} min</p>
                     </div>
                     <div className="rounded-lg bg-white/10 p-3 sm:p-3.5 md:p-5 backdrop-blur-sm">
-                      <p className="mb-1 sm:mb-1.5 text-xs text-white/60">Queue Position</p>
-                      <p className="font-display text-lg sm:text-xl md:text-2xl font-bold">{myQueuePosition ? `#${myQueuePosition}` : `#${nextQueuePosition ?? "--"}`}</p>
+                      <p className="mb-1 sm:mb-1.5 text-xs text-white/60">Duration</p>
+                      <p className="font-display text-lg sm:text-xl md:text-2xl font-bold">
+                        {selectedServices.reduce((sum, s) => sum + (s.duration || 30), 0)} min
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -1126,7 +1125,9 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
                 <div className="flex items-center justify-between rounded-lg bg-white/10 p-4 sm:p-4.5 md:p-6 backdrop-blur-sm">
                   <span className="text-sm sm:text-base font-bold text-white/80">Total Amount</span>
                   <div className="text-right">
-                    <p className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold">INR {selectedService?.price || 0}</p>
+                    <p className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold">
+                      INR {selectedServices.reduce((sum, s) => sum + (s.price || 0), 0)}
+                    </p>
                     <p className="text-[10px] sm:text-xs text-white/60">incl. all taxes</p>
                   </div>
                 </div>
