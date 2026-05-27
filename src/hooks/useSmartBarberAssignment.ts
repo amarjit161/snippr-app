@@ -11,10 +11,29 @@ export interface BarberAssignmentResult {
   reason: string;
 }
 
+export interface BarberScore {
+  barber: {
+    id: string;
+    name: string;
+    is_online: boolean;
+    specialization?: string;
+    experience?: number;
+  };
+  score: number;
+  queueCount: number;
+  totalMinutes: number;
+  reason: string;
+  isOnline: boolean;
+  estimatedWait: number;
+  completionTime: string;
+  isBest?: boolean;
+}
+
 export function useSmartBarberAssignment() {
   const [isAssigning, setIsAssigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BarberAssignmentResult | null>(null);
+  const [allBarbers, setAllBarbers] = useState<BarberScore[]>([]);
 
   const assignBestBarber = useCallback(
     async (
@@ -146,7 +165,7 @@ export function useSmartBarberAssignment() {
         });
 
         // PHASE 4: Calculate workload score for each compatible barber
-        interface BarberScore {
+        interface BarberScoreInternal {
           barber: (typeof compatibleBarbers)[0];
           score: number;
           queueCount: number;
@@ -155,7 +174,7 @@ export function useSmartBarberAssignment() {
           isOnline: boolean;
         }
 
-        const barberScores: BarberScore[] = compatibleBarbers.map((barber) => {
+        const barberScoresInternal: BarberScoreInternal[] = compatibleBarbers.map((barber) => {
           const barberQueue = (queueData || []).filter(
             (q: any) => q.barber_id === barber.id
           );
@@ -186,11 +205,11 @@ export function useSmartBarberAssignment() {
         });
 
         // Sort by score and pick the best
-        barberScores.sort((a, b) => a.score - b.score);
-        const bestMatch = barberScores[0];
+        barberScoresInternal.sort((a, b) => a.score - b.score);
+        const bestMatch = barberScoresInternal[0];
 
         console.log("📊 WORKLOAD_SCORES", {
-          top3: barberScores.slice(0, 3).map((b) => ({
+          top3: barberScoresInternal.slice(0, 3).map((b) => ({
             name: b.barber.name,
             score: b.score.toFixed(2),
             queue: b.queueCount,
@@ -198,30 +217,63 @@ export function useSmartBarberAssignment() {
           })),
         });
 
-        // PHASE 5: Calculate estimated wait and completion time
+        // PHASE 5: Calculate estimated wait and completion time for ALL barbers
         const onlineBarbers = compatibleBarbers.filter((b: any) => b.is_online);
         const activeBarberCount = Math.max(1, onlineBarbers.length); // At least 1
-        const baseWait = Math.ceil(bestMatch.totalMinutes / activeBarberCount);
-        const buffer = Math.min(15, Math.max(2, bestMatch.queueCount * 2));
-        const estimatedWait = Math.max(5, baseWait + buffer);
+        
+        // Calculate wait times for each barber
+        const allBarbersWithWait: BarberScore[] = barberScoresInternal.map((b) => {
+          const baseWait = Math.ceil(b.totalMinutes / activeBarberCount);
+          const buffer = Math.min(15, Math.max(2, b.queueCount * 2));
+          const estimatedWait = Math.max(5, baseWait + buffer);
 
-        // Calculate completion time
-        const now = new Date();
-        now.setHours(10, 0, 0, 0);
-        const completionMinutes = estimatedWait + totalDuration;
-        now.setMinutes(now.getMinutes() + completionMinutes);
-        const completionTime = now.toLocaleString("en-US", {
-          hour: "numeric",
-          minute: "2-digit",
-          hour12: true,
+          // Calculate completion time
+          const now = new Date();
+          now.setHours(10, 0, 0, 0);
+          const completionMinutes = estimatedWait + totalDuration;
+          now.setMinutes(now.getMinutes() + completionMinutes);
+          const completionTime = now.toLocaleString("en-US", {
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+          });
+
+          return {
+            barber: {
+              id: b.barber.id,
+              name: b.barber.name,
+              is_online: b.barber.is_online,
+              specialization: (b.barber as any).specialization,
+              experience: (b.barber as any).experience,
+            },
+            score: b.score,
+            queueCount: b.queueCount,
+            totalMinutes: b.totalMinutes,
+            reason: b.reason,
+            isOnline: b.isOnline,
+            estimatedWait,
+            completionTime,
+            isBest: false,
+          };
         });
+
+        // Mark the best one
+        const bestIndex = allBarbersWithWait.findIndex(
+          (b) => b.barber.id === bestMatch.barber.id
+        );
+        if (bestIndex >= 0) {
+          allBarbersWithWait[bestIndex].isBest = true;
+        }
+
+        // Store all barbers for selector UI
+        setAllBarbers(allBarbersWithWait);
 
         const assignmentResult: BarberAssignmentResult = {
           barberId: bestMatch.barber.id,
           barberName: bestMatch.barber.name,
           workloadScore: bestMatch.score,
-          estimatedWait,
-          completionTime,
+          estimatedWait: allBarbersWithWait[bestIndex].estimatedWait,
+          completionTime: allBarbersWithWait[bestIndex].completionTime,
           reason: bestMatch.isOnline
             ? bestMatch.reason
             : `${bestMatch.reason} (currently offline)`,
@@ -251,13 +303,34 @@ export function useSmartBarberAssignment() {
     setIsAssigning(false);
     setError(null);
     setResult(null);
+    setAllBarbers([]);
   }, []);
+
+  // Calculate wait time for a specific barber when manually selected
+  const calculateWaitForBarber = useCallback(
+    (barberId: string, selectedServices: Tables<"services">[], bookingDate: string) => {
+      const selectedBarber = allBarbers.find((b) => b.barber.id === barberId);
+      if (!selectedBarber) return null;
+
+      return {
+        barberId: selectedBarber.barber.id,
+        barberName: selectedBarber.barber.name,
+        workloadScore: selectedBarber.score,
+        estimatedWait: selectedBarber.estimatedWait,
+        completionTime: selectedBarber.completionTime,
+        reason: selectedBarber.reason,
+      };
+    },
+    [allBarbers]
+  );
 
   return {
     assignBestBarber,
+    calculateWaitForBarber,
     isAssigning,
     error,
     result,
+    allBarbers,
     reset,
   };
 }

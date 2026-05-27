@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import { User, Clock, AlertCircle } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { User, Clock, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
+import type { BarberScore } from "@/hooks/useSmartBarberAssignment";
+import { BarberSelector } from "./BarberSelector";
 
 interface AssignmentResult {
   barberId: string;
@@ -16,14 +18,19 @@ interface AssignmentLoaderProps {
   isLoading: boolean;
   assignmentResult?: AssignmentResult | null;
   error?: string | null;
+  allBarbers?: BarberScore[];
+  onBarberChange?: (barber: BarberScore) => void;
 }
 
 export function AssignmentLoader({
   isLoading,
   assignmentResult,
   error,
+  allBarbers = [],
+  onBarberChange,
 }: AssignmentLoaderProps) {
   const [displayAssignment, setDisplayAssignment] = useState(false);
+  const [showSelector, setShowSelector] = useState(false);
 
   useEffect(() => {
     if (assignmentResult && !isLoading) {
@@ -33,6 +40,9 @@ export function AssignmentLoader({
     }
     setDisplayAssignment(false);
   }, [assignmentResult, isLoading]);
+
+  // Only show "Choose Stylist" button if multiple barbers are available
+  const multipleBarbers = allBarbers.length > 1;
 
   if (error) {
     return (
@@ -216,6 +226,39 @@ export function AssignmentLoader({
             💡 <span className="font-medium text-gray-700">{assignmentResult.reason}</span>
           </p>
         </motion.div>
+
+        {/* Stylist Override Section - Only show if multiple barbers available */}
+        {multipleBarbers && (
+          <div className="border-t border-gray-200 pt-4">
+            <button
+              onClick={() => setShowSelector(!showSelector)}
+              className="w-full flex items-center justify-between px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition font-medium text-gray-700"
+            >
+              <span>Prefer another stylist?</span>
+              {showSelector ? (
+                <ChevronUp size={18} />
+              ) : (
+                <ChevronDown size={18} />
+              )}
+            </button>
+
+            <AnimatePresence>
+              {showSelector && (
+                <BarberSelector
+                  barbers={allBarbers}
+                  selectedBarberId={assignmentResult.barberId}
+                  onSelectBarber={(barber) => {
+                    if (onBarberChange) {
+                      onBarberChange(barber);
+                      setShowSelector(false);
+                    }
+                  }}
+                  onClose={() => setShowSelector(false)}
+                />
+              )}
+            </AnimatePresence>
+          </div>
+        )}
       </div>
     </motion.div>
   );

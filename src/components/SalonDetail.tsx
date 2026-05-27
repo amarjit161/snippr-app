@@ -17,7 +17,7 @@ import { verifyTurnstileToken } from "@/lib/turnstile";
 import { SlotPicker } from "@/components/booking/SlotPicker";
 import { ServiceSelector } from "@/components/booking/ServiceSelector";
 import { AssignmentLoader } from "@/components/booking/AssignmentLoader";
-import { useSmartBarberAssignment, type BarberAssignmentResult } from "@/hooks/useSmartBarberAssignment";
+import { useSmartBarberAssignment, type BarberAssignmentResult, type BarberScore } from "@/hooks/useSmartBarberAssignment";
 import { sendBookingEmail } from "@/services/emailService";
 import { generateOTP } from "@/lib/otpUtils";
 import BookingSuccess from "@/components/BookingSuccess";
@@ -96,7 +96,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
   const [selectedService, setSelectedService] = useState<Tables<"services"> | null>(null);
   const [selectedServices, setSelectedServices] = useState<Tables<"services">[]>([]);
   const [selectedBarberId, setSelectedBarberId] = useState<string>("");
-  const { assignBestBarber, isAssigning, error: assignmentError, result: assignmentResult } = useSmartBarberAssignment();
+  const { assignBestBarber, calculateWaitForBarber, isAssigning, error: assignmentError, result: assignmentResult, allBarbers } = useSmartBarberAssignment();
   const [assignedBarber, setAssignedBarber] = useState<BarberAssignmentResult | null>(null);
   const [customer, setCustomer] = useState({ firstName: "", lastName: "", phone: "", altPhone: "", notes: "" });
   const [savedProfile, setSavedProfile] = useState<CustomerProfile>(EMPTY_PROFILE);
@@ -509,6 +509,28 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
   const getMinDate = (): string => {
     const today = new Date();
     return today.toISOString().split("T")[0];
+  };
+
+  // Handle manual barber selection from BarberSelector
+  const handleBarberChange = (barber: typeof allBarbers[0]) => {
+    // Update the assignment result with the newly selected barber
+    const updatedResult: BarberAssignmentResult = {
+      barberId: barber.barber.id,
+      barberName: barber.barber.name,
+      workloadScore: barber.score,
+      estimatedWait: barber.estimatedWait,
+      completionTime: barber.completionTime,
+      reason: barber.reason,
+    };
+    
+    setAssignedBarber(updatedResult);
+    setSelectedBarberId(barber.barber.id);
+    
+    console.log("🎯 MANUAL_BARBER_OVERRIDE", {
+      barber: barber.barber.name,
+      estimatedWait: barber.estimatedWait,
+      completionTime: barber.completionTime,
+    });
   };
 
   const getMaxDate = (): string => {
@@ -982,6 +1004,8 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
                   isLoading={isAssigning}
                   assignmentResult={assignmentResult}
                   error={assignmentError}
+                  allBarbers={allBarbers}
+                  onBarberChange={handleBarberChange}
                 />
               </motion.section>
             )}

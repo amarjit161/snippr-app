@@ -1,12 +1,17 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { User, Clock, AlertCircle, RotateCcw } from "lucide-react";
+import { User, Clock, AlertCircle, RotateCcw, ChevronDown, ChevronUp } from "lucide-react";
+import { useState } from "react";
 import type { BarberAssignmentResult } from "@/hooks/useSmartBarberAssignment";
+import type { BarberScore } from "@/hooks/useSmartBarberAssignment";
+import { BarberSelector } from "./BarberSelector";
 
 interface AssignmentLoaderProps {
   isLoading: boolean;
   assignmentResult?: BarberAssignmentResult;
   error?: string;
   onRetry?: () => void;
+  allBarbers?: BarberScore[];
+  onBarberChange?: (barber: BarberScore) => void;
 }
 
 export function AssignmentLoader({
@@ -14,7 +19,13 @@ export function AssignmentLoader({
   assignmentResult,
   error,
   onRetry,
+  allBarbers = [],
+  onBarberChange,
 }: AssignmentLoaderProps) {
+  const [showSelector, setShowSelector] = useState(false);
+
+  // Only show "Choose Stylist" button if multiple barbers are available
+  const multipleBarbers = allBarbers.length > 1;
   return (
     <div className="w-full rounded-lg p-6">
       <AnimatePresence mode="wait">
@@ -98,6 +109,65 @@ export function AssignmentLoader({
                 <p className="text-2xl font-bold text-gray-900">
                   {assignmentResult.barberName}
                 </p>
+              </div>
+
+              <div className="flex items-center gap-2 text-gray-700">
+                <Clock size={18} className="text-purple-600" />
+                <span className="font-medium">
+                  Est. Wait: {assignmentResult.estimatedWait} min
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 text-gray-700">
+                <Clock size={18} className="text-purple-600" />
+                <span className="font-medium">
+                  Ready by: {assignmentResult.completionTime}
+                </span>
+              </div>
+
+              <p className="text-sm text-gray-600 italic">
+                💡 {assignmentResult.reason}
+              </p>
+            </div>
+
+            {/* Stylist Override Section */}
+            {multipleBarbers && (
+              <div className="border-t border-gray-200 pt-4">
+                <button
+                  onClick={() => setShowSelector(!showSelector)}
+                  className="w-full flex items-center justify-between px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition font-medium text-gray-700"
+                >
+                  <span>Prefer another stylist?</span>
+                  {showSelector ? (
+                    <ChevronUp size={18} />
+                  ) : (
+                    <ChevronDown size={18} />
+                  )}
+                </button>
+
+                <AnimatePresence>
+                  {showSelector && (
+                    <BarberSelector
+                      barbers={allBarbers}
+                      selectedBarberId={assignmentResult.barberId}
+                      onSelectBarber={(barber) => {
+                        if (onBarberChange) {
+                          onBarberChange(barber);
+                          setShowSelector(false);
+                        }
+                      }}
+                      onClose={() => setShowSelector(false)}
+                    />
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+
+            <p className="text-sm text-gray-600 text-center">
+              Proceed to next step to choose your time slot
+            </p>
+          </motion.div>
+        )}
               </div>
 
               <div className="flex items-center gap-2 text-gray-700">
