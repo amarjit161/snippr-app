@@ -65,7 +65,7 @@ async function getNextAvailableSlot(
     // Get all bookings for this barber on this date
     const { data: bookings, error } = await supabase
       .from("queue")
-      .select("time_slot, total_duration")
+      .select("id, time_slot")
       .eq("barber_id", barberId)
       .eq("salon_id", salonId)
       .eq("booking_date", bookingDate)
@@ -76,11 +76,10 @@ async function getNextAvailableSlot(
       return null;
     }
 
-    // Calculate total occupied time
-    const totalOccupiedMinutes = (bookings || []).reduce(
-      (sum: number, b: any) => sum + (b.total_duration || 30),
-      0
-    );
+    // Calculate total occupied time (using provided totalDuration for current booking)
+    // Plus 30 minutes for each existing booking
+    const existingBookingsMinutes = (bookings || []).length * 30;
+    const totalOccupiedMinutes = existingBookingsMinutes + totalDuration;
 
     // Estimate next available time (assume 30-min slots)
     const slotsOccupied = Math.ceil(totalOccupiedMinutes / 30);
@@ -203,7 +202,7 @@ export async function assignBestBarber(
     // Fetch workload data for all barbers
     const { data: workloadData, error: workloadError } = await supabase
       .from("queue")
-      .select("barber_id, status, total_duration")
+      .select("barber_id, status, id")
       .eq("salon_id", salonId)
       .eq("booking_date", bookingDate)
       .in("status", ["waiting", "confirmed", "in_progress"]);
@@ -213,7 +212,7 @@ export async function assignBestBarber(
       return null;
     }
 
-    // Calculate workload per barber
+    // Calculate workload per barber (assume 30 min per booking)
     const workloadMap = new Map<string, { count: number; duration: number }>();
     (workloadData || []).forEach((q: any) => {
       if (!workloadMap.has(q.barber_id)) {
@@ -221,7 +220,7 @@ export async function assignBestBarber(
       }
       const current = workloadMap.get(q.barber_id)!;
       current.count++;
-      current.duration += q.total_duration || 30;
+      current.duration += 30; // Default 30 minutes per booking
     });
 
     // Score each barber

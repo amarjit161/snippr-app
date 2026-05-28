@@ -12,6 +12,8 @@ import { useGeolocation, estimateTravelMinutes } from "@/hooks/useGeolocation";
 import { useErrorHandler } from "@/hooks/useErrorHandler";
 import { pageFade, modalMotion } from "@/lib/motion";
 import type { Tables } from "@/integrations/supabase/types";
+import { parseBookingError, getBookingErrorAction } from "@/lib/rlsErrorHandler";
+import { verifySession, requireSession, getCurrentUser } from "@/lib/sessionValidator";
 import TurnstileCaptcha, { type TurnstileCaptchaHandle } from "@/components/TurnstileCaptcha";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 import { SlotPicker } from "@/components/booking/SlotPicker";
@@ -673,15 +675,24 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         return;
       }
 
-      // Always resolve authenticated user before queue checks/inserts (RLS-safe).
-      const currentUser = user;
+      // CRITICAL: Verify session before any RLS-protected operations
+      console.log("🔐 BOOKING_SESSION_VERIFY_START");
+      const sessionStatus = await verifySession();
 
-      if (!currentUser) {
+      if (!sessionStatus.isValid || !sessionStatus.user) {
         setBooking(false);
-        throw new Error("You must be logged in to join the queue.");
+        console.error("❌ BOOKING_SESSION_INVALID", sessionStatus.error);
+        toast.error("Your session has expired. Please log in again to book.");
+        // Redirect to login after delay
+        setTimeout(() => {
+          localStorage.removeItem("snippet_customer_profile");
+          window.location.href = "/login";
+        }, 2000);
+        return;
       }
 
-      console.log("RLS_AUTH_VERIFIED", currentUser.id);
+      const currentUser = sessionStatus.user;
+      console.log("✅ RLS_SESSION_VERIFIED", currentUser.id);
 
       const today = new Date().toISOString().split("T")[0];
 
@@ -739,46 +750,137 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       
       console.log("💾 BOOKING_INSERT_START", { position: nextPosition, date, time, services: selectedServices.length });
 
-      const { data: insertedData, error } = await (supabase.from("queue") as any).insert({
+      // Build booking payload and validate fields
+      const bookingPayload: any = {
         user_id: user?.id || currentUser.id,
-        salon_id: salon.id,
-        service_id: selectedServices[0]?.id || null, // Legacy: first service
-        barber_id: assignmentResult.barberId,
+        customer_id: user?.id || currentUser.id,
+        salon_id: salon?.id || null,
+        service_id: selectedServices[0]?.id || null, // legacy
+        barber_id: assignmentResult?.barberId || null,
         status: "waiting",
-        position: nextPosition,
+        position: Number(nextPosition),
         created_at: createdAt,
-        customer_first_name: activeCustomer.firstName.trim(),
-        customer_last_name: activeCustomer.lastName.trim(),
-        customer_phone: activeCustomer.phone.trim(),
-        contact_phone: activeCustomer.phone.trim() ? `+91${activeCustomer.phone.replace(/\D/g,'').slice(-10)}` : null,
+        customer_first_name: activeCustomer.firstName?.trim() || null,
+        customer_last_name: activeCustomer.lastName?.trim() || null,
+        customer_phone: activeCustomer.phone?.trim() || null,
+        contact_phone: activeCustomer.phone ? `+91${activeCustomer.phone.replace(/\D/g,'').slice(-10)}` : null,
         alt_phone: activeCustomer.altPhone?.trim() ? `+91${activeCustomer.altPhone.replace(/\D/g,'').slice(-10)}` : null,
-        notes: customer.notes.trim() || null,
-        booking_date: date,
-        time_slot: time,
-        arrival_otp: arrivalOTP,
-        total_duration: totalDuration,
-        total_price: totalPrice,
-        service_count: selectedServices.length,
+        notes: customer.notes?.trim() || null,
+        booking_date: date || null,
+        time_slot: time || null,
+        booking_time: time || null, // compatibility alias
+        arrival_otp: String(arrivalOTP || "").padStart(4, '0'),
+        total_duration: Number(totalDuration) || 0,
+        total_price: Number(totalPrice) || 0,
+        service_count: Number(selectedServices.length) || 1,
+        services_count: Number(selectedServices.length) || 1,
         is_multi_service: selectedServices.length > 1,
-      }).select().single();
+        selected_services: (selectedServices || []).map((s) => ({ id: s.id, name: s.name, duration: s.duration, price: s.price })),
+      };
+
+      // Validate required, format-sensitive fields
+      // salon_id
+      if (!bookingPayload.salon_id) {
+        console.error("BOOKING_VALIDATION_ERROR", { reason: "missing_salon_id", bookingPayload });
+        toast.error("Internal error: salon not selected");
+        setBooking(false);
+        return;
+      }
+
+      // customer_phone must exist (DB constraint)
+      if (!bookingPayload.customer_phone) {
+        console.error("BOOKING_VALIDATION_ERROR", { reason: "missing_customer_phone", bookingPayload });
+        toast.error("Please provide a valid phone number");
+        setBooking(false);
+        return;
+      }
+
+      // booking_date format YYYY-MM-DD
+      if (bookingPayload.booking_date && !/^\d{4}-\d{2}-\d{2}$/.test(bookingPayload.booking_date)) {
+        console.warn("BOOKING_DATE_FORMAT_FIX", { before: bookingPayload.booking_date });
+        const parsed = new Date(bookingPayload.booking_date);
+        bookingPayload.booking_date = isNaN(parsed.getTime()) ? null : parsed.toISOString().split('T')[0];
+      }
+
+      // booking_time format HH:mm:ss
+      if (bookingPayload.booking_time && !/^\d{2}:\d{2}:\d{2}$/.test(bookingPayload.booking_time)) {
+        // try to convert HH:mm -> HH:mm:00
+        if (/^\d{2}:\d{2}$/.test(bookingPayload.booking_time)) {
+          bookingPayload.booking_time = `${bookingPayload.booking_time}:00`;
+          bookingPayload.time_slot = bookingPayload.booking_time;
+        } else {
+          console.warn("BOOKING_TIME_FORMAT_INVALID", { before: bookingPayload.booking_time });
+          bookingPayload.booking_time = null;
+        }
+      }
+
+      // Ensure arrival_otp length is 4
+      if (bookingPayload.arrival_otp && String(bookingPayload.arrival_otp).length !== 4) {
+        bookingPayload.arrival_otp = String(bookingPayload.arrival_otp).slice(0,4).padStart(4, '0');
+      }
+
+      // Ensure selected_services is a serializable JSON array
+      try {
+        if (!Array.isArray(bookingPayload.selected_services)) bookingPayload.selected_services = [];
+      } catch (e) {
+        bookingPayload.selected_services = [];
+      }
+
+      // Convert undefined values to null for safety
+      Object.keys(bookingPayload).forEach((k) => {
+        if (bookingPayload[k] === undefined) bookingPayload[k] = null;
+      });
+
+      // Build sanitized payload (remove undefined entries) but keep nulls explicit
+      const sanitizedPayload = Object.fromEntries(
+        Object.entries(bookingPayload).filter(([_, v]) => v !== undefined)
+      );
+
+      console.log("FINAL_INSERT_PAYLOAD", sanitizedPayload);
+
+      // Attempt insert and log full response/error
+      const { data: insertedData, error } = await (supabase.from("queue") as any).insert(sanitizedPayload).select().single();
 
       if (error) {
-        console.error("BOOKING_INSERT_ERROR", {
-          salon_id: salon.id,
-          error_code: error.code,
-          error_message: error.message,
-          status: error.status,
-          details: error.details
+        console.error("FULL_BOOKING_ERROR", {
+          error,
+          message: (error as any)?.message,
+          details: (error as any)?.details,
+          hint: (error as any)?.hint,
+          code: (error as any)?.code,
+          payload: sanitizedPayload,
         });
+
+        // Parse error to provide user-facing message
+        const parsedError = parseBookingError(error);
+        console.error("PARSED_ERROR", parsedError);
+
+        // Show appropriate error message
+        if (parsedError.isAuthError) {
+          toast.error("Your session has expired. Please log in again.");
+          setTimeout(() => {
+            localStorage.removeItem("snippet_customer_profile");
+            window.location.href = "/login";
+          }, 2000);
+        } else if (parsedError.isRLSError) {
+          toast.error("Permission denied - this is a system error. Please refresh and try again.");
+          console.warn("RLS_POLICY_ERROR: Check database policies for queue table");
+        } else {
+          toast.error(parsedError.userFacingMessage);
+        }
+
         handleBookingError(error as any, refreshAvailability);
         setBooking(false);
         return;
-      } else {
-        console.log("BOOKING_INSERT_SUCCESS", { 
-          id: insertedData?.id, 
-          position: nextPosition,
-          salon_id: salon.id
-        });
+      }
+
+      console.log("INSERT_RESPONSE", insertedData);
+
+      console.log("BOOKING_INSERT_SUCCESS", {
+        id: insertedData?.id,
+        position: nextPosition,
+        salon_id: salon.id,
+      });
         const customerEmail = currentUser.email || user?.email;
 
         // Send booking confirmation email
@@ -839,8 +941,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
           arrivalOTP: arrivalOTP,
         });
         setBooking(false);
-      }
-    } catch (err: any) {
+    } catch (err) {
       console.error("❌ BOOKING_EXCEPTION_ERROR", err);
       toast.error(err.message || "Failed to join queue");
       setBooking(false);
@@ -1167,7 +1268,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
                       </div>
                       <button
                         onClick={handleBook}
-                        disabled={!date || !selectedService || !time || booking || verifyingCaptcha || !captchaToken}
+                        disabled={!date || selectedServices.length === 0 || !time || booking || verifyingCaptcha || !captchaToken}
                         className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#ab3500] py-3 sm:py-3.5 md:py-4 px-4 sm:px-5 font-bold text-white shadow-lg shadow-[#ab3500]/20 transition hover:scale-[1.01] hover:bg-[#fe6a34] disabled:cursor-not-allowed disabled:opacity-50 active:scale-95 text-sm sm:text-base"
                       >
                         {booking ? (

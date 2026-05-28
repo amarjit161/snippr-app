@@ -180,16 +180,13 @@ export async function validateMultiServiceBooking(
   // Check 9: Check for overbooked barber
   const { data: barberQueue } = await supabase
     .from("queue")
-    .select("total_duration")
+    .select("id")
     .eq("barber_id", barberId)
     .eq("salon_id", salonId)
     .eq("booking_date", bookingDate)
     .in("status", ["waiting", "confirmed", "in_progress"]);
 
-  const totalBarberMinutes = (barberQueue || []).reduce(
-    (sum: number, b: any) => sum + (b.total_duration || 30),
-    0
-  );
+  const totalBarberMinutes = (barberQueue || []).length * 30;
 
   // Assuming salon operates 11 hours (10 AM - 9 PM)
   const maxDailyMinutes = 11 * 60;

@@ -146,7 +146,7 @@ export function useSmartBarberAssignment() {
         console.log("📥 FETCHING_QUEUE_DATA for", salonId, "on", bookingDate);
         const { data: queueData, error: queueError } = await supabase
           .from("queue")
-          .select("barber_id, status, total_duration")
+          .select("barber_id, status, id")
           .eq("salon_id", salonId)
           .eq("booking_date", bookingDate)
           .in("status", ["waiting", "in_progress"]);
@@ -179,14 +179,12 @@ export function useSmartBarberAssignment() {
             (q: any) => q.barber_id === barber.id
           );
           const queueCount = barberQueue.length;
-          const totalMinutes = barberQueue.reduce(
-            (sum: number, q: any) => sum + (q.total_duration || 30),
-            0
-          );
+          // Estimate total minutes as 30 minutes per booking (default service duration)
+          const totalMinutes = queueCount * 30;
 
           // Workload score formula
           // Lower score = better availability
-          const workloadScore = queueCount * 0.5 + (totalMinutes / 30) * 0.3;
+          const workloadScore = queueCount * 0.7 + (totalMinutes / 30) * 0.3;
 
           // Apply online penalty (heavy penalty if offline)
           const finalScore = barber.is_online ? workloadScore : workloadScore + 1000;

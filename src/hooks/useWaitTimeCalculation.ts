@@ -46,7 +46,7 @@ export function useWaitTimeCalculation(
     try {
       let query = supabase
         .from("queue")
-        .select("id, barber_id, total_duration, status")
+        .select("id, barber_id, status")
         .eq("salon_id", salonId)
         .eq("booking_date", bookingDate)
         .in("status", ["waiting", "confirmed", "in_progress"]);
@@ -65,10 +65,8 @@ export function useWaitTimeCalculation(
       }
 
       const queue = queueData || [];
-      const totalActiveMinutes = queue.reduce(
-        (sum: number, item: any) => sum + (item.total_duration || 30),
-        0
-      );
+      // Calculate total active time: assume 30 minutes per booking (default service duration)
+      const totalActiveMinutes = queue.length * 30;
 
       // If barberId not specified, get count of available barbers
       let barbersAvailable = 0;
