@@ -64,12 +64,12 @@ async function getNextAvailableSlot(
   try {
     // Get all bookings for this barber on this date
     const { data: bookings, error } = await supabase
-      .from("queue")
-      .select("id, time_slot")
-      .eq("barber_id", barberId)
+      .from("bookings")
+      .select("id, booking_time")
+      .eq("stylist_id", barberId)
       .eq("salon_id", salonId)
       .eq("booking_date", bookingDate)
-      .in("status", ["waiting", "confirmed", "in_progress"]);
+      .in("status", ["pending", "waiting", "confirmed", "in_progress"]);
 
     if (error) {
       console.error("Error fetching barber bookings:", error);
@@ -201,11 +201,11 @@ export async function assignBestBarber(
 
     // Fetch workload data for all barbers
     const { data: workloadData, error: workloadError } = await supabase
-      .from("queue")
-      .select("barber_id, status, id")
+      .from("bookings")
+      .select("stylist_id, status, id")
       .eq("salon_id", salonId)
       .eq("booking_date", bookingDate)
-      .in("status", ["waiting", "confirmed", "in_progress"]);
+      .in("status", ["pending", "waiting", "confirmed", "in_progress"]);
 
     if (workloadError) {
       console.error("❌ Error fetching workload data:", workloadError);
@@ -215,10 +215,12 @@ export async function assignBestBarber(
     // Calculate workload per barber (assume 30 min per booking)
     const workloadMap = new Map<string, { count: number; duration: number }>();
     (workloadData || []).forEach((q: any) => {
-      if (!workloadMap.has(q.barber_id)) {
-        workloadMap.set(q.barber_id, { count: 0, duration: 0 });
+      const bId = q.stylist_id;
+      if (!bId) return;
+      if (!workloadMap.has(bId)) {
+        workloadMap.set(bId, { count: 0, duration: 0 });
       }
-      const current = workloadMap.get(q.barber_id)!;
+      const current = workloadMap.get(bId)!;
       current.count++;
       current.duration += 30; // Default 30 minutes per booking
     });
@@ -350,12 +352,12 @@ export async function getBarberSuggestions(
 
       // Get workload
       const { data: workload } = await supabase
-        .from("queue")
+        .from("bookings")
         .select("id")
-        .eq("barber_id", barber.id)
+        .eq("stylist_id", barber.id)
         .eq("salon_id", salonId)
         .eq("booking_date", bookingDate)
-        .in("status", ["waiting", "confirmed", "in_progress"]);
+        .in("status", ["pending", "waiting", "confirmed", "in_progress"]);
 
       const score = calculateWorkloadScore(
         (workload || []).length,

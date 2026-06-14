@@ -145,22 +145,27 @@ export function useSmartBarberAssignment() {
         // PHASE 3: Fetch queue data for workload calculation
         console.log("📥 FETCHING_QUEUE_DATA for", salonId, "on", bookingDate);
         const { data: queueData, error: queueError } = await supabase
-          .from("queue")
-          .select("barber_id, status, id")
+          .from("bookings")
+          .select("stylist_id, status, id")
           .eq("salon_id", salonId)
           .eq("booking_date", bookingDate)
-          .in("status", ["waiting", "in_progress"]);
+          .in("status", ["pending", "waiting", "in_progress"]);
 
         if (queueError) {
           console.error("❌ QUEUE_QUERY_ERROR:", queueError);
           // Continue anyway, just use empty queue
         }
 
+        const normalizedQueueData = (queueData || []).map((q: any) => ({
+          ...q,
+          barber_id: q.stylist_id,
+        }));
+
         console.log("📊 QUEUE_DATA", {
-          totalQueue: queueData?.length || 0,
+          totalQueue: normalizedQueueData?.length || 0,
           byBarber: compatibleBarbers.map((b: any) => ({
             name: b.name,
-            queueCount: (queueData || []).filter((q: any) => q.barber_id === b.id).length,
+            queueCount: normalizedQueueData.filter((q: any) => q.barber_id === b.id).length,
           })),
         });
 
@@ -175,7 +180,7 @@ export function useSmartBarberAssignment() {
         }
 
         const barberScoresInternal: BarberScoreInternal[] = compatibleBarbers.map((barber) => {
-          const barberQueue = (queueData || []).filter(
+          const barberQueue = normalizedQueueData.filter(
             (q: any) => q.barber_id === barber.id
           );
           const queueCount = barberQueue.length;

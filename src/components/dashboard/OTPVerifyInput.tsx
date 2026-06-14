@@ -25,8 +25,8 @@ export const OTPVerifyInput = ({ bookingId, customerName, currentStatus, onVerif
     try {
       // Fetch booking and check OTP
       const { data: booking, error } = await supabase
-        .from('queue')
-        .select('id, arrival_otp, otp_expires_at, status')
+        .from('bookings')
+        .select('id, otp, status')
         .eq('id', bookingId)
         .maybeSingle();
       
@@ -36,15 +36,8 @@ export const OTPVerifyInput = ({ bookingId, customerName, currentStatus, onVerif
         return;
       }
       
-      // Check if OTP expired
-      if (booking.otp_expires_at && new Date(booking.otp_expires_at) < new Date()) {
-        toast.error('This OTP has expired. Customer needs to rebook.');
-        setLoading(false);
-        return;
-      }
-      
       // Check OTP match
-      if (booking.arrival_otp !== otp.trim()) {
+      if (booking.otp !== otp.trim()) {
         toast.error('❌ Wrong code. Please check with the customer.');
         setOtp('');
         setLoading(false);
@@ -53,10 +46,10 @@ export const OTPVerifyInput = ({ bookingId, customerName, currentStatus, onVerif
       
       // OTP correct — confirm arrival
       const { error: updateError } = await supabase
-        .from('queue')
+        .from('bookings')
         .update({ 
           status: 'in_progress',
-          otp_verified_at: new Date().toISOString()
+          started_at: new Date().toISOString()
         })
         .eq('id', bookingId);
       

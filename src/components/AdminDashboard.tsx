@@ -16,6 +16,23 @@ interface AdminDashboardProps {
 
 const formatPrice = (amount: number) => `₹${amount.toLocaleString("en-IN")}`;
 
+const normalizeQueueEntry = (item: any): any => {
+  if (!item) return item;
+  return {
+    ...item,
+    user_id: item.customer_id || item.user_id,
+    barber_id: item.stylist_id || item.barber_id,
+    time_slot: item.booking_time || item.time_slot,
+    arrival_otp: item.otp || item.arrival_otp,
+    barbers: item.stylists || item.barbers || null,
+    profileName: item.customer_profiles
+      ? `${item.customer_profiles.first_name || ''} ${item.customer_profiles.last_name || ''}`.trim() || 'Customer'
+      : item.customer_first_name
+        ? `${item.customer_first_name} ${item.customer_last_name || ''}`.trim()
+        : 'Customer',
+  };
+};
+
 const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
   const { user } = useAuth();
   const [salons, setSalons] = useState<Tables<"salons">[]>([]);
@@ -63,34 +80,36 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
   const fetchQueue = async () => {
     if (!selectedSalonId) return;
     const { data } = await supabase
-      .from("queue")
+      .from("bookings")
       .select(`
         *,
         services (*),
         salons (*),
-        barbers (*)
+        stylists (*),
+        customer_profiles (first_name, last_name, phone)
       `)
       .eq("salon_id", selectedSalonId)
-      .in("status", ["waiting", "in_progress"])
+      .in("status", ["pending", "waiting", "in_progress"])
       .order("created_at", { ascending: true });
-    setQueue((data as unknown as QueueEntry[]) ?? []);
+    setQueue((((data || []) as any[]).map(normalizeQueueEntry)) ?? []);
   };
 
   const fetchAnalytics = async () => {
     if (!selectedSalonId) return;
     // All completed entries for this salon
     const { data: completed } = await supabase
-      .from("queue")
+      .from("bookings")
       .select(`
         *,
         services (*),
         salons (*),
-        barbers (*)
+        stylists (*),
+        customer_profiles (first_name, last_name, phone)
       `)
       .eq("salon_id", selectedSalonId)
       .eq("status", "completed");
 
-    const items = (completed ?? []) as any[];
+    const items = ((completed || []) as any[]).map(normalizeQueueEntry);
     const totalServed = items.length;
     const totalEarnings = items.reduce((s, e) => s + (e.services?.price ?? 0), 0);
     const avgWait = totalServed > 0
@@ -100,15 +119,16 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
     // Peak hour
     const hourCounts: Record<number, number> = {};
     const { data: allEntries } = await supabase
-      .from("queue")
+      .from("bookings")
       .select(`
         *,
         services (*),
         salons (*),
-        barbers (*)
+        stylists (*),
+        customer_profiles (first_name, last_name, phone)
       `)
       .eq("salon_id", selectedSalonId);
-    (allEntries ?? []).forEach((e) => {
+    ((allEntries || []) as any[]).map(normalizeQueueEntry).forEach((e) => {
       const h = new Date(e.created_at).getHours();
       hourCounts[h] = (hourCounts[h] ?? 0) + 1;
     });
@@ -125,7 +145,7 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
     if (!selectedSalonId) return;
     const channel = supabase
       .channel("admin-queue-" + selectedSalonId)
-      .on("postgres_changes", { event: "*", schema: "public", table: "queue" }, () => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, () => {
         fetchQueue();
         fetchAnalytics();
       })
@@ -134,23 +154,23 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
   }, [selectedSalonId]);
 
   const handleStartService = async (entry: QueueEntry) => {
-    await supabase.from("queue").update({ status: "in_progress", started_at: new Date().toISOString() }).eq("id", entry.id).eq("salon_id", selectedSalonId!);
+    await supabase.from("bookings").update({ status: "in_progress", started_at: new Date().toISOString() }).eq("id", entry.id).eq("salon_id", selectedSalonId!);
     toast.success(`Started service for queue #${entry.position}`);
   };
 
   const handleComplete = async (entry: QueueEntry) => {
-    await supabase.from("queue").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", entry.id).eq("salon_id", selectedSalonId!);
+    await supabase.from("bookings").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", entry.id).eq("salon_id", selectedSalonId!);
     toast.success("Service completed!");
 
     // Auto-progress: start next waiting entry
-    const next = queue.find((q) => q.status === "waiting" && q.id !== entry.id);
+    const next = queue.find((q) => (q.status === "waiting" || q.status === "pending") && q.id !== entry.id);
     if (next) {
-      await supabase.from("queue").update({ status: "in_progress", started_at: new Date().toISOString() }).eq("id", next.id).eq("salon_id", selectedSalonId!);
+      await supabase.from("bookings").update({ status: "in_progress", started_at: new Date().toISOString() }).eq("id", next.id).eq("salon_id", selectedSalonId!);
       toast.info(`Auto-started service for next customer`);
     }
   };
 
-  const waitingQueue = queue.filter((q) => q.status === "waiting");
+  const waitingQueue = queue.filter((q) => q.status === "waiting" || q.status === "pending");
   const inProgress = queue.filter((q) => q.status === "in_progress");
 
   return (

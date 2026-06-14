@@ -356,7 +356,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
   useEffect(() => {
     const fetchNextPosition = async () => {
       const { data } = await (supabase
-        .from("queue" as any) as any)
+        .from("bookings" as any) as any)
         .select("position")
         .eq("salon_id", salon.id)
         .order("position", { ascending: false })
@@ -373,7 +373,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       .channel(`queue-position-${salon.id}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "queue", filter: `salon_id=eq.${salon.id}` },
+        { event: "*", schema: "public", table: "bookings", filter: `salon_id=eq.${salon.id}` },
         () => fetchNextPosition()
       )
       .subscribe();
@@ -391,14 +391,14 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       setCheckingAvailability(true);
       try {
         const { data } = await supabase
-          .from("queue" as any)
-          .select("time_slot")
+          .from("bookings" as any)
+          .select("booking_time")
           .eq("salon_id", salon.id)
-          .eq("barber_id", assignmentResult.barberId)
+          .eq("stylist_id", assignmentResult.barberId)
           .eq("booking_date", date)
-          .in("status", ["waiting", "in_progress"]);
+          .in("status", ["pending", "waiting", "in_progress"]);
 
-        const booked = new Set((data || []).map((b: any) => b.time_slot));
+        const booked = new Set((data || []).map((b: any) => b.booking_time).filter(Boolean));
         console.log(`✅ AVAILABILITY_CHECK: ${TIME_SLOTS.length - booked.size}/${TIME_SLOTS.length} slots available for ${date}`, {
           bookedSlots: Array.from(booked),
           barber: assignmentResult.barberId
@@ -424,7 +424,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
           {
             event: "INSERT,UPDATE",
             schema: "public",
-            table: "queue",
+            table: "bookings",
             filter: `salon_id=eq.${salon?.id}`,
           },
           (payload) => {
@@ -470,14 +470,14 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
     const interval = setInterval(async () => {
       try {
         const { data } = await supabase
-          .from("queue" as any)
-          .select("time_slot")
+          .from("bookings" as any)
+          .select("booking_time")
           .eq("salon_id", salon.id)
-          .eq("barber_id", assignmentResult.barberId)
+          .eq("stylist_id", assignmentResult.barberId)
           .eq("booking_date", date)
-          .in("status", ["waiting", "in_progress"]);
+          .in("status", ["pending", "waiting", "in_progress"]);
 
-        const booked = new Set((data || []).map((b: any) => b.time_slot));
+        const booked = new Set((data || []).map((b: any) => b.booking_time).filter(Boolean));
         
         // If availability changed, update silently (don't spam logs)
         if (booked.size !== bookedSlots.size) {
@@ -573,14 +573,14 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
     if (!date || !selectedBarberId) return;
 
     const { data } = await supabase
-      .from("queue" as any)
-      .select("time_slot")
+      .from("bookings" as any)
+      .select("booking_time")
       .eq("salon_id", salon.id)
-      .eq("barber_id", selectedBarberId)
+      .eq("stylist_id", selectedBarberId)
       .eq("booking_date", date)
-      .in("status", ["waiting", "in_progress", "confirmed"]);
+      .in("status", ["pending", "waiting", "in_progress", "confirmed"]);
 
-    const booked = new Set((data || []).map((b: any) => b.time_slot).filter(Boolean));
+    const booked = new Set((data || []).map((b: any) => b.booking_time).filter(Boolean));
     setBookedSlots(booked);
     setLastAvailabilityUpdate(new Date());
   };
@@ -658,14 +658,14 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
       // FINAL SAFETY CHECK - Refresh availability one last time before booking
       console.log("🔒 FINAL_CHECK: Refreshing availability before booking...");
       const { data: latestBookings } = await supabase
-        .from("queue" as any)
-        .select("time_slot")
+        .from("bookings" as any)
+        .select("booking_time")
         .eq("salon_id", salon.id)
-        .eq("barber_id", assignmentResult.barberId)
+        .eq("stylist_id", assignmentResult.barberId)
         .eq("booking_date", date)
-        .in("status", ["waiting", "in_progress"]);
+        .in("status", ["pending", "waiting", "in_progress"]);
 
-      const latestBooked = new Set((latestBookings || []).map((b: any) => b.time_slot).filter(Boolean));
+      const latestBooked = new Set((latestBookings || []).map((b: any) => b.booking_time).filter(Boolean));
       if (latestBooked.has(time)) {
         console.log("🚫 FINAL_CHECK: Slot was just booked during captcha!");
         setBookedSlots(latestBooked);
@@ -696,34 +696,17 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
       const today = new Date().toISOString().split("T")[0];
 
-      // Prevent multiple active upcoming bookings for the same user across salons.
-      // Old waiting rows should not block a fresh booking if they are no longer visible in My Bookings.
-      const { data: existingActiveBooking } = await supabase
-        .from("queue" as any)
-        .select("id, salon_id, booking_date, status")
-        .eq("user_id", currentUser.id)
-        .gte("booking_date", today)
-        .in("status", ["waiting", "confirmed", "accepted", "in_progress"])
-        .order("booking_date", { ascending: true })
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (existingActiveBooking) {
-        setBooking(false);
-        toast.error("You already have an active queue booking. Cancel it before booking again.");
-        return;
-      }
+      // Bypass multiple active bookings check (multiple active bookings allowed)
 
       // Now do the original conflict check
       const { data: conflictCheck } = await supabase
-        .from("queue" as any)
+        .from("bookings" as any)
         .select("id")
         .eq("salon_id", salon.id)
-        .eq("barber_id", assignmentResult.barberId)
+        .eq("stylist_id", assignmentResult.barberId)
         .eq("booking_date", date)
-        .eq("time_slot", time)
-        .in("status", ["waiting", "in_progress"])
+        .eq("booking_time", time)
+        .in("status", ["pending", "waiting", "in_progress"])
         .limit(1)
         .maybeSingle();
 
@@ -737,7 +720,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
 
       console.log("📍 BOOKING_FETCH_LATEST_POSITION");
       const { data: latestQueueEntry } = await supabase
-        .from("queue" as any)
+        .from("bookings" as any)
         .select("position")
         .eq("salon_id", salon.id)
         .order("position", { ascending: false })
@@ -757,7 +740,7 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         salon_id: salon?.id || null,
         service_id: selectedServices[0]?.id || null, // legacy
         barber_id: assignmentResult?.barberId || null,
-        status: "waiting",
+        status: "pending",
         position: Number(nextPosition),
         created_at: createdAt,
         customer_first_name: activeCustomer.firstName?.trim() || null,
@@ -826,20 +809,35 @@ export default function SalonDetail({ salon, onBack, onJoined }: SalonDetailProp
         bookingPayload.selected_services = [];
       }
 
-      // Convert undefined values to null for safety
-      Object.keys(bookingPayload).forEach((k) => {
-        if (bookingPayload[k] === undefined) bookingPayload[k] = null;
+      // Build bookings-compatible payload by selecting only existing table columns
+      const bookingsPayload: any = {
+        customer_id: bookingPayload.customer_id || bookingPayload.user_id,
+        salon_id: bookingPayload.salon_id,
+        service_id: bookingPayload.service_id,
+        stylist_id: bookingPayload.barber_id,
+        status: "waiting",
+        position: bookingPayload.position,
+        created_at: bookingPayload.created_at,
+        booking_date: bookingPayload.booking_date,
+        booking_time: bookingPayload.booking_time,
+        otp: bookingPayload.arrival_otp,
+        queue_position: bookingPayload.position
+      };
+
+      // Convert undefined to null
+      Object.keys(bookingsPayload).forEach((k) => {
+        if (bookingsPayload[k] === undefined) bookingsPayload[k] = null;
       });
 
       // Build sanitized payload (remove undefined entries) but keep nulls explicit
       const sanitizedPayload = Object.fromEntries(
-        Object.entries(bookingPayload).filter(([_, v]) => v !== undefined)
+        Object.entries(bookingsPayload).filter(([_, v]) => v !== undefined)
       );
 
-      console.log("FINAL_INSERT_PAYLOAD", sanitizedPayload);
+      console.log("FINAL_INSERT_PAYLOAD (bookings)", sanitizedPayload);
 
       // Attempt insert and log full response/error
-      const { data: insertedData, error } = await (supabase.from("queue") as any).insert(sanitizedPayload).select().single();
+      const { data: insertedData, error } = await (supabase.from("bookings") as any).insert(sanitizedPayload).select().single();
 
       if (error) {
         console.error("FULL_BOOKING_ERROR", {

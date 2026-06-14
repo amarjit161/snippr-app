@@ -45,6 +45,20 @@ type QueueRow = {
 
 type ProfileLookup = { user_id: string; name: string | null };
 
+const normalizeQueueRow = (row: any): QueueRow => {
+  if (!row) return row;
+  return {
+    ...row,
+    user_id: row.customer_id || row.user_id,
+    barber_id: row.stylist_id || row.barber_id,
+    time_slot: row.booking_time || row.time_slot,
+    barbers: row.stylists || row.barbers || null,
+    customer_first_name: row.customer_profiles?.first_name || row.customer_first_name || null,
+    customer_last_name: row.customer_profiles?.last_name || row.customer_last_name || null,
+    customer_phone: row.customer_profiles?.phone || row.customer_phone || null,
+  };
+};
+
 type QueueDatePreset = "today" | "tomorrow" | "custom";
 
 const formatMoney = (value: number) => `INR ${value.toLocaleString("en-IN")}`;
@@ -56,6 +70,7 @@ const tomorrowISO = () => {
 };
 const getQueueDate = (item: QueueRow) => item.booking_date || item.created_at.slice(0, 10);
 const statusClass: Record<string, string> = {
+  pending: "bg-amber-100 text-amber-700",
   waiting: "bg-amber-100 text-amber-700",
   accepted: "bg-blue-100 text-blue-700",
   in_service: "bg-violet-100 text-violet-700",
@@ -73,7 +88,7 @@ const minutesBetween = (from: string, to: string) => {
 const computeQueueWaitMinutes = (item: QueueRow) => {
   const nowIso = new Date().toISOString();
 
-  if (["waiting", "accepted"].includes(item.status)) {
+  if (["pending", "waiting", "accepted"].includes(item.status)) {
     return minutesBetween(item.created_at, nowIso);
   }
 
@@ -223,8 +238,8 @@ export default function OwnerDashboard() {
         
         const [queueRes, barbersRes, servicesRes] = await Promise.all([
           supabase
-            .from("queue")
-            .select("*, services (*), barbers (*), salons (*)")
+            .from("bookings")
+            .select("*, services (*), stylists (*), salons (*), customer_profiles(first_name, last_name, phone, email)")
             .eq("salon_id", salonData.id)
             .order("created_at", { ascending: false })
             .limit(200),
@@ -233,7 +248,7 @@ export default function OwnerDashboard() {
         ]);
 
         if (queueRes.data) {
-          const rows = queueRes.data as QueueRow[];
+          const rows = (queueRes.data as any[]).map(normalizeQueueRow);
           setQueueItems(rows);
 
           // Build Profile Map for registered customers (walk-ins use customer_first_name, customer_last_name fields)
@@ -280,14 +295,14 @@ export default function OwnerDashboard() {
     setQueueLoading(true);
     try {
       const { data, error } = await (supabase as any)
-        .from("queue")
-        .select("*, services (*), barbers (*), salons (*)")
+        .from("bookings")
+        .select("*, services (*), stylists (*), salons (*), customer_profiles(first_name, last_name, phone, email)")
         .eq("salon_id", id)
         .order("created_at", { ascending: false })
         .limit(200); // Add limit for performance
 
       if (error) throw error;
-      setQueueItems((data as QueueRow[]) || []);
+      setQueueItems(((data || []) as any[]).map(normalizeQueueRow));
     } catch (error: any) {
       console.error("REFRESH_ERROR:", error);
       toast.error("Failed to refresh data.");
@@ -300,11 +315,11 @@ export default function OwnerDashboard() {
   const fetchQueueItemFull = useCallback(async (queueId: string) => {
     try {
       const { data } = await supabase
-        .from("queue")
-        .select("*, services (*), barbers (*), salons (*)")
+        .from("bookings")
+        .select("*, services (*), stylists (*), salons (*), customer_profiles(first_name, last_name, phone, email)")
         .eq("id", queueId)
         .maybeSingle();
-      return data as QueueRow | null;
+      return normalizeQueueRow(data);
     } catch (err) {
       console.error("FETCH_QUEUE_ITEM_ERROR", err);
       return null;
@@ -368,7 +383,7 @@ export default function OwnerDashboard() {
           {
             event: "*",
             schema: "public",
-            table: "queue",
+            table: "bookings",
             filter: `salon_id=eq.${salon.id}`
           },
           (payload) => {
@@ -392,7 +407,7 @@ export default function OwnerDashboard() {
         console.log("DASHBOARD_FALLBACK_SYNC: No real-time events for 60s, checking for missed updates");
         try {
           const { data } = await supabase
-            .from("queue")
+            .from("bookings")
             .select("id, status, created_at")
             .eq("salon_id", salon.id)
             .order("created_at", { ascending: false })
@@ -432,8 +447,8 @@ export default function OwnerDashboard() {
     const today = todayISO();
     const items = queueItems || [];
     const bookingsToday = items.filter((item) => item.created_at?.startsWith(today)).length;
-    const activeQueue = items.filter((item) => ["waiting", "accepted", "in_service"].includes(item.status)).length;
-    const waiting = items.filter((item) => item.status === "waiting");
+    const activeQueue = items.filter((item) => ["pending", "waiting", "accepted", "in_service"].includes(item.status)).length;
+    const waiting = items.filter((item) => item.status === "waiting" || item.status === "pending");
     const avgDuration = waiting.length === 0 ? 0 : Math.round(waiting.reduce((sum, item) => sum + (item.services?.duration || 0), 0) / waiting.length);
     const revenueToday = items.filter((item) => item.status === "done").reduce((sum, item) => sum + (item.services?.price || 0), 0);
 
@@ -489,7 +504,7 @@ export default function OwnerDashboard() {
     setUpdatingQueueId(item.id);
     try {
       clearAcceptTimer(item.id);
-      const { error } = await supabaseAny.from("queue").update({ status: "accepted", started_at: null }).eq("id", item.id);
+      const { error } = await supabaseAny.from("bookings").update({ status: "accepted", started_at: null }).eq("id", item.id);
       if (error) throw error;
 
       const expiresAt = Date.now() + ACCEPT_WINDOW_MS;
@@ -500,7 +515,7 @@ export default function OwnerDashboard() {
           delete next[item.id];
           return next;
         });
-        await supabaseAny.from("queue").update({ status: "in_progress", started_at: new Date().toISOString() }).eq("id", item.id);
+        await supabaseAny.from("bookings").update({ status: "in_progress", started_at: new Date().toISOString() }).eq("id", item.id);
       }, ACCEPT_WINDOW_MS);
 
       acceptTimersRef.current[item.id] = timer;
@@ -519,7 +534,7 @@ export default function OwnerDashboard() {
     setUpdatingQueueId(queueId);
     try {
       clearAcceptTimer(queueId);
-      const { error } = await supabaseAny.from("queue").update({ status: "waiting", started_at: null }).eq("id", queueId);
+      const { error } = await supabaseAny.from("bookings").update({ status: "waiting", started_at: null }).eq("id", queueId);
       if (error) throw error;
       setQueueItems((prev) => prev.map((row) => (row.id === queueId ? { ...row, status: "waiting", started_at: null } : row)));
       toast.success("Accept undone");
@@ -537,7 +552,7 @@ export default function OwnerDashboard() {
     try {
       const payload: Record<string, unknown> = { status: nextStatus };
       if (nextStatus === "waiting" || nextStatus === "accepted") payload.started_at = null;
-      const { error } = await supabaseAny.from("queue").update(payload).eq("id", item.id);
+      const { error } = await supabaseAny.from("bookings").update(payload).eq("id", item.id);
       
       if (error) throw error;
 
@@ -545,12 +560,12 @@ export default function OwnerDashboard() {
       
       // Local refresh
       const { data } = await supabaseAny
-        .from("queue")
-        .select("*, services (*), barbers (*), salons (*)")
+        .from("bookings")
+        .select("*, services (*), stylists (*), salons (*), customer_profiles(first_name, last_name, phone, email)")
         .eq("salon_id", salon.id)
         .order("created_at", { ascending: true })
         .limit(200);
-      if (data) setQueueItems(data as QueueRow[]);
+      if (data) setQueueItems(((data || []) as any[]).map(normalizeQueueRow));
       
     } catch (error: any) {
       console.error("QUEUE_UPDATE_ERROR:", error.message || error);
@@ -609,7 +624,7 @@ export default function OwnerDashboard() {
   const queueEmpty = filteredQueueItems.length === 0;
   const profileImage = salon?.image_url || "/default-salon.jpg";
   const activeQueueItems = filteredQueueItems
-    .filter((item) => ["waiting", "accepted", "in_service"].includes(item.status))
+    .filter((item) => ["pending", "waiting", "accepted", "in_service"].includes(item.status))
     .slice(0, 6);
 
   return (
@@ -775,7 +790,7 @@ export default function OwnerDashboard() {
                             <p className="text-2xl font-extrabold leading-none text-[#101828]">{bookingTime}</p>
                             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6b6474]">Scheduled</p>
                           </div>
-                          {item.status === "waiting" && canAcceptSelectedDate ? (
+                          {(item.status === "waiting" || item.status === "pending") && canAcceptSelectedDate ? (
                             <Button
                               variant="ghost"
                               size="icon"
@@ -830,7 +845,7 @@ export default function OwnerDashboard() {
                       ) : null}
                       
                       {/* OTP Verification Input - shown for waiting/confirmed status */}
-                      {(item.status === "waiting" || item.status === "confirmed") && (
+                      {(item.status === "waiting" || item.status === "confirmed" || item.status === "pending") && (
                         <OTPVerifyInput
                           bookingId={item.id}
                           customerName={customerName}
@@ -939,7 +954,7 @@ export default function OwnerDashboard() {
                         <td className="px-6 py-4"><span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase transition-colors ${statusClass[status] || "bg-slate-100 text-slate-700"}`}>{formatStatus(status)}</span></td>
                         <td className="px-6 py-4">
                           <div className="flex gap-2">
-                              {status === "waiting" && canAcceptSelectedDate ? (
+                              {(status === "waiting" || status === "pending") && canAcceptSelectedDate ? (
                                 <Button size="sm" className="h-8 rounded-xl" disabled={updatingQueueId === item.id} onClick={() => beginAccept(item)}>Accept</Button>
                               ) : null}
                               {pendingAccepts[item.id] ? (
@@ -948,7 +963,7 @@ export default function OwnerDashboard() {
                                 </Button>
                               ) : null}
                               {canAcceptSelectedDate ? (
-                                <Button size="sm" variant="outline" className="h-8 rounded-xl" disabled={updatingQueueId === item.id || !["waiting", "accepted"].includes(status)} onClick={() => updateQueueStatus(item, "rejected")}>Reject</Button>
+                                <Button size="sm" variant="outline" className="h-8 rounded-xl" disabled={updatingQueueId === item.id || !["pending", "waiting", "accepted"].includes(status)} onClick={() => updateQueueStatus(item, "rejected")}>Reject</Button>
                               ) : null}
                           </div>
                         </td>

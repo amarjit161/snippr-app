@@ -91,10 +91,10 @@ export default function BookingDetail() {
 
       try {
         const { data, error } = await supabase
-          .from('queue')
-          .select('*, salons(*), services(*), barbers(*)')
+          .from('bookings')
+          .select('*, salons(*), services(*), stylists(*), customer_profiles(first_name, last_name, phone, email)')
           .eq('id', id)
-          .eq('user_id', user.id)
+          .eq('customer_id', user.id)
           .maybeSingle();
 
         if (error) {
@@ -109,7 +109,17 @@ export default function BookingDetail() {
           return;
         }
 
-        setBooking(data);
+        setBooking({
+          ...data,
+          user_id: data.customer_id,
+          barber_id: data.stylist_id,
+          time_slot: data.booking_time,
+          arrival_otp: data.otp,
+          barbers: data.stylists,
+          customer_first_name: data.customer_profiles?.first_name || undefined,
+          customer_last_name: data.customer_profiles?.last_name || undefined,
+          customer_phone: data.customer_profiles?.phone || undefined,
+        });
       } catch (err) {
         console.error('BOOKING_DETAIL_FETCH_ERROR:', err);
         toast.error('Error loading booking');
@@ -128,7 +138,7 @@ export default function BookingDetail() {
     setCancelling(true);
     try {
       const { error } = await supabase
-        .from('queue')
+        .from('bookings')
         .update({ status: 'cancelled' })
         .eq('id', booking.id);
 
@@ -266,7 +276,7 @@ export default function BookingDetail() {
                   Show this code to the salon when you arrive
                 </p>
                 <p className="text-purple-300 text-xs mt-2">
-                  Valid until {new Date(booking.otp_expires_at!).toLocaleString('en-IN')}
+                  Valid until {booking.otp_expires_at ? new Date(booking.otp_expires_at).toLocaleString('en-IN') : 'service starts'}
                 </p>
               </div>
             )}
@@ -332,7 +342,7 @@ export default function BookingDetail() {
               >
                 View on Map
               </button>
-              {['waiting', 'confirmed'].includes(booking.status || '') && (
+              {['pending', 'waiting', 'confirmed'].includes(booking.status || '') && (
                 <button
                   onClick={handleCancel}
                   disabled={cancelling}

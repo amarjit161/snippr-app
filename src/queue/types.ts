@@ -1,4 +1,5 @@
 export const QUEUE_STATUSES = [
+  "PENDING",
   "WAITING",
   "CONFIRMED",
   "ARRIVING",

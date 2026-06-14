@@ -388,7 +388,7 @@ export function useRealtimeQueue(navigate: (path: string, options?: { replace?: 
   }, [queueItems]);
 
   const grouped = useMemo(() => {
-    const waiting = sortedQueue.filter((item) => item.status === "waiting" || item.status === "arriving" || item.status === "confirmed");
+    const waiting = sortedQueue.filter((item) => item.status === "waiting" || item.status === "arriving" || item.status === "confirmed" || item.status === "pending");
     const inProgress = sortedQueue.filter((item) => item.status === "in_progress" || item.status === "accepted" || item.status === "seated");
     const completed = sortedQueue.filter((item) => item.status === "completed");
     const cancelled = sortedQueue.filter((item) => item.status === "cancelled" || item.status === "rejected" || item.status === "expired" || item.status === "no_show");

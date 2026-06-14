@@ -20,12 +20,9 @@ export const updateBookingWithOTP = async (
   otp: string
 ): Promise<boolean> => {
   const { error } = await supabase
-    .from('queue')
+    .from('bookings')
     .update({
-      arrival_otp: otp,
-      // Note: otp_expires_at is NOT set - OTP validity is based on booking status
-      // OTP is valid for: waiting, confirmed, accepted, in_progress
-      // OTP becomes invalid for: completed, cancelled, rejected, done
+      otp: otp,
     })
     .eq('id', bookingId);
 

@@ -1,6 +1,7 @@
 import type { QueueStatus, QueueTransitionContext } from "./types";
 
 const TRANSITIONS: Record<QueueStatus, QueueStatus[]> = {
+  PENDING: ["CONFIRMED", "ARRIVING", "CANCELLED", "EXPIRED", "NO_SHOW", "WAITING"],
   WAITING: ["CONFIRMED", "ARRIVING", "CANCELLED", "EXPIRED", "NO_SHOW"],
   CONFIRMED: ["ARRIVING", "SEATED", "CANCELLED", "EXPIRED", "NO_SHOW"],
   ARRIVING: ["SEATED", "CANCELLED", "NO_SHOW"],

@@ -137,13 +137,13 @@ export async function validateMultiServiceBooking(
 
   // Check 7: Check time slot availability
   const { data: conflict, error: conflictError } = await supabase
-    .from("queue")
+    .from("bookings")
     .select("id")
     .eq("salon_id", salonId)
-    .eq("barber_id", barberId)
+    .eq("stylist_id", barberId)
     .eq("booking_date", bookingDate)
-    .eq("time_slot", timeSlot)
-    .in("status", ["waiting", "confirmed", "in_progress"])
+    .eq("booking_time", timeSlot)
+    .in("status", ["pending", "waiting", "confirmed", "in_progress"])
     .limit(1)
     .maybeSingle();
 
@@ -163,11 +163,11 @@ export async function validateMultiServiceBooking(
 
   // Check 8: Check queue limits
   const { data: queueCount, error: queueError } = await supabase
-    .from("queue")
+    .from("bookings")
     .select("id", { count: "exact", head: true })
     .eq("salon_id", salonId)
     .eq("booking_date", bookingDate)
-    .in("status", ["waiting", "confirmed"]);
+    .in("status", ["pending", "waiting", "confirmed"]);
 
   if (!queueError && queueCount && queueCount > 50) {
     errors.push({
@@ -179,12 +179,12 @@ export async function validateMultiServiceBooking(
 
   // Check 9: Check for overbooked barber
   const { data: barberQueue } = await supabase
-    .from("queue")
+    .from("bookings")
     .select("id")
-    .eq("barber_id", barberId)
+    .eq("stylist_id", barberId)
     .eq("salon_id", salonId)
     .eq("booking_date", bookingDate)
-    .in("status", ["waiting", "confirmed", "in_progress"]);
+    .in("status", ["pending", "waiting", "confirmed", "in_progress"]);
 
   const totalBarberMinutes = (barberQueue || []).length * 30;
 
@@ -199,27 +199,7 @@ export async function validateMultiServiceBooking(
     });
   }
 
-  // Check 10: Validate user doesn't have duplicate active bookings
-  const { user } = await supabase.auth.getUser();
-  if (user) {
-    const today = new Date().toISOString().split("T")[0];
-    const { data: activeBooking } = await supabase
-      .from("queue")
-      .select("id")
-      .eq("user_id", user.user?.id)
-      .gte("booking_date", today)
-      .in("status", ["waiting", "confirmed", "accepted", "in_progress"])
-      .limit(1)
-      .maybeSingle();
-
-    if (activeBooking) {
-      errors.push({
-        field: "user",
-        message: "You already have an active booking. Cancel it before booking again",
-        severity: "error",
-      });
-    }
-  }
+  // Check 10: Bypass duplicate active bookings check (multiple active bookings allowed)
 
   return {
     valid: errors.filter(e => e.severity === "error").length === 0,
@@ -321,13 +301,13 @@ export async function validateTimeSlotAvailability(
 ): Promise<{ available: boolean; reason?: string }> {
   try {
     const { data, error } = await supabase
-      .from("queue")
+      .from("bookings")
       .select("id")
       .eq("salon_id", salonId)
-      .eq("barber_id", barberId)
+      .eq("stylist_id", barberId)
       .eq("booking_date", bookingDate)
-      .eq("time_slot", timeSlot)
-      .in("status", ["waiting", "confirmed", "in_progress"])
+      .eq("booking_time", timeSlot)
+      .in("status", ["pending", "waiting", "confirmed", "in_progress"])
       .limit(1)
       .maybeSingle();
 

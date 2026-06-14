@@ -29,19 +29,27 @@ export const BookingCalendar = ({ salonId }: BookingCalendarProps) => {
     setLoading(true);
 
     const { data } = await supabase
-      .from("queue")
+      .from("bookings")
       .select(`
-        id, booking_date, time_slot, status,
-        customer_first_name, customer_last_name, customer_phone,
+        id, booking_date, booking_time, status,
+        customer_profiles(first_name, last_name, phone),
         services(name, price),
-        barbers(name)
+        stylists(name)
       `)
       .eq("salon_id", salonId)
       .gte("booking_date", monthRange.startDate)
       .lte("booking_date", monthRange.endDate)
-      .order("time_slot", { ascending: true });
+      .order("booking_time", { ascending: true });
 
-    setBookings(data || []);
+    const normalized = (data || []).map((b: any) => ({
+      ...b,
+      time_slot: b.booking_time,
+      barbers: b.stylists,
+      customer_first_name: b.customer_profiles?.first_name || null,
+      customer_last_name: b.customer_profiles?.last_name || null,
+      customer_phone: b.customer_profiles?.phone || null,
+    }));
+    setBookings(normalized);
     setLoading(false);
   };
 
@@ -71,7 +79,7 @@ export const BookingCalendar = ({ salonId }: BookingCalendarProps) => {
   };
 
   const updateStatus = async (bookingId: string, status: string) => {
-    await supabase.from("queue").update({ status } as any).eq("id", bookingId);
+    await supabase.from("bookings").update({ status } as any).eq("id", bookingId);
     await fetchBookings();
   };
 
@@ -206,10 +214,10 @@ export const BookingCalendar = ({ salonId }: BookingCalendarProps) => {
                       <span
                         className={[
                           "text-xs px-2 py-0.5 rounded-full font-medium",
-                          booking.status === "waiting" ? "bg-amber-100 text-amber-700" : "",
+                          ["waiting", "pending"].includes(booking.status) ? "bg-amber-100 text-amber-700" : "",
                           booking.status === "confirmed" ? "bg-green-100 text-green-700" : "",
                           booking.status === "completed" ? "bg-gray-100 text-gray-500" : "",
-                          !["waiting", "confirmed", "completed"].includes(booking.status)
+                          !["pending", "waiting", "confirmed", "completed"].includes(booking.status)
                             ? "bg-red-100 text-red-600"
                             : "",
                         ].join(" ")}
@@ -217,7 +225,7 @@ export const BookingCalendar = ({ salonId }: BookingCalendarProps) => {
                         {booking.status}
                       </span>
 
-                      {booking.status === "waiting" && (
+                      {["waiting", "pending"].includes(booking.status) && (
                         <div className="flex gap-1">
                           <button
                             onClick={() => updateStatus(booking.id, "confirmed")}

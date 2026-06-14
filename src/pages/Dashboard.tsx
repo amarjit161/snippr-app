@@ -29,7 +29,7 @@ const isRescheduleLocked = (status?: string) => RESCHEDULE_LOCKED_STATUSES.has(n
 // OTP expires (becomes invalid) for: completed, done, cancelled, rejected
 const isOTPActive = (status?: string): boolean => {
   const normalized = normalizeStatus(status);
-  const activeStatuses = new Set(["waiting", "confirmed", "accepted", "in_progress"]);
+  const activeStatuses = new Set(["pending", "waiting", "confirmed", "accepted", "in_progress"]);
   return activeStatuses.has(normalized);
 };
 
@@ -58,25 +58,21 @@ const formatPrice = (amount: number) => `₹${amount.toLocaleString("en-IN")}`;
 const BOOKING_SELECT = `
   id,
   salon_id,
-  user_id,
+  customer_id,
   service_id,
-  barber_id,
+  stylist_id,
   position,
   status,
   created_at,
-  started_at,
-  completed_at,
   booking_date,
-  customer_first_name,
-  customer_last_name,
-  customer_phone,
-  email,
-  time_slot,
-  arrival_otp,
-  otp_verified_at,
+  booking_time,
+  otp,
+  queue_position,
   notes,
+  customer_profiles (first_name, last_name, phone, email),
   services (id, name, price, duration),
-  salons (id, name, owner_id, address, location, city, image_url)
+  salons (id, name, owner_id, address, location, city, image_url),
+  stylists (id, name)
 `;
 
 const isPastDate = (date?: string) => {
@@ -365,9 +361,9 @@ export default function Dashboard() {
     }
 
     const { data, error } = await supabase
-      .from("queue")
+      .from("bookings")
       .select(BOOKING_SELECT)
-      .eq("user_id", user.id)
+      .eq("customer_id", user.id)
       .order("booking_date", { ascending: false })
       .order("created_at", { ascending: false });
 
@@ -377,25 +373,38 @@ export default function Dashboard() {
         setBookings([]);
       }
     } else {
+      const normalizedData = (data || []).map((b: any) => ({
+        ...b,
+        user_id: b.customer_id,
+        barber_id: b.stylist_id,
+        time_slot: b.booking_time,
+        arrival_otp: b.otp,
+        customer_first_name: b.customer_profiles?.first_name || null,
+        customer_last_name: b.customer_profiles?.last_name || null,
+        customer_phone: b.customer_profiles?.phone || null,
+        email: b.customer_profiles?.email || null,
+        barbers: b.stylists,
+      }));
+
       const bookingsWithOtp = await Promise.all(
-        (data || []).map(async (booking: any) => {
+        normalizedData.map(async (booking: any) => {
           if (!isOTPActive(booking.status) || booking.arrival_otp) {
             return booking;
           }
 
           const arrivalOtp = generateOTP();
           const { error: otpError } = await supabase
-            .from("queue")
-            .update({ arrival_otp: arrivalOtp } as any)
+            .from("bookings")
+            .update({ otp: arrivalOtp } as any)
             .eq("id", booking.id)
-            .eq("user_id", user.id);
+            .eq("customer_id", user.id);
 
           if (otpError) {
             console.warn("BOOKING_OTP_BACKFILL_FAILED:", otpError);
             return booking;
           }
 
-          return { ...booking, arrival_otp: arrivalOtp };
+          return { ...booking, arrival_otp: arrivalOtp, otp: arrivalOtp };
         })
       );
 
@@ -403,7 +412,7 @@ export default function Dashboard() {
       setLastFetchTime(Date.now());
       console.log("✅ BOOKINGS: Fetched", data?.length || 0, "bookings from database");
       // Debug: Log arrival_otp for each booking
-      data?.forEach((booking: any, idx: number) => {
+      bookingsWithOtp.forEach((booking: any, idx: number) => {
         console.log(`📌 Booking ${idx + 1}:`, {
           id: booking.id,
           status: booking.status,
@@ -421,7 +430,7 @@ export default function Dashboard() {
       bookings.filter(
         (b) =>
           String(b.booking_date || "") >= today &&
-          ["waiting", "confirmed", "accepted", "in_progress"].includes(normalizeStatus(b.status))
+          ["pending", "waiting", "confirmed", "accepted", "in_progress"].includes(normalizeStatus(b.status))
       ),
     [bookings, today]
   );
@@ -475,10 +484,10 @@ export default function Dashboard() {
 
       // Update booking status to cancelled
       const { data: updatedBooking, error } = await supabase
-        .from("queue")
+        .from("bookings")
         .update({ status: "cancelled" } as any)
         .eq("id", cancelPendingId)
-        .eq("user_id", user.id)
+        .eq("customer_id", user.id)
         .select("id, status")
         .maybeSingle();
 
@@ -604,13 +613,13 @@ export default function Dashboard() {
     setUpdatingId(rescheduleTarget.id);
     try {
       const { data, error } = await supabase
-        .from("queue")
+        .from("bookings")
         .update({
           booking_date: newDate,
-          time_slot: newTime,
+          booking_time: newTime,
         } as any)
         .eq("id", rescheduleTarget.id)
-        .eq("user_id", user.id)
+        .eq("customer_id", user.id)
         .not("status", "in", '("accepted","confirmed","in_progress","done","completed")')
         .select("id")
         .maybeSingle();
@@ -707,8 +716,8 @@ export default function Dashboard() {
           {
             event: "*",
             schema: "public",
-            table: "queue",
-            filter: `user_id=eq.${user.id}`,
+            table: "bookings",
+            filter: `customer_id=eq.${user.id}`,
           },
           fetchBookings
         )
@@ -798,12 +807,17 @@ export default function Dashboard() {
         </button>
 
         <div className="mb-8">
-          <h1 className="font-display text-5xl font-extrabold tracking-tight text-[#121521]">My Bookings</h1>
+          <div className="flex items-baseline justify-between flex-wrap gap-4">
+            <h1 className="font-display text-5xl font-extrabold tracking-tight text-[#121521]">My Bookings</h1>
+            <span className="text-sm font-semibold text-[#7a43e9] bg-purple-50 border border-purple-100 rounded-full px-4 py-1">
+              Total Bookings: {bookings.length}
+            </span>
+          </div>
           <div className="mt-6 flex gap-6 border-b border-[#dfdce4] text-xl font-bold uppercase tracking-[0.08em]">
             {[
-              { key: "upcoming", label: "Upcoming" },
-              { key: "past", label: "Past" },
-              { key: "cancelled", label: "Cancelled" },
+              { key: "upcoming", label: `Upcoming (${upcomingBookings.length})` },
+              { key: "past", label: `Past (${pastBookings.length})` },
+              { key: "cancelled", label: `Cancelled (${cancelledBookings.length})` },
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -817,6 +831,9 @@ export default function Dashboard() {
                 {tab.label}
               </button>
             ))}
+          </div>
+          <div className="mt-4 text-sm text-[#6b6474] font-medium">
+            Showing {filteredBookings.length} of {bookings.length} bookings
           </div>
         </div>
 

@@ -165,20 +165,25 @@ export function useSlotAvailability(
 
       setHolidayInfo(null);
 
-      // Step 4: booked slots for the selected day.
-        console.log("🔄 FETCHING_BOOKED_SLOTS for:", { salonId, selectedDate });
+      console.log("🔄 FETCHING_BOOKED_SLOTS for:", { salonId, selectedDate });
       const { data: bookedRecords, error: bookingsError } = await supabase
-        .from("queue" as any)
-        .select("time_slot, barber_id, status")
+        .from("bookings" as any)
+        .select("booking_time, stylist_id, status")
         .eq("salon_id", salonId)
         .eq("booking_date", selectedDate)
-        .in("status", ["waiting", "confirmed", "in_progress"]);
+        .in("status", ["pending", "waiting", "confirmed", "in_progress"]);
+
+      const mappedBookedRecords = (bookedRecords || []).map((r: any) => ({
+        time_slot: r.booking_time,
+        barber_id: r.stylist_id,
+        status: r.status,
+      }));
 
       if (requestId !== requestSequenceRef.current) {
         return;
       }
       if (bookingsError) {
-        console.error("❌ QUEUE_FETCH_ERROR:", bookingsError);
+        console.error("❌ BOOKINGS_FETCH_ERROR:", bookingsError);
       } else {
         console.log("✅ BOOKED_RECORDS_FETCHED:", bookedRecords?.length || 0, "bookings");
       }
@@ -243,7 +248,7 @@ export function useSlotAvailability(
         const timeValue = `${String(slotHour).padStart(2,'0')}:${String(slotMin).padStart(2,'0')}:00`;
 
         const isPast = isToday && (slotHour < todayIST.getHours() || (slotHour === todayIST.getHours() && slotMin <= todayIST.getMinutes()));
-        const bookingsAtTime = bookedRecords?.filter((record: any) => record.time_slot === timeValue) || [];
+        const bookingsAtTime = mappedBookedRecords?.filter((record: any) => record.time_slot === timeValue) || [];
         const bookedCount = barberId
           ? (bookingsAtTime.some((record: any) => record.barber_id === barberId) ? 1 : 0)
           : bookingsAtTime.length;
@@ -320,7 +325,7 @@ export function useSlotAvailability(
         {
           event: "*",
           schema: "public",
-          table: "queue",
+          table: "bookings",
           filter: `salon_id=eq.${salonId}`,
         },
         (payload) => {

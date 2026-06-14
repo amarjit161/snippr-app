@@ -30,7 +30,7 @@ type BarberRow = {
 type QueueItem = {
   id: string;
   created_at: string;
-  status: "waiting" | "accepted" | "in_progress" | "completed" | "cancelled";
+  status: "pending" | "waiting" | "accepted" | "in_progress" | "completed" | "cancelled";
   user_id: string | null;
   service_id: string;
   barber_id: string | null;
@@ -53,6 +53,18 @@ type WalkInPayload = {
   phoneNumber: string;
   serviceId: string;
   barberId: string;
+};
+
+const normalizeQueueItem = (item: any): QueueItem => {
+  if (!item) return item;
+  return {
+    ...item,
+    user_id: item.customer_id || item.user_id,
+    barber_id: item.stylist_id || item.barber_id,
+    time_slot: item.booking_time || item.time_slot,
+    arrival_otp: item.otp || item.arrival_otp,
+    barbers: item.stylists || item.barbers || null,
+  };
 };
 
 export function useQueue(navigate: (path: string, options?: { replace?: boolean }) => void) {
@@ -81,12 +93,12 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
   const fetchQueue = useCallback(async (salonId: string) => {
     console.log("FETCH_QUEUE_START", salonId);
     const { data, error } = await supabaseAny
-      .from("queue")
+      .from("bookings")
       .select(`
         *,
         services (*),
         salons (*),
-        barbers (*)
+        stylists (*)
       `)
       .eq("salon_id", salonId)
       .order("position", { ascending: true, nullsFirst: false })
@@ -99,7 +111,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
     }
 
     console.log("FETCH_QUEUE_SUCCESS", data?.length, "items:", data?.map((item: any) => ({ id: item.id, status: item.status })));
-    setQueueItems((data as QueueItem[]) || []);
+    setQueueItems((((data || []) as any[]).map(normalizeQueueItem)) || []);
   }, [supabaseAny]);
 
   const clearAcceptTimer = useCallback((queueId: string) => {
@@ -191,11 +203,11 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
   const fetchQueueItemFull = useCallback(async (queueId: string) => {
     try {
       const { data } = await supabaseAny
-        .from("queue")
-        .select("*, services (*), barbers (*), salons (*)")
+        .from("bookings")
+        .select("*, services (*), stylists (*), salons (*)")
         .eq("id", queueId)
         .maybeSingle();
-      return data;
+      return normalizeQueueItem(data);
     } catch (err) {
       console.error("FETCH_QUEUE_ITEM_ERROR", err);
       return null;
@@ -258,7 +270,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
           {
             event: "*",
             schema: "public",
-            table: "queue",
+            table: "bookings",
             filter: `salon_id=eq.${salon.id}`,
           },
           async (payload: any) => {
@@ -282,7 +294,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
         console.log("QUEUE_FALLBACK_SYNC: No events for 60s, checking for missed updates");
         try {
           const { data } = await supabaseAny
-            .from("queue")
+            .from("bookings")
             .select("id")
             .eq("salon_id", salon.id)
             .order("created_at", { ascending: false })
@@ -321,7 +333,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
     const previous = queueItems;
     setQueueItems((prev) => prev.map((item) => (item.id === queueId ? { ...item, barber_id: barberId } : item)));
 
-    const { error } = await supabaseAny.from("queue").update({ barber_id: barberId }).eq("id", queueId);
+    const { error } = await supabaseAny.from("bookings").update({ stylist_id: barberId }).eq("id", queueId);
     if (error) {
       setQueueItems(previous);
       toast.error(error.message || "Failed to assign barber");
@@ -331,7 +343,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
     toast.success("Barber updated");
   }, [queueItems, supabaseAny]);
 
-  const updateStatus = useCallback(async (queueId: string, status: "waiting" | "accepted" | "in_progress" | "cancelled" | "rejected" | "completed") => {
+  const updateStatus = useCallback(async (queueId: string, status: "pending" | "waiting" | "accepted" | "in_progress" | "cancelled" | "rejected" | "completed") => {
     console.log("UPDATE_STATUS_START", queueId, status);
     const previous = queueItems;
     const now = new Date().toISOString();
@@ -343,7 +355,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
         return {
           ...item,
           status,
-          started_at: status === "in_progress" ? now : status === "waiting" || status === "accepted" ? null : item.started_at,
+          started_at: status === "in_progress" ? now : status === "waiting" || status === "accepted" || status === "pending" ? null : item.started_at,
           completed_at: status === "completed" ? now : item.completed_at,
         };
       });
@@ -354,10 +366,10 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
     const payload: Record<string, unknown> = { status };
     if (status === "in_progress") payload.started_at = now;
     if (status === "completed") payload.completed_at = now;
-    if (status === "waiting" || status === "accepted") payload.started_at = null;
+    if (status === "waiting" || status === "accepted" || status === "pending") payload.started_at = null;
 
     setActionLoading(queueId);
-    const { error } = await supabaseAny.from("queue").update(payload).eq("id", queueId);
+    const { error } = await supabaseAny.from("bookings").update(payload).eq("id", queueId);
     setActionLoading(null);
 
     if (error) {
@@ -429,12 +441,12 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
       
       // Check if this barber already has a booking for this exact time slot today
       const { data: conflictBookings, error: conflictError } = await supabaseAny
-        .from("queue")
-        .select("id, barber_id, booking_date, time_slot")
+        .from("bookings")
+        .select("id, stylist_id, booking_date, booking_time")
         .eq("salon_id", salon.id)
-        .eq("barber_id", payload.barberId)
+        .eq("stylist_id", payload.barberId)
         .eq("booking_date", todayBookingDate)
-        .eq("time_slot", bookingTimeSlot);
+        .eq("booking_time", bookingTimeSlot);
 
       if (conflictError) {
         console.error("AVAILABILITY_CHECK_ERROR", conflictError);
@@ -450,7 +462,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
       }
 
       const { data: positionRows } = await (supabase
-        .from("queue") as any)
+        .from("bookings") as any)
         .select("position")
         .eq("salon_id", salon.id)
         .order("position", { ascending: false })
@@ -484,11 +496,13 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
 
       setQueueItems((prev) => [...prev, optimisticItem]);
 
-      const { data: insertedData, error: insertError } = await (supabase.from("queue") as any)
+      const { data: insertedData, error: insertError } = await (supabase.from("bookings") as any)
         .insert({
           salon_id: salon.id,
+          customer_id: freshUser.id,
           user_id: freshUser.id,
           service_id: payload.serviceId,
+          stylist_id: payload.barberId,
           barber_id: payload.barberId,
           status: "waiting",
           position: nextPosition,
@@ -497,6 +511,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
           customer_last_name: payload.customerLastName.trim(),
           customer_phone: payload.phoneNumber.trim(),
           booking_date: todayBookingDate,
+          booking_time: bookingTimeSlot,
           time_slot: bookingTimeSlot,
         })
         .select("*")
@@ -515,8 +530,9 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
         return;
       }
 
+      const normalizedInserted = normalizeQueueItem(insertedData);
       setQueueItems((prev) =>
-        prev.map((item) => (item.id === tempId ? { ...item, ...insertedData, services: selectedService, barbers: selectedBarber } : item))
+        prev.map((item) => (item.id === tempId ? { ...item, ...normalizedInserted, services: selectedService, barbers: selectedBarber } : item))
       );
 
       toast.success("Walk-in added to queue");
@@ -528,7 +544,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
   }, [barbers, fetchQueue, salon, services, supabaseAny]);
 
   const grouped = useMemo(() => {
-    const waiting = sortedQueue.filter((item) => item.status === "waiting");
+    const waiting = sortedQueue.filter((item) => item.status === "waiting" || item.status === "pending");
     const inProgress = sortedQueue.filter((item) => item.status === "in_progress" || item.status === "accepted");
     const completed = sortedQueue.filter((item) => item.status === "completed");
     const cancelled = sortedQueue.filter((item) => item.status === "cancelled" || item.status === "rejected");

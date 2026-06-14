@@ -31,11 +31,11 @@ const QueueTracker = () => {
 
   const fetchQueue = async (salonId: string) => {
     const { data } = await supabase
-      .from("queue")
+      .from("bookings")
       .select(`
         id,
         salon_id,
-        user_id,
+        customer_id,
         service_id,
         position,
         status,
@@ -44,10 +44,15 @@ const QueueTracker = () => {
         salons (id, name, latitude, longitude)
       `)
       .eq("salon_id", salonId)
-      .eq("status", "waiting")
+      .in("status", ["pending", "waiting"])
       .order("created_at", { ascending: true });
 
-    setQueue((data as Tables<"queue">[]) || []);
+    const normalizedData = (data || []).map((b: any) => ({
+      ...b,
+      user_id: b.customer_id,
+    }));
+
+    setQueue(normalizedData as any);
     setLastUpdatedAt(new Date());
   };
 
@@ -56,11 +61,11 @@ const QueueTracker = () => {
 
     // Check for in_progress status too (service started)
     const { data } = await supabase
-      .from("queue")
+      .from("bookings")
       .select(`
         id,
         salon_id,
-        user_id,
+        customer_id,
         service_id,
         position,
         status,
@@ -68,14 +73,18 @@ const QueueTracker = () => {
         services (id, name, price, duration),
         salons (id, name, latitude, longitude)
       `)
-      .eq("user_id", user.id)
-      .in("status", ["waiting", "in_progress"])
+      .eq("customer_id", user.id)
+      .in("status", ["pending", "waiting", "in_progress"])
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (data) {
-      setEntry(data as any);
+      const normalizedEntry = {
+        ...data,
+        user_id: data.customer_id,
+      };
+      setEntry(normalizedEntry as any);
 
       if (data.status === "in_progress") {
         setAheadCount(0);
@@ -103,7 +112,7 @@ const QueueTracker = () => {
   };
 
   useEffect(() => {
-    if (!entry || entry.status !== "waiting") return;
+    if (!entry || !["pending", "waiting"].includes(entry.status)) return;
 
     const myIndex = queue.findIndex((q) => q.id === entry.id);
     const nextPosition = myIndex >= 0 ? myIndex + 1 : null;
@@ -148,13 +157,13 @@ const QueueTracker = () => {
 
     const channel = supabase
       .channel(`queue-tracker-updates-${user.id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "queue", filter: `user_id=eq.${user.id}` }, (payload) => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "bookings", filter: `customer_id=eq.${user.id}` }, (payload) => {
         const eventType = payload.eventType;
         const nextStatus = String(((payload as any).new?.status || "")).toLowerCase();
         const payloadId = (payload as any).new?.id || (payload as any).old?.id;
 
         if (entryIdRef.current && payloadId === entryIdRef.current) {
-          if (eventType === "DELETE" || (nextStatus && !["waiting", "in_progress"].includes(nextStatus))) {
+          if (eventType === "DELETE" || (nextStatus && !["pending", "waiting", "in_progress"].includes(nextStatus))) {
             clearTrackerState();
             return;
           }
@@ -170,10 +179,10 @@ const QueueTracker = () => {
   const handleCancel = async () => {
     if (!entry) return;
     const { error } = await supabase
-      .from("queue")
+      .from("bookings")
       .update({ status: "cancelled" } as any)
-      .eq("user_id", user?.id)
-      .eq("status", "waiting");
+      .eq("customer_id", user?.id)
+      .in("status", ["pending", "waiting"]);
 
     if (error) {
       toast.error("Could not cancel queue entry. Please try again.");
@@ -193,11 +202,17 @@ const QueueTracker = () => {
 
   if (!entry || !isVisible) return null;
 
-  const salon = entry.salons;
+  const salon = entry.salons
+    ? {
+        ...entry.salons,
+        lat: entry.salons.latitude,
+        lng: entry.salons.longitude,
+      }
+    : null;
   const service = entry.services;
   const isInProgress = entry.status === "in_progress";
 
-  const travelMin = location
+  const travelMin = location && salon
     ? estimateTravelMinutes(location.lat, location.lng, salon.lat, salon.lng)
     : 10;
   const leaveIn = Math.max(0, totalWait - travelMin);

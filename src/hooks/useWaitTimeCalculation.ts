@@ -45,15 +45,15 @@ export function useWaitTimeCalculation(
 
     try {
       let query = supabase
-        .from("queue")
-        .select("id, barber_id, status")
+        .from("bookings")
+        .select("id, stylist_id, status")
         .eq("salon_id", salonId)
         .eq("booking_date", bookingDate)
-        .in("status", ["waiting", "confirmed", "in_progress"]);
+        .in("status", ["pending", "waiting", "confirmed", "in_progress"]);
 
       // If specific barber selected, filter by that barber
       if (barberId) {
-        query = query.eq("barber_id", barberId);
+        query = query.eq("stylist_id", barberId);
       }
 
       const { data: queueData, error } = await query;
@@ -64,7 +64,10 @@ export function useWaitTimeCalculation(
         return;
       }
 
-      const queue = queueData || [];
+      const queue = (queueData || []).map((q: any) => ({
+        ...q,
+        barber_id: q.stylist_id,
+      }));
       // Calculate total active time: assume 30 minutes per booking (default service duration)
       const totalActiveMinutes = queue.length * 30;
 
@@ -127,7 +130,7 @@ export function useWaitTimeCalculation(
         {
           event: "*",
           schema: "public",
-          table: "queue",
+          table: "bookings",
           filter: `salon_id=eq.${salonId}`,
         },
         (payload) => {
@@ -153,7 +156,7 @@ export function useQueuePosition(
   salonId: string | null,
   barberId: string | null,
   bookingDate: string | null,
-  statusFilter: string[] = ["waiting", "confirmed"]
+  statusFilter: string[] = ["pending", "waiting", "confirmed"]
 ): number {
   const [position, setPosition] = useState(0);
 
@@ -166,10 +169,10 @@ export function useQueuePosition(
     const fetchPosition = async () => {
       try {
         const { data, error } = await supabase
-          .from("queue")
+          .from("bookings")
           .select("id")
           .eq("salon_id", salonId)
-          .eq("barber_id", barberId)
+          .eq("stylist_id", barberId)
           .eq("booking_date", bookingDate)
           .in("status", statusFilter)
           .order("created_at", { ascending: true });
@@ -193,7 +196,7 @@ export function useQueuePosition(
         {
           event: "*",
           schema: "public",
-          table: "queue",
+          table: "bookings",
           filter: `salon_id=eq.${salonId}`,
         },
         () => {

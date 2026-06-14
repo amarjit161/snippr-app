@@ -138,18 +138,18 @@ export function HolidayCalendar({ salonId }: HolidayCalendarProps) {
 
       const [scheduledRes, walkInRes] = await Promise.all([
         supabase
-          .from("queue")
+          .from("bookings")
           .select(
-            "id, booking_date, created_at, time_slot, status, customer_first_name, customer_last_name, customer_phone, services(name), barbers(name)"
+            "id, booking_date, created_at, booking_time, status, customer_profiles(first_name, last_name, phone), services(name), stylists(name)"
           )
           .eq("salon_id", salonId)
           .gte("booking_date", monthStartIso)
           .lte("booking_date", monthEndIso)
-          .order("time_slot", { ascending: true }),
+          .order("booking_time", { ascending: true }),
         supabase
-          .from("queue")
+          .from("bookings")
           .select(
-            "id, booking_date, created_at, time_slot, status, customer_first_name, customer_last_name, customer_phone, services(name), barbers(name)"
+            "id, booking_date, created_at, booking_time, status, customer_profiles(first_name, last_name, phone), services(name), stylists(name)"
           )
           .eq("salon_id", salonId)
           .is("booking_date", null)
@@ -161,7 +161,14 @@ export function HolidayCalendar({ salonId }: HolidayCalendarProps) {
       if (scheduledRes.error) throw scheduledRes.error;
       if (walkInRes.error) throw walkInRes.error;
 
-      const merged = [...(scheduledRes.data || []), ...(walkInRes.data || [])] as Booking[];
+      const merged = [...(scheduledRes.data || []), ...(walkInRes.data || [])].map((b: any) => ({
+        ...b,
+        time_slot: b.booking_time,
+        barbers: b.stylists,
+        customer_first_name: b.customer_profiles?.first_name || null,
+        customer_last_name: b.customer_profiles?.last_name || null,
+        customer_phone: b.customer_profiles?.phone || null,
+      })) as Booking[];
       const uniqueById = Array.from(new Map(merged.map((item) => [item.id, item])).values());
       setBookings(uniqueById);
     } catch (error: any) {
@@ -201,7 +208,7 @@ export function HolidayCalendar({ salonId }: HolidayCalendarProps) {
       .channel(`dashboard-cal-${salonId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "queue", filter: `salon_id=eq.${salonId}` },
+        { event: "*", schema: "public", table: "bookings", filter: `salon_id=eq.${salonId}` },
         () => {
           fetchBookings();
         }

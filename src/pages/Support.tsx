@@ -50,13 +50,25 @@ export default function Support() {
     }
 
     supabase
-      .from("queue")
+      .from("bookings")
       .select("*, salons(name)")
-      .eq("user_id", user.id)
+      .eq("customer_id", user.id)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle()
-      .then(({ data }) => setRecentBooking(data ?? null));
+      .then(({ data }) => {
+        if (data) {
+          setRecentBooking({
+            ...data,
+            user_id: data.customer_id,
+            barber_id: data.stylist_id,
+            time_slot: data.booking_time,
+            arrival_otp: data.otp,
+          });
+        } else {
+          setRecentBooking(null);
+        }
+      });
   }, [user]);
 
   const openChat = () => {
