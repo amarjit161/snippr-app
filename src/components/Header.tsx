@@ -108,7 +108,7 @@ const Header = ({ onSignOut, userName, userEmail, profileName, onAdminToggle, is
             {[
               { icon: "👤", label: "My Profile", sub: "Edit your details", path: "/my-profile" },
               { icon: "📋", label: "My Bookings", sub: "View appointments", path: "/bookings" },
-              { icon: "⏳", label: "Live Queue", sub: "Your queue position", path: "/bookings" },
+              { icon: "⏳", label: "Live Queue", sub: "Your queue position", path: "/bookings", state: { initialTab: "upcoming" } },
               { icon: "❤️", label: "Favorites", sub: "Your saved salons", path: "/favorites" },
               { icon: "🔔", label: "Notifications", sub: "Updates on your bookings", path: "/notifications" },
               { icon: "💬", label: "Support", sub: "Get help", path: "/support" },
@@ -116,7 +116,7 @@ const Header = ({ onSignOut, userName, userEmail, profileName, onAdminToggle, is
               <button
                 key={item.path + item.label}
                 onClick={() => {
-                  navigate(item.path);
+                  navigate(item.path, item.state ? { state: item.state } : undefined);
                   setProfileOpen(false);
                 }}
                 className="group flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left transition-colors hover:bg-gray-50"

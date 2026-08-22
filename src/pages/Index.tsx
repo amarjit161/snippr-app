@@ -2,7 +2,12 @@ import { CalendarDays, Hourglass, Search, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import gsap from "gsap";
+
+// Same "in an active queue" status vocabulary Dashboard.tsx's Upcoming tab uses —
+// keep this in sync with that file rather than inventing a second definition.
+const ACTIVE_QUEUE_STATUSES = ["pending", "waiting", "confirmed", "accepted", "in_progress"];
 import { LandingNavbar } from "@/components/landing/LandingNavbar";
 import { Hero } from "@/components/landing/Hero";
 import { ExploreSalons } from "@/components/landing/ExploreSalons";
@@ -52,8 +57,36 @@ export default function Index() {
     }
   }, [navigate]);
 
-  const goToBookings = () => {
+  const goToBookings = async () => {
     if (transitioning) return;
+
+    // "Join Queue" should send an anonymous/no-active-queue customer to salon
+    // discovery, and a customer who already has an active queue straight to it
+    // (rendered by Dashboard.tsx's "Upcoming" tab — there is no separate
+    // customer-facing /queue route; that path is the owner's queue management
+    // page). Never invent a fake queue or fake salon data here.
+    let destination = "/salons";
+    let navState: Record<string, unknown> = { transitionFrom: "landing" };
+
+    if (user) {
+      try {
+        const { data } = await supabase
+          .from("bookings")
+          .select("id")
+          .eq("customer_id", user.id)
+          .in("status", ACTIVE_QUEUE_STATUSES)
+          .limit(1)
+          .maybeSingle();
+
+        if (data) {
+          destination = "/bookings";
+          navState = { transitionFrom: "landing", initialTab: "upcoming" };
+        }
+      } catch (err) {
+        console.error("JOIN_QUEUE_ACTIVE_BOOKING_CHECK_FAILED", err);
+        // Fall back to salon discovery rather than blocking the click on an error.
+      }
+    }
 
     setTransitioning(true);
     const curtain = document.createElement("div");
@@ -72,7 +105,7 @@ export default function Index() {
     const timeline = gsap.timeline({
       defaults: { duration: 0.16, ease: "power2.out" },
       onComplete: () => {
-        navigate("/bookings", { state: { transitionFrom: "landing" } });
+        navigate(destination, { state: navState });
         window.setTimeout(() => curtain.remove(), 250);
       },
     });

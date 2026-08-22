@@ -312,6 +312,7 @@ export default function Dashboard() {
   
   const [bookings, setBookings] = useState<any[]>([]);
   const [fetching, setFetching] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<BookingTab>(
     () => (location.state as { initialTab?: BookingTab } | null)?.initialTab ?? "upcoming"
   );
@@ -430,6 +431,7 @@ export default function Dashboard() {
     if (bookings.length === 0) {
       setFetching(true);
     }
+    setFetchError(null);
 
     const {
       data: { user },
@@ -452,9 +454,10 @@ export default function Dashboard() {
 
     if (error) {
       console.error("BOOKINGS_FETCH_ERROR:", error);
-      if (bookings.length === 0) {
-        setBookings([]);
-      }
+      // Never mask a real query failure as "zero bookings" — keep whatever
+      // bookings were already loaded (if any) and surface a real error state
+      // instead, so the UI can offer Retry rather than a misleading empty view.
+      setFetchError(error.message || "Unable to load your bookings.");
     } else {
       const normalizedData = (data || []).map((b: any) => ({
         ...b,
@@ -986,16 +989,24 @@ export default function Dashboard() {
         <div className="mb-8">
           <div className="flex items-baseline justify-between flex-wrap gap-4">
             <h1 className="font-display text-5xl font-extrabold tracking-tight text-foreground">My Bookings</h1>
-            <span className="text-sm font-semibold text-primary bg-primary/10 border border-primary/20 rounded-full px-4 py-1">
-              Total Bookings: {bookings.length}
-            </span>
+            {!(fetching && bookings.length === 0) && !fetchError && (
+              <span className="text-sm font-semibold text-primary bg-primary/10 border border-primary/20 rounded-full px-4 py-1">
+                Total Bookings: {bookings.length}
+              </span>
+            )}
           </div>
           <div className="mt-6 flex gap-6 border-b border-border text-xl font-bold uppercase tracking-[0.08em]">
-            {[
-              { key: "upcoming", label: `Upcoming (${upcomingBookings.length})` },
-              { key: "past", label: `Past (${pastBookings.length})` },
-              { key: "cancelled", label: `Cancelled (${cancelledBookings.length})` },
-            ].map((tab) => (
+            {(() => {
+              // While the very first fetch is still in flight (or it failed), the
+              // real counts aren't known yet — show plain labels instead of a
+              // misleading "(0)" that looks identical to a genuinely-empty result.
+              const countsKnown = !(fetching && bookings.length === 0) && !fetchError;
+              return [
+                { key: "upcoming", label: countsKnown ? `Upcoming (${upcomingBookings.length})` : "Upcoming" },
+                { key: "past", label: countsKnown ? `Past (${pastBookings.length})` : "Past" },
+                { key: "cancelled", label: countsKnown ? `Cancelled (${cancelledBookings.length})` : "Cancelled" },
+              ];
+            })().map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key as BookingTab)}
@@ -1009,18 +1020,32 @@ export default function Dashboard() {
               </button>
             ))}
           </div>
-          <div className="mt-4 text-sm text-muted-foreground font-medium">
-            Showing {filteredBookings.length} of {bookings.length} bookings
-          </div>
+          {!(fetching && bookings.length === 0) && !fetchError && (
+            <div className="mt-4 text-sm text-muted-foreground font-medium">
+              Showing {filteredBookings.length} of {bookings.length} bookings
+            </div>
+          )}
         </div>
 
-        {fetching ? (
-          <div className="flex justify-center py-16">
+        {fetching && bookings.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-16">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Loading your bookings…</p>
+          </div>
+        ) : fetchError ? (
+          <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-12 text-center">
+            <p className="font-semibold text-destructive">Unable to load your bookings.</p>
+            <p className="mt-1 text-sm text-muted-foreground">{fetchError}</p>
+            <Button className="mt-5" onClick={() => fetchBookings(true)}>
+              Retry
+            </Button>
           </div>
         ) : filteredBookings.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center text-muted-foreground">
-            No bookings in this section.
+            <p>No bookings in this section yet.</p>
+            <Button variant="outline" className="mt-5" onClick={() => navigate("/salons")}>
+              Explore salons
+            </Button>
           </div>
         ) : (
           <div className="space-y-5">

@@ -47,7 +47,9 @@ export default function CustomerLogin() {
         if (!profile?.first_name) {
           navigate('/complete-profile');
         } else {
-          navigate('/salons');
+          const redirectTo = localStorage.getItem('redirectAfterLogin');
+          localStorage.removeItem('redirectAfterLogin');
+          navigate(redirectTo && redirectTo.startsWith('/') ? redirectTo : '/salons');
         }
       }
     } catch {
