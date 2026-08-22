@@ -29,7 +29,7 @@ const Header = ({ onSignOut, userName, userEmail, profileName, onAdminToggle, is
   <header className="sticky top-0 z-50 border-b border-border/70 bg-card/85 backdrop-blur-md">
     <div className="container flex h-auto flex-wrap items-center justify-between gap-3 py-3 sm:h-16">
       <div className="flex items-center gap-2">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-indigo-500 text-primary-foreground shadow-sm">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-primary-foreground shadow-sm">
           <Scissors className="h-5 w-5 text-primary-foreground" />
         </div>
         <span className="font-display text-xl font-bold text-foreground">
@@ -71,7 +71,7 @@ const Header = ({ onSignOut, userName, userEmail, profileName, onAdminToggle, is
             onClick={() => setProfileOpen(true)}
             className="flex items-center gap-2 rounded-full px-3 py-2 transition-colors hover:bg-gray-100"
           >
-            <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-purple-200 bg-purple-600 text-sm font-bold text-white">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-primary/20 bg-primary text-sm font-bold text-white">
               {avatarLetter}
             </div>
           </button>
@@ -95,7 +95,7 @@ const Header = ({ onSignOut, userName, userEmail, profileName, onAdminToggle, is
           </button>
 
           <div className="border-b border-gray-100 p-6 pt-8">
-            <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-full border-2 border-purple-200 bg-purple-100 text-2xl font-bold text-purple-700">
+            <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-full border-2 border-primary/20 bg-primary/10 text-2xl font-bold text-primary">
               {avatarLetter}
             </div>
             <p className="text-base font-bold text-gray-900">
@@ -109,6 +109,8 @@ const Header = ({ onSignOut, userName, userEmail, profileName, onAdminToggle, is
               { icon: "👤", label: "My Profile", sub: "Edit your details", path: "/my-profile" },
               { icon: "📋", label: "My Bookings", sub: "View appointments", path: "/bookings" },
               { icon: "⏳", label: "Live Queue", sub: "Your queue position", path: "/bookings" },
+              { icon: "❤️", label: "Favorites", sub: "Your saved salons", path: "/favorites" },
+              { icon: "🔔", label: "Notifications", sub: "Updates on your bookings", path: "/notifications" },
               { icon: "💬", label: "Support", sub: "Get help", path: "/support" },
             ].map((item) => (
               <button
@@ -121,7 +123,7 @@ const Header = ({ onSignOut, userName, userEmail, profileName, onAdminToggle, is
               >
                 <span className="w-8 text-center text-xl">{item.icon}</span>
                 <div>
-                  <p className="text-sm font-semibold text-gray-800 group-hover:text-purple-700">
+                  <p className="text-sm font-semibold text-gray-800 group-hover:text-primary">
                     {item.label}
                   </p>
                   <p className="text-xs text-gray-400">{item.sub}</p>
@@ -135,11 +137,11 @@ const Header = ({ onSignOut, userName, userEmail, profileName, onAdminToggle, is
                   onAdminToggle();
                   setProfileOpen(false);
                 }}
-                className="mt-2 flex w-full items-center gap-3 rounded-xl border border-purple-100 px-4 py-3 text-left transition-colors hover:bg-purple-50"
+                className="mt-2 flex w-full items-center gap-3 rounded-xl border border-primary/15 px-4 py-3 text-left transition-colors hover:bg-primary/5"
               >
                 <span className="w-8 text-center text-xl">✂️</span>
                 <div>
-                  <p className="text-sm font-semibold text-purple-700">Owner Dashboard</p>
+                  <p className="text-sm font-semibold text-primary">Owner Dashboard</p>
                   <p className="text-xs text-gray-400">Manage your salon</p>
                 </div>
               </button>

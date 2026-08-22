@@ -21,7 +21,7 @@ export interface SessionStatus {
  */
 export const verifySession = async (): Promise<SessionStatus> => {
   try {
-    const { data: { session }, error } = await supabase.auth.getSession();
+    let { data: { session }, error } = await supabase.auth.getSession();
 
     if (error) {
       return {

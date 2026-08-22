@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Eye, EyeOff, Mail, Lock, Chrome } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, Chrome, Scissors, ChevronLeft } from 'lucide-react';
+import { V, VA, BG, DISP, BODY, MONO } from '@/components/landing/tokens';
 
 export default function CustomerLogin() {
   const navigate = useNavigate();
@@ -78,121 +79,118 @@ export default function CustomerLogin() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#faf9fc] px-6 py-10 text-[#1a1c1e]">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_10%,_rgba(111,76,208,0.08),_transparent_34%),radial-gradient(circle_at_84%_16%,_rgba(255,107,53,0.08),_transparent_36%)]" />
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle,_rgba(79,55,138,0.08)_0.8px,transparent_0.8px)] [background-size:32px_32px] opacity-45" />
+    <div style={{ minHeight: '100vh', background: BG, display: 'flex', fontFamily: BODY, position: 'relative', overflow: 'hidden' }}>
+      {/* Background blobs */}
+      <div aria-hidden="true" style={{ position: 'absolute', top: '15%', left: '5%', width: 500, height: 500,
+        borderRadius: '50%', background: `radial-gradient(circle, ${V}14, transparent 70%)`, filter: 'blur(60px)', pointerEvents: 'none' }} />
+      <div aria-hidden="true" style={{ position: 'absolute', top: '55%', right: '5%', width: 380, height: 380,
+        borderRadius: '50%', background: `radial-gradient(circle, ${VA}0E, transparent 70%)`, filter: 'blur(60px)', pointerEvents: 'none' }} />
 
-      <main className="relative z-10 mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-[440px] flex-col items-center justify-center">
-        <div className="mb-10 flex flex-col items-center text-center">
-          <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#6750a4] to-[#4f378a] shadow-[0_12px_32px_rgba(79,55,138,0.2)]">
-            <span className="text-3xl text-white" style={{ fontVariationSettings: '"FILL" 1' }}>
-              ✂
-            </span>
+      {/* Left panel */}
+      <div className="hidden md:flex" style={{ flex: 1, flexDirection: 'column', justifyContent: 'center', padding: '48px 64px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 48 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 12, background: V, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Scissors style={{ width: 18, height: 18, color: '#fff' }} />
           </div>
-          <h1 className="font-display text-2xl font-extrabold tracking-tight text-[#1a1c1e] sm:text-[1.75rem]">
-            Snippr - Log In
-          </h1>
-          <p className="mt-2 text-sm font-medium text-[#494551]">Precision in every second.</p>
+          <span style={{ fontFamily: DISP, fontWeight: 700, fontSize: 22, color: '#fff' }}>Snippr</span>
         </div>
-
-        <section className="w-full rounded-[24px] border border-[#cbc4d2]/50 bg-white px-8 py-8 shadow-[0px_12px_32px_rgba(79,55,138,0.06)] sm:px-12 sm:py-12">
-          <form onSubmit={handleEmailLogin} className="space-y-8">
-            <div className="space-y-2">
-              <label className="ml-1 block text-[11px] font-bold uppercase tracking-[0.24em] text-[#494551]">
-                Email address
-              </label>
-              <div className="flex h-14 items-center gap-3 rounded-[16px] bg-[#f4f3f6] px-4 transition-all focus-within:bg-white focus-within:ring-2 focus-within:ring-[#6750a4]">
-                <Mail className="h-5 w-5 shrink-0 text-[#7a7582]" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  className="h-full w-full border-0 bg-transparent text-sm font-medium text-[#1a1c1e] placeholder:text-transparent focus:outline-none"
-                  disabled={loading}
-                />
-              </div>
+        <h2 style={{ fontFamily: DISP, fontSize: 40, fontWeight: 800, color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.1, marginBottom: 16 }}>
+          Skip the wait.<br /><span style={{ color: V }}>Get the chair.</span>
+        </h2>
+        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 16, maxWidth: 340, lineHeight: 1.7 }}>
+          Join 50,000+ customers who never wait in a salon queue again.
+        </p>
+        <div style={{ marginTop: 40, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {[
+            { n: '01', t: 'Find nearby salons with live queues' },
+            { n: '02', t: 'Book in seconds, no phone calls needed' },
+            { n: '03', t: 'Walk in exactly when your stylist is ready' },
+          ].map(s => (
+            <div key={s.n} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 24, height: 24, borderRadius: '50%', background: `${V}20`, border: `1px solid ${V}40`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: VA, fontFamily: MONO }}>{s.n}</div>
+              <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 14 }}>{s.t}</span>
             </div>
+          ))}
+        </div>
+      </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between px-1">
-                <label className="block text-[11px] font-bold uppercase tracking-[0.24em] text-[#494551]">
-                  Password
-                </label>
-                <Link to="/forgot-password" className="text-[11px] font-bold text-[#6750a4] hover:underline">
-                  Forgot?
-                </Link>
-              </div>
-              <div className="flex h-14 items-center gap-3 rounded-[16px] bg-[#f4f3f6] px-4 transition-all focus-within:bg-white focus-within:ring-2 focus-within:ring-[#6750a4]">
-                <Lock className="h-5 w-5 shrink-0 text-[#7a7582]" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="h-full w-full border-0 bg-transparent text-sm font-medium text-[#1a1c1e] placeholder:text-transparent focus:outline-none"
-                  disabled={loading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="rounded-full p-1 text-[#7a7582] transition-colors hover:text-[#4f378a]"
-                  disabled={loading}
-                >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
-              </div>
-            </div>
+      {/* Right panel — form */}
+      <div style={{ flex: '0 0 auto', width: '100%', maxWidth: 440, display: 'flex', flexDirection: 'column',
+        justifyContent: 'center', padding: '32px 28px', position: 'relative', zIndex: 10 }}>
+        <button onClick={() => navigate('/')} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none',
+          cursor: 'pointer', color: 'rgba(255,255,255,0.3)', fontSize: 13, marginBottom: 32, padding: 0, fontFamily: BODY }}>
+          <ChevronLeft style={{ width: 14, height: 14 }} /> Back to website
+        </button>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex h-14 w-full items-center justify-center gap-2 rounded-[16px] bg-gradient-to-br from-[#6750a4] to-[#4f378a] font-bold text-white shadow-[0_12px_32px_rgba(79,55,138,0.2)] transition-transform hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60"
-            >
-              {loading ? 'Signing in...' : 'Get Started'}
-              {!loading && <span className="text-lg leading-none">→</span>}
-            </button>
-          </form>
-
-          <div className="mt-8 flex items-center gap-3">
-            <div className="h-px flex-1 bg-[#cbc4d2]/40" />
-            <span className="text-[11px] font-bold uppercase tracking-[0.24em] text-[#494551]">Or</span>
-            <div className="h-px flex-1 bg-[#cbc4d2]/40" />
-          </div>
+        <div style={{ borderRadius: 24, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+          padding: 28, backdropFilter: 'blur(24px)' }}>
+          <h1 style={{ fontFamily: DISP, fontSize: 26, fontWeight: 800, color: '#fff', marginBottom: 6, letterSpacing: '-0.02em' }}>Welcome back.</h1>
+          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginBottom: 22 }}>Sign in to continue to Snippr</p>
 
           <button
             onClick={handleGoogle}
             disabled={loading}
-            className="mt-8 flex h-12 w-full items-center justify-center gap-2 rounded-[14px] border border-[#cbc4d2]/80 bg-[#faf9fc] text-sm font-semibold text-[#1a1c1e] transition-all hover:border-[#7a7582] hover:bg-white disabled:opacity-60"
-          >
-            <Chrome className="h-5 w-5" />
-            Continue with Google
+            style={{ width: '100%', padding: '12px 16px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)',
+              background: 'rgba(255,255,255,0.05)', color: '#fff', fontWeight: 600, fontSize: 14,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, cursor: 'pointer',
+              marginBottom: 18, fontFamily: BODY, opacity: loading ? 0.6 : 1 }}>
+            <Chrome style={{ width: 16, height: 16 }} /> Continue with Google
           </button>
 
-          <div className="mt-8 flex flex-col items-center gap-4 text-center">
-            <p className="text-xs leading-relaxed text-[#494551]">
-              By continuing, you agree to our <a className="font-semibold text-[#1a1c1e] underline decoration-[#6750a4]/30" href="#">Terms of Service</a> and <a className="font-semibold text-[#1a1c1e] underline decoration-[#6750a4]/30" href="#">Privacy Policy</a>.
-            </p>
-            <div className="h-px w-12 bg-[#cbc4d2]/30" />
-            <p className="flex items-center gap-1.5 text-xs font-bold text-[#ab3500]">
-              <span className="text-[16px]">●</span>
-              Welcome back!
-            </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0', color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>
+            <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.07)' }} />or sign in with email
+            <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.07)' }} />
           </div>
-        </section>
 
-        <div className="mt-12 flex items-center gap-8 text-[#7a7582] opacity-45 grayscale transition-all duration-500 hover:opacity-100 hover:grayscale-0">
-          <div className="flex items-center gap-2 text-sm font-bold">
-            <span className="text-lg"></span>
-            <span>App Store</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm font-bold">
-            <span className="text-lg">▶</span>
-            <span>Play Store</span>
-          </div>
+          <form onSubmit={handleEmailLogin}>
+            <div style={{ marginBottom: 10, position: 'relative' }}>
+              <Mail style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: 'rgba(255,255,255,0.35)' }} />
+              <input type="email" placeholder="your@email.com" value={email}
+                onChange={e => setEmail(e.target.value)}
+                disabled={loading}
+                style={{ width: '100%', padding: '12px 14px 12px 40px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 14, outline: 'none',
+                  fontFamily: BODY, boxSizing: 'border-box' }} />
+            </div>
+            <div style={{ marginBottom: 6, position: 'relative' }}>
+              <Lock style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: 'rgba(255,255,255,0.35)' }} />
+              <input type={showPassword ? 'text' : 'password'} placeholder="Password" value={password}
+                onChange={e => setPassword(e.target.value)}
+                disabled={loading}
+                style={{ width: '100%', padding: '12px 40px 12px 40px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 14, outline: 'none',
+                  fontFamily: BODY, boxSizing: 'border-box' }} />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} disabled={loading}
+                style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none',
+                  cursor: 'pointer', color: 'rgba(255,255,255,0.35)', padding: 0, display: 'flex' }}>
+                {showPassword ? <EyeOff style={{ width: 16, height: 16 }} /> : <Eye style={{ width: 16, height: 16 }} />}
+              </button>
+            </div>
+            <div style={{ textAlign: 'right', marginBottom: 14 }}>
+              <Link to="/forgot-password" style={{ color: VA, fontSize: 12, textDecoration: 'none' }}>Forgot password?</Link>
+            </div>
+            <button type="submit" disabled={loading || !email || !password}
+              style={{ width: '100%', padding: '13px 0', borderRadius: 12, background: loading ? `${V}80` : V,
+                color: '#fff', fontWeight: 700, fontSize: 14, border: 'none', cursor: 'pointer', fontFamily: BODY }}>
+              {loading ? 'Signing in…' : 'Sign In'}
+            </button>
+          </form>
+
+          <p style={{ textAlign: 'center', marginTop: 18, fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>
+            New to Snippr?{' '}
+            <Link to="/register" style={{ color: VA, fontWeight: 600, textDecoration: 'none' }}>Create account</Link>
+          </p>
         </div>
-      </main>
+
+        <p style={{ textAlign: 'center', marginTop: 20, fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>
+          Salon owner?{' '}
+          <Link to="/owner-login" style={{ color: VA, textDecoration: 'none' }}>Sign in here →</Link>
+        </p>
+        <p style={{ textAlign: 'center', marginTop: 10, fontSize: 11, color: 'rgba(255,255,255,0.15)' }}>
+          By continuing, you agree to our <span style={{ color: 'rgba(255,255,255,0.35)' }}>Terms of Service</span> and <span style={{ color: 'rgba(255,255,255,0.35)' }}>Privacy Policy</span>
+        </p>
+      </div>
     </div>
   );
 }
-

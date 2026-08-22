@@ -34,7 +34,7 @@ export const BookingCalendar = ({ salonId }: BookingCalendarProps) => {
         id, booking_date, booking_time, status,
         customer_profiles(first_name, last_name, phone),
         services(name, price),
-        stylists(name)
+        barbers(name)
       `)
       .eq("salon_id", salonId)
       .gte("booking_date", monthRange.startDate)

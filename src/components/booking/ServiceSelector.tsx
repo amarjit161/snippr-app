@@ -74,8 +74,8 @@ export function ServiceSelector({
                 className={`relative p-4 rounded-lg border-2 transition-all duration-200 text-left
                   ${
                     isSelected
-                      ? "border-blue-500 bg-blue-50 shadow-md"
-                      : "border-gray-200 bg-white hover:border-blue-300"
+                      ? "border-primary bg-primary/10 shadow-md"
+                      : "border-gray-200 bg-white hover:border-primary/40"
                   }
                   ${isLoading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
                 `}
@@ -87,7 +87,7 @@ export function ServiceSelector({
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
                       exit={{ scale: 0 }}
-                      className="absolute top-2 right-2 bg-blue-500 rounded-full p-1.5"
+                      className="absolute top-2 right-2 bg-primary/100 rounded-full p-1.5"
                     >
                       <Check className="w-4 h-4 text-white" />
                     </motion.div>
@@ -107,7 +107,7 @@ export function ServiceSelector({
                     <span className="text-gray-600">
                       ⏱️ {service.duration || 30} mins
                     </span>
-                    <span className="font-semibold text-blue-600">
+                    <span className="font-semibold text-primary">
                       ₹{service.price || 0}
                     </span>
                   </div>
@@ -117,7 +117,7 @@ export function ServiceSelector({
                 {hoveredId === service.id && !isSelected && (
                   <motion.div
                     layoutId="hoverBg"
-                    className="absolute inset-0 bg-blue-50 rounded-lg -z-10"
+                    className="absolute inset-0 bg-primary/10 rounded-lg -z-10"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                   />
@@ -133,7 +133,7 @@ export function ServiceSelector({
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-4"
+          className="bg-gradient-to-r from-primary/10 to-accent/10 rounded-lg border border-primary/20 p-4"
         >
           <div className="space-y-3">
             {/* Selected Services List */}
@@ -159,13 +159,13 @@ export function ServiceSelector({
             </div>
 
             {/* Totals */}
-            <div className="border-t border-blue-200 pt-3 mt-3">
+            <div className="border-t border-primary/20 pt-3 mt-3">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-gray-600 uppercase tracking-wide">
                     Total Duration
                   </p>
-                  <p className="text-2xl font-bold text-blue-600">
+                  <p className="text-2xl font-bold text-primary">
                     {totalDuration}
                   </p>
                   <p className="text-xs text-gray-500">minutes</p>
@@ -174,7 +174,7 @@ export function ServiceSelector({
                   <p className="text-xs text-gray-600 uppercase tracking-wide">
                     Total Price
                   </p>
-                  <p className="text-2xl font-bold text-blue-600">
+                  <p className="text-2xl font-bold text-primary">
                     ₹{totalPrice.toLocaleString("en-IN")}
                   </p>
                 </div>

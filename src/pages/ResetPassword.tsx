@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Eye, EyeOff } from 'lucide-react';
+import { V, VA, BG, DISP, BODY } from '@/components/landing/tokens';
 
 export const ResetPassword = () => {
   const [searchParams] = useSearchParams();
@@ -132,67 +133,56 @@ export const ResetPassword = () => {
     setLoading(false);
   };
 
-  const cardStyle = 'min-h-screen flex items-center justify-center bg-gray-50 px-4';
-  const innerStyle = 'bg-white rounded-2xl p-8 max-w-sm w-full shadow-sm border border-gray-100';
-  const inputStyle = 'w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all';
-  const btnStyle = 'w-full bg-purple-600 text-white py-3.5 rounded-xl font-semibold text-sm hover:bg-purple-700 transition-all disabled:opacity-50 shadow-lg shadow-purple-200 mt-2';
+  const pageStyle: React.CSSProperties = { minHeight: '100vh', background: BG, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: BODY, position: 'relative', overflow: 'hidden' };
+  const cardStyle: React.CSSProperties = { width: '100%', maxWidth: 400, borderRadius: 24, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', padding: 28, backdropFilter: 'blur(20px)', position: 'relative', zIndex: 10 };
+  const fieldStyle: React.CSSProperties = { padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 14, outline: 'none', fontFamily: BODY, boxSizing: 'border-box', width: '100%' };
+  const labelStyle: React.CSSProperties = { fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 6, display: 'block' };
+  const btnStyle: React.CSSProperties = { width: '100%', padding: '13px 0', borderRadius: 12, background: V, color: '#fff', fontWeight: 700, fontSize: 14, border: 'none', cursor: 'pointer', marginTop: 6, fontFamily: BODY };
+  const glowBlob = (
+    <div aria-hidden="true" style={{ position: 'fixed', top: '10%', right: '5%', width: 400, height: 400, borderRadius: '50%',
+      background: `radial-gradient(circle, ${V}12, transparent 70%)`, filter: 'blur(60px)', pointerEvents: 'none' }} />
+  );
 
   if (step === 'otp') {
     return (
-      <div className={cardStyle}>
-        <div className={innerStyle}>
-          <div className="text-center mb-6">
-            <div className="text-4xl mb-3">📧</div>
-            <h2 className="text-xl font-bold text-gray-900">Enter reset code</h2>
-            <p className="text-gray-500 text-sm mt-1">Enter the OTP code from your email</p>
+      <div style={pageStyle}>
+        {glowBlob}
+        <div style={cardStyle}>
+          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>📧</div>
+            <h2 style={{ fontFamily: DISP, fontSize: 20, fontWeight: 700, color: '#fff' }}>Enter reset code</h2>
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 4 }}>Enter the OTP code from your email</p>
           </div>
-          <div className="space-y-4">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {!emailFromUrl && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  className={inputStyle}
-                />
+                <label style={labelStyle}>Email Address</label>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com" style={fieldStyle} />
               </div>
             )}
             {emailFromUrl && (
-              <div className="bg-purple-50 rounded-xl px-4 py-3 text-sm text-purple-800 font-medium">
+              <div style={{ borderRadius: 12, padding: '12px 16px', fontSize: 13, fontWeight: 600, color: VA, background: `${V}14` }}>
                 📬 Resetting for: {emailFromUrl}
               </div>
             )}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                OTP Code from Email
-              </label>
+              <label style={labelStyle}>OTP Code from Email</label>
               <input
                 type="text"
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 8))}
                 placeholder="Enter 8-digit OTP"
-                className={`${inputStyle} text-center text-2xl font-bold tracking-widest`}
                 maxLength={8}
+                style={{ ...fieldStyle, textAlign: 'center', fontSize: 22, fontWeight: 700, letterSpacing: '0.3em' }}
               />
-              <p className="text-xs text-gray-400 mt-1.5 text-center">
+              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 8, textAlign: 'center' }}>
                 Check your email for the OTP code (valid 1 hour)
               </p>
             </div>
-            <button
-              onClick={handleVerifyOTP}
-              disabled={loading || otp.length < 6}
-              className={btnStyle}
-            >
-              {loading ? 'Verifying...' : 'Verify OTP →'}
+            <button onClick={handleVerifyOTP} disabled={loading || otp.length < 6} style={{ ...btnStyle, opacity: loading || otp.length < 6 ? 0.5 : 1 }}>
+              {loading ? 'Verifying…' : 'Verify OTP →'}
             </button>
-            <button
-              onClick={() => navigate('/forgot-password')}
-              className="w-full text-sm text-gray-500 hover:text-purple-600 text-center mt-2"
-            >
+            <button onClick={() => navigate('/forgot-password')} style={{ background: 'none', border: 'none', cursor: 'pointer', width: '100%', fontSize: 13, color: 'rgba(255,255,255,0.4)', textAlign: 'center', marginTop: 4, fontFamily: BODY }}>
               ← Request new reset link
             </button>
           </div>
@@ -202,67 +192,52 @@ export const ResetPassword = () => {
   }
 
   return (
-    <div className={cardStyle}>
-      <div className={innerStyle}>
-        <div className="text-center mb-6">
-          <div className="text-4xl mb-3">🔐</div>
-          <h2 className="text-xl font-bold text-gray-900">Set new password</h2>
-          <p className="text-gray-500 text-sm mt-1">Choose a strong password</p>
+    <div style={pageStyle}>
+      {glowBlob}
+      <div style={cardStyle}>
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div style={{ fontSize: 36, marginBottom: 12 }}>🔐</div>
+          <h2 style={{ fontFamily: DISP, fontSize: 20, fontWeight: 700, color: '#fff' }}>Set new password</h2>
+          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 4 }}>Choose a strong password</p>
         </div>
-        <div className="space-y-4">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              New Password
-            </label>
-            <div className="relative">
+            <label style={labelStyle}>New Password</label>
+            <div style={{ position: 'relative' }}>
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Minimum 8 characters"
-                className={`${inputStyle} pr-12`}
+                style={{ ...fieldStyle, paddingRight: 40 }}
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
-              >
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              <button type="button" onClick={() => setShowPassword(!showPassword)}
+                style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.35)', padding: 0, display: 'flex' }}>
+                {showPassword ? <EyeOff style={{ width: 15, height: 15 }} /> : <Eye style={{ width: 15, height: 15 }} />}
               </button>
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Confirm Password
-            </label>
-            <input
-              type="password"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              placeholder="Re-enter password"
-              className={inputStyle}
-            />
+            <label style={labelStyle}>Confirm Password</label>
+            <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Re-enter password" style={fieldStyle} />
           </div>
 
           {password.length > 0 && (
             <div>
-              <div className="flex gap-1 mb-1">
+              <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
                 {[1, 2, 3, 4].map((i) => (
                   <div
                     key={i}
-                    className={`h-1 flex-1 rounded-full ${
-                      password.length >= i * 3
-                        ? i <= 2
-                          ? 'bg-red-400'
-                          : i === 3
-                            ? 'bg-yellow-400'
-                            : 'bg-green-500'
-                        : 'bg-gray-200'
-                    }`}
+                    style={{
+                      height: 4, flex: 1, borderRadius: 99,
+                      background: password.length >= i * 3
+                        ? i <= 2 ? '#F87171' : i === 3 ? '#FBBF24' : '#10B981'
+                        : 'rgba(255,255,255,0.08)',
+                    }}
                   />
                 ))}
               </div>
-              <p className="text-xs text-gray-400">
+              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
                 {password.length < 6
                   ? 'Too short'
                   : password.length < 9
@@ -274,12 +249,9 @@ export const ResetPassword = () => {
             </div>
           )}
 
-          <button
-            onClick={handleSetPassword}
-            disabled={loading || password.length < 8 || password !== confirm}
-            className={btnStyle}
-          >
-            {loading ? 'Updating...' : '✅ Update Password'}
+          <button onClick={handleSetPassword} disabled={loading || password.length < 8 || password !== confirm}
+            style={{ ...btnStyle, opacity: loading || password.length < 8 || password !== confirm ? 0.5 : 1 }}>
+            {loading ? 'Updating…' : '✅ Update Password'}
           </button>
         </div>
       </div>

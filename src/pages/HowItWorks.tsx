@@ -35,7 +35,7 @@ export default function HowItWorks() {
               How snippr works
             </span>
 
-            <h1 className="mt-6 text-4xl font-black leading-tight tracking-tight md:text-6xl">
+            <h1 className="mt-6 font-display text-4xl font-black leading-tight tracking-tight md:text-6xl">
               No more waiting room energy.
               <br />
               <span className="text-[#4f378a]">snippr keeps your timing clean.</span>

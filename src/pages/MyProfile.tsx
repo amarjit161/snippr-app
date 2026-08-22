@@ -109,10 +109,10 @@ export const MyProfile = () => {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-purple-50 via-white to-purple-50">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/5 via-background to-primary/5">
         <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 animate-spin rounded-full border-4 border-purple-200 border-t-purple-600" />
-          <p className="text-sm text-gray-500">Loading profile...</p>
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
+          <p className="text-sm text-muted-foreground">Loading profile...</p>
         </div>
       </div>
     );
@@ -120,12 +120,12 @@ export const MyProfile = () => {
 
   if (!profile) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-purple-50 via-white to-purple-50">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/5 via-background to-primary/5">
         <div className="text-center">
-          <p className="text-gray-600 mb-4">Profile not found</p>
+          <p className="text-muted-foreground mb-4">Profile not found</p>
           <button
             onClick={() => navigate('/salons')}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
           >
             Go Back
           </button>
@@ -135,21 +135,21 @@ export const MyProfile = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 py-8 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-primary/5 py-8 px-4">
       <div className="mx-auto max-w-3xl">
-        
+
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate(-1)}
-              className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-gray-200 transition-colors"
+              className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-muted transition-colors"
             >
-              <ArrowLeft className="w-5 h-5 text-gray-600" />
+              <ArrowLeft className="w-5 h-5 text-muted-foreground" />
             </button>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">My Profile</h1>
-              <p className="text-gray-500 text-sm mt-1">View and manage your account details</p>
+              <h1 className="font-display text-3xl font-bold text-foreground">My Profile</h1>
+              <p className="text-muted-foreground text-sm mt-1">View and manage your account details</p>
             </div>
           </div>
           <button
@@ -161,7 +161,7 @@ export const MyProfile = () => {
                 setEditing(true);
               }
             }}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-purple-200 hover:bg-purple-50 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-primary/20 hover:bg-primary/5 transition-colors"
           >
             {editing ? (
               <>
@@ -178,46 +178,46 @@ export const MyProfile = () => {
         </div>
 
         {/* Profile Card */}
-        <div className="bg-white rounded-3xl shadow-lg border border-gray-100 p-8 mb-6">
-          
+        <div className="bg-card rounded-3xl shadow-elevation-2 border border-border p-8 mb-6">
+
           {/* Avatar Section */}
-          <div className="text-center mb-8 pb-8 border-b border-gray-100">
-            <div className="inline-flex items-center justify-center w-24 h-24 
-                            bg-gradient-to-br from-purple-100 to-purple-200 rounded-full mb-4">
-              <span className="text-4xl font-bold text-purple-700">
+          <div className="text-center mb-8 pb-8 border-b border-border">
+            <div className="inline-flex items-center justify-center w-24 h-24
+                            bg-gradient-to-br from-primary/10 to-primary/20 rounded-full mb-4">
+              <span className="font-display text-4xl font-bold text-primary">
                 {profile.first_name?.[0]?.toUpperCase() || 'U'}
               </span>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900">
+            <h2 className="font-display text-2xl font-bold text-foreground">
               {profile.first_name} {profile.last_name}
             </h2>
-            <p className="text-gray-500 text-sm mt-1">{profile.email}</p>
+            <p className="text-muted-foreground text-sm mt-1">{profile.email}</p>
           </div>
 
           {/* Profile Fields */}
           <div className="space-y-6">
-            
+
             {/* Email (Read-only) */}
             <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2">
+              <label className="block text-sm font-semibold text-foreground mb-2">
                 <Mail className="w-4 h-4 inline mr-2" />
                 Email Address
               </label>
-              <div className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-xl">
+              <div className="flex items-center gap-3 p-3 bg-muted border border-border rounded-xl">
                 <input
                   type="email"
                   value={profile.email}
                   readOnly
-                  className="flex-1 bg-transparent outline-none text-gray-700 text-sm"
+                  className="flex-1 bg-transparent outline-none text-foreground text-sm"
                 />
-                <span className="text-xs font-medium text-green-600">Verified</span>
+                <span className="text-xs font-medium text-success">Verified</span>
               </div>
-              <p className="text-xs text-gray-500 mt-1">Email verified during registration</p>
+              <p className="text-xs text-muted-foreground mt-1">Email verified during registration</p>
             </div>
 
             {/* First Name */}
             <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2">
+              <label className="block text-sm font-semibold text-foreground mb-2">
                 First Name
               </label>
               <input
@@ -227,15 +227,15 @@ export const MyProfile = () => {
                 disabled={!editing}
                 className={`w-full px-4 py-3 rounded-xl border text-sm transition-all ${
                   editing
-                    ? 'border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white'
-                    : 'border-gray-200 bg-gray-50 text-gray-700'
+                    ? 'border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/50 bg-background'
+                    : 'border-border bg-muted text-foreground'
                 }`}
               />
             </div>
 
             {/* Last Name */}
             <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2">
+              <label className="block text-sm font-semibold text-foreground mb-2">
                 Last Name
               </label>
               <input
@@ -245,44 +245,44 @@ export const MyProfile = () => {
                 disabled={!editing}
                 className={`w-full px-4 py-3 rounded-xl border text-sm transition-all ${
                   editing
-                    ? 'border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white'
-                    : 'border-gray-200 bg-gray-50 text-gray-700'
+                    ? 'border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/50 bg-background'
+                    : 'border-border bg-muted text-foreground'
                 }`}
               />
             </div>
 
             {/* Phone (Read-only) */}
             <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2">
+              <label className="block text-sm font-semibold text-foreground mb-2">
                 <Phone className="w-4 h-4 inline mr-2" />
                 Phone Number
               </label>
-              <div className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-xl">
+              <div className="flex items-center gap-3 p-3 bg-muted border border-border rounded-xl">
                 <input
                   type="tel"
                   value={profile.phone || 'Not added yet'}
                   readOnly
-                  className="flex-1 bg-transparent outline-none text-gray-700 text-sm"
+                  className="flex-1 bg-transparent outline-none text-foreground text-sm"
                 />
-                {profile.phone && <span className="text-xs font-medium text-green-600">Verified</span>}
+                {profile.phone && <span className="text-xs font-medium text-success">Verified</span>}
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 {profile.phone ? 'Phone verified' : 'Add phone to your profile'}
               </p>
             </div>
 
             {/* Gender (Read-only) */}
             <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2">
+              <label className="block text-sm font-semibold text-foreground mb-2">
                 <User className="w-4 h-4 inline mr-2" />
                 Gender
               </label>
-              <div className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-xl">
+              <div className="flex items-center gap-3 p-3 bg-muted border border-border rounded-xl">
                 <input
                   type="text"
                   value={profile.gender || 'Not selected'}
                   readOnly
-                  className="flex-1 bg-transparent outline-none text-gray-700 text-sm"
+                  className="flex-1 bg-transparent outline-none text-foreground text-sm"
                 />
               </div>
             </div>
@@ -290,12 +290,12 @@ export const MyProfile = () => {
 
           {/* Save Button */}
           {editing && (
-            <div className="mt-8 pt-8 border-t border-gray-100">
+            <div className="mt-8 pt-8 border-t border-border">
               <button
                 onClick={handleSaveProfile}
                 disabled={loading}
-                className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white py-3 rounded-xl font-semibold 
-                           hover:bg-purple-700 transition-all disabled:opacity-50 shadow-lg shadow-purple-200"
+                className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground py-3 rounded-xl font-semibold
+                           hover:bg-primary/90 transition-all disabled:opacity-50 shadow-lg shadow-primary/20"
               >
                 <Check className="w-5 h-5" />
                 {loading ? 'Saving...' : 'Save Changes'}
@@ -303,7 +303,6 @@ export const MyProfile = () => {
             </div>
           )}
         </div>
-
 
       </div>
     </div>

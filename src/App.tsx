@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -43,8 +43,22 @@ const Support = lazy(() => import("./pages/Support.tsx"));
 const Privacy = lazy(() => import("./pages/Privacy.tsx"));
 const ProfileCompletion = lazy(() => import("./pages/ProfileCompletion.tsx"));
 const MyProfile = lazy(() => import("./pages/MyProfile.tsx"));
+const Favorites = lazy(() => import("./pages/Favorites.tsx"));
+const Notifications = lazy(() => import("./pages/Notifications.tsx"));
+const BookingServicePage = lazy(() => import("./pages/booking/BookingServicePage.tsx"));
+const BookingStylistPage = lazy(() => import("./pages/booking/BookingStylistPage.tsx"));
+const BookingDatePage = lazy(() => import("./pages/booking/BookingDatePage.tsx"));
+const BookingTimePage = lazy(() => import("./pages/booking/BookingTimePage.tsx"));
+const BookingConfirmPage = lazy(() => import("./pages/booking/BookingConfirmPage.tsx"));
+const OwnerCalendar = lazy(() => import("./pages/OwnerCalendar.tsx"));
+const OwnerCustomers = lazy(() => import("./pages/OwnerCustomers.tsx"));
+const OwnerAnalytics = lazy(() => import("./pages/OwnerAnalytics.tsx"));
+const OwnerReviews = lazy(() => import("./pages/OwnerReviews.tsx"));
+const OwnerNotifications = lazy(() => import("./pages/OwnerNotifications.tsx"));
 
 import { ProtectedRoute } from "./components/ProtectedRoute.tsx";
+import { CustomerAppShell } from "./components/customer/CustomerAppShell.tsx";
+import { BookingFlowProvider } from "./contexts/BookingDraftContext.tsx";
 import { OwnerProtectedRoute } from "./components/OwnerProtectedRoute.tsx";
 import { useAuth } from "@/contexts/AuthContext";
 import { ErrorBoundary } from "./components/errors/ErrorBoundary";
@@ -120,15 +134,34 @@ const AppRoutes = () => {
       <Route path="/salon-profile" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><SalonProfile /></OwnerProtectedRoute></Suspense>} />
       <Route path="/settings" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><Settings /></OwnerProtectedRoute></Suspense>} />
       <Route path="/edit-salon" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><SalonProfile /></OwnerProtectedRoute></Suspense>} />
+      <Route path="/calendar" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><OwnerCalendar /></OwnerProtectedRoute></Suspense>} />
+      <Route path="/customers" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><OwnerCustomers /></OwnerProtectedRoute></Suspense>} />
+      <Route path="/analytics" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><OwnerAnalytics /></OwnerProtectedRoute></Suspense>} />
+      <Route path="/reviews" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><OwnerReviews /></OwnerProtectedRoute></Suspense>} />
+      <Route path="/owner-notifications" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><OwnerNotifications /></OwnerProtectedRoute></Suspense>} />
 
       {/* Customer protected routes */}
       <Route element={<ProtectedRoute />}>
-        <Route path="/salons" element={<Suspense fallback={<PageLoader />}><Salons /></Suspense>} />
-        <Route path="/salon/:id" element={<Suspense fallback={<PageLoader />}><SalonPage /></Suspense>} />
         <Route path="/admin" element={<Suspense fallback={<PageLoader />}><Admin /></Suspense>} />
-        <Route path="/bookings" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
-        <Route path="/booking/:id" element={<Suspense fallback={<PageLoader />}><BookingDetail /></Suspense>} />
-        <Route path="/my-profile" element={<Suspense fallback={<PageLoader />}><MyProfile /></Suspense>} />
+        <Route element={<CustomerAppShell />}>
+          <Route path="/salons" element={<Suspense fallback={<PageLoader />}><Salons /></Suspense>} />
+          <Route path="/salon/:id" element={<Suspense fallback={<PageLoader />}><SalonPage /></Suspense>} />
+          <Route path="/bookings" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
+          <Route path="/booking/:id" element={<Suspense fallback={<PageLoader />}><BookingDetail /></Suspense>} />
+          <Route path="/my-profile" element={<Suspense fallback={<PageLoader />}><MyProfile /></Suspense>} />
+          <Route path="/favorites" element={<Suspense fallback={<PageLoader />}><Favorites /></Suspense>} />
+          <Route path="/notifications" element={<Suspense fallback={<PageLoader />}><Notifications /></Suspense>} />
+        </Route>
+
+        {/* Booking flow (no bottom tab bar — focused checkout experience) */}
+        <Route element={<BookingFlowProvider />}>
+          <Route path="/booking" element={<Navigate to="/booking/service" replace />} />
+          <Route path="/booking/service" element={<Suspense fallback={<PageLoader />}><BookingServicePage /></Suspense>} />
+          <Route path="/booking/stylist" element={<Suspense fallback={<PageLoader />}><BookingStylistPage /></Suspense>} />
+          <Route path="/booking/date" element={<Suspense fallback={<PageLoader />}><BookingDatePage /></Suspense>} />
+          <Route path="/booking/time" element={<Suspense fallback={<PageLoader />}><BookingTimePage /></Suspense>} />
+          <Route path="/booking/confirm" element={<Suspense fallback={<PageLoader />}><BookingConfirmPage /></Suspense>} />
+        </Route>
       </Route>
     </Routes>
   );

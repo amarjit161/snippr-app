@@ -82,7 +82,7 @@ export default function Support() {
       <div className="mx-auto max-w-3xl px-4 py-12">
         <div className="mb-10 text-center">
           <div className="mb-4 text-5xl">💬</div>
-          <h1 className="mb-2 text-3xl font-bold text-gray-900">How can we help?</h1>
+          <h1 className="mb-2 font-display text-3xl font-bold text-gray-900">How can we help?</h1>
           <p className="text-gray-500">Search our FAQs or chat with us live</p>
         </div>
 

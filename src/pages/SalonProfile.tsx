@@ -153,7 +153,15 @@ export default function SalonProfile() {
   };
 
   if (loading) {
-    return <div className="mx-auto h-80 max-w-4xl rounded-xl bg-gray-200/70 animate-pulse" />;
+    return (
+      <OwnerShell onLogout={() => { localStorage.removeItem("owner"); navigate("/owner-login", { replace: true }); }}>
+        <div className="mx-auto max-w-4xl space-y-6">
+          <div className="h-24 animate-pulse rounded-2xl border border-border bg-card" />
+          <div className="h-64 animate-pulse rounded-2xl border border-border bg-card" />
+          <div className="h-48 animate-pulse rounded-2xl border border-border bg-card" />
+        </div>
+      </OwnerShell>
+    );
   }
 
   if (!owner || !salon) return null;
@@ -161,25 +169,25 @@ export default function SalonProfile() {
   return (
     <OwnerShell onLogout={() => { localStorage.removeItem("owner"); navigate("/owner-login", { replace: true }); }}>
       <div className="mx-auto max-w-4xl space-y-6">
-        <section className="rounded-xl border border-[#e3e2e5] bg-white p-6 shadow-sm">
-          <h1 className="font-display text-3xl font-extrabold tracking-tight">Salon Profile</h1>
-          <p className="mt-1 text-sm text-[#494551]">Update your salon identity and operating details.</p>
+        <section className="rounded-2xl border border-border bg-card p-6 shadow-elevation-1">
+          <h1 className="font-display text-3xl font-extrabold tracking-tight text-foreground">Salon Profile</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Update your salon identity and operating details.</p>
         </section>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <Card className="rounded-xl border border-[#e3e2e5] bg-white shadow-sm">
+          <Card>
             <CardContent className="p-6 space-y-5">
-              <h2 className="font-display text-xl font-bold">Basic Details</h2>
+              <h2 className="font-display text-xl font-bold text-foreground">Basic Details</h2>
               <div className="grid gap-4 md:grid-cols-2">
                 <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Salon name" />
                 <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone number" />
                 <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Address" className="md:col-span-2" />
                 <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="City" />
                 <Input value={pincode} onChange={(e) => setPincode(e.target.value)} placeholder="Pincode" />
-                <div className="flex items-center justify-between rounded-xl border border-[#e3e2e5] px-4 py-3">
+                <div className="flex items-center justify-between rounded-xl border border-border bg-muted/40 px-4 py-3">
                   <div>
-                    <p className="text-sm font-semibold">Open / Close Toggle</p>
-                    <p className="text-xs text-[#494551]">Toggle on to manually close, off to keep open.</p>
+                    <p className="text-sm font-semibold text-foreground">Open / Close Toggle</p>
+                    <p className="text-xs text-muted-foreground">Toggle on to manually close, off to keep open.</p>
                   </div>
                   <Switch checked={isManualClosed} onCheckedChange={(checked) => setIsManualClosed(checked)} />
                 </div>
@@ -187,41 +195,41 @@ export default function SalonProfile() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-xl border border-[#e3e2e5] bg-white shadow-sm">
+          <Card>
             <CardContent className="p-6 space-y-5">
-              <h2 className="font-display text-xl font-bold">Timing & Image</h2>
+              <h2 className="font-display text-xl font-bold text-foreground">Timing & Image</h2>
               <div className="grid gap-4 md:grid-cols-2">
                 <Input type="time" value={openTime} onChange={(e) => setOpenTime(e.target.value)} />
                 <Input type="time" value={closeTime} onChange={(e) => setCloseTime(e.target.value)} />
               </div>
               <div className="grid gap-4 md:grid-cols-[1fr_220px]">
-                <div className="rounded-xl border border-dashed border-[#e3e2e5] p-4">
-                  <label className="flex cursor-pointer items-center gap-3 text-sm font-medium">
-                    <Camera className="h-4 w-4" /> Upload image
+                <div className="rounded-xl border border-dashed border-border p-4 transition-colors hover:border-primary/40">
+                  <label className="flex cursor-pointer items-center gap-3 text-sm font-medium text-foreground">
+                    <Camera className="h-4 w-4 text-primary" /> Upload image
                     <input type="file" accept="image/*" className="hidden" onChange={(e) => setImageFile(e.target.files?.[0] ?? null)} />
                   </label>
-                  {uploading && <p className="mt-3 inline-flex items-center text-sm text-[#494551]"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Uploading...</p>}
+                  {uploading && <p className="mt-3 inline-flex items-center text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Uploading...</p>}
                 </div>
-                <div className="overflow-hidden rounded-xl border border-[#e3e2e5] bg-[#f4f3f6]">
-                  <img 
-                    src={imagePreview || salon?.image_url || "/default-salon.jpg"} 
-                    alt={salon?.name ?? "Salon"} 
+                <div className="overflow-hidden rounded-xl border border-border bg-muted">
+                  <img
+                    src={imagePreview || salon?.image_url || "/default-salon.jpg"}
+                    alt={salon?.name ?? "Salon"}
                     loading="lazy"
                     decoding="async"
-                    className="h-40 w-full object-cover" 
+                    className="h-40 w-full object-cover"
                   />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <div className="sticky bottom-4 rounded-xl border border-[#e3e2e5] bg-white p-4 shadow-sm">
+          <div className="sticky bottom-4 rounded-2xl border border-border bg-card/95 p-4 shadow-elevation-2 backdrop-blur">
             <div className="flex gap-3">
-              <Button type="submit" className="flex-1 rounded-xl" disabled={saving || uploading}>
+              <Button type="submit" className="flex-1" disabled={saving || uploading}>
                 {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Save Changes
               </Button>
-              <Button type="button" variant="outline" className="rounded-xl" onClick={() => navigate("/owner-dashboard")}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={() => navigate("/owner-dashboard")}>Cancel</Button>
             </div>
           </div>
         </form>

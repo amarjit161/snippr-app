@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { V, VA, BG, DISP, BODY } from "@/components/landing/tokens";
 
 export const VerifyEmail = () => {
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
@@ -11,15 +11,15 @@ export const VerifyEmail = () => {
   const navigate = useNavigate();
 
   const renderSteps = (active: 1 | 2 | 3) => (
-    <div className="mb-6 flex items-center justify-center gap-2 text-xs font-medium text-muted-foreground">
-      <span className={`h-2.5 w-2.5 rounded-full ${active === 1 ? "bg-primary" : "bg-zinc-300"}`} />
-      <span className={active === 1 ? "text-foreground" : ""}>Create Account</span>
+    <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.35)' }}>
+      <span style={{ width: 8, height: 8, borderRadius: '50%', background: active === 1 ? V : 'rgba(255,255,255,0.15)' }} />
+      <span style={{ color: active === 1 ? '#fff' : 'rgba(255,255,255,0.35)' }}>Create Account</span>
       <span>→</span>
-      <span className={`h-2.5 w-2.5 rounded-full ${active === 2 ? "bg-primary" : "bg-zinc-300"}`} />
-      <span className={active === 2 ? "text-foreground" : ""}>Verify Email</span>
+      <span style={{ width: 8, height: 8, borderRadius: '50%', background: active === 2 ? V : 'rgba(255,255,255,0.15)' }} />
+      <span style={{ color: active === 2 ? '#fff' : 'rgba(255,255,255,0.35)' }}>Verify Email</span>
       <span>→</span>
-      <span className={`h-2.5 w-2.5 rounded-full ${active === 3 ? "bg-primary" : "bg-zinc-300"}`} />
-      <span className={active === 3 ? "text-foreground" : ""}>Setup Salon</span>
+      <span style={{ width: 8, height: 8, borderRadius: '50%', background: active === 3 ? V : 'rgba(255,255,255,0.15)' }} />
+      <span style={{ color: active === 3 ? '#fff' : 'rgba(255,255,255,0.35)' }}>Setup Salon</span>
     </div>
   );
 
@@ -92,54 +92,58 @@ export const VerifyEmail = () => {
   }, [navigate]);
 
   return (
-    <div className="min-h-screen bg-background px-4 py-10">
-      <div className="mx-auto max-w-md rounded-xl border border-gray-200 bg-white p-8 shadow-sm text-center">
-        {renderSteps(2)}
+    <div style={{ minHeight: '100vh', background: BG, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: BODY, position: 'relative', overflow: 'hidden' }}>
+      <div aria-hidden="true" style={{ position: 'fixed', top: '10%', right: '5%', width: 400, height: 400, borderRadius: '50%',
+        background: `radial-gradient(circle, ${V}12, transparent 70%)`, filter: 'blur(60px)', pointerEvents: 'none' }} />
 
-        {status === "loading" && (
-          <>
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Step 2 of 3</p>
-            <h2 className="mt-1 font-display text-2xl font-bold">Verifying your email...</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Please wait while we confirm your account.</p>
-          </>
-        )}
+      <div style={{ width: '100%', maxWidth: 440, position: 'relative', zIndex: 10 }}>
+        <div style={{ borderRadius: 24, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', padding: 28, backdropFilter: 'blur(20px)', textAlign: 'center' }}>
+          {renderSteps(2)}
 
-        {status === "success" && (
-          <>
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-green-50 text-green-600">
-              <CheckCircle2 className="h-6 w-6" />
-            </div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Step 2 of 3</p>
-            <h2 className="mt-1 font-display text-2xl font-bold">You're in! Setting up your salon...</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Email verified successfully. Redirecting now.</p>
-            <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
-              <div
-                className="h-1.5 rounded-full bg-primary"
-                style={{ width: `${progress}%`, transition: "width 2s linear" }}
-              />
-            </div>
-          </>
-        )}
+          {status === "loading" && (
+            <>
+              <div style={{ margin: '0 auto 16px', display: 'flex', height: 48, width: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, background: `${V}1F`, color: VA }}>
+                <Loader2 className="animate-spin" style={{ width: 24, height: 24 }} />
+              </div>
+              <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>Step 2 of 3</p>
+              <h2 style={{ fontFamily: DISP, fontSize: 24, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', marginTop: 6 }}>Verifying your email...</h2>
+              <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 6 }}>Please wait while we confirm your account.</p>
+            </>
+          )}
 
-        {status === "error" && (
-          <>
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-red-50 text-red-600">
-              <AlertCircle className="h-6 w-6" />
-            </div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Step 2 of 3</p>
-            <h2 className="mt-1 font-display text-2xl font-bold">Verification Failed</h2>
-            <p className="mt-1 text-sm text-muted-foreground">{message}</p>
-            <Button
-              className="mt-6 h-11 w-full rounded-xl"
-              onClick={() => navigate("/owner-signup")}
-            >
-              Try Again
-            </Button>
-          </>
-        )}
+          {status === "success" && (
+            <>
+              <div style={{ margin: '0 auto 16px', display: 'flex', height: 48, width: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, background: 'rgba(16,185,129,0.12)', color: '#10B981' }}>
+                <CheckCircle2 style={{ width: 24, height: 24 }} />
+              </div>
+              <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>Step 2 of 3</p>
+              <h2 style={{ fontFamily: DISP, fontSize: 24, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', marginTop: 6 }}>You're in! Setting up your salon...</h2>
+              <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 6 }}>Email verified successfully. Redirecting now.</p>
+              <div style={{ marginTop: 16, height: 6, width: '100%', overflow: 'hidden', borderRadius: 99, background: 'rgba(255,255,255,0.07)' }}>
+                <div
+                  style={{ height: '100%', borderRadius: 99, background: `linear-gradient(90deg, ${V}, ${VA})`, width: `${progress}%`, transition: 'width 2s linear' }}
+                />
+              </div>
+            </>
+          )}
+
+          {status === "error" && (
+            <>
+              <div style={{ margin: '0 auto 16px', display: 'flex', height: 48, width: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, background: 'rgba(239,68,68,0.12)', color: '#EF4444' }}>
+                <AlertCircle style={{ width: 24, height: 24 }} />
+              </div>
+              <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>Step 2 of 3</p>
+              <h2 style={{ fontFamily: DISP, fontSize: 24, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', marginTop: 6 }}>Verification Failed</h2>
+              <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 6 }}>{message}</p>
+              <button
+                onClick={() => navigate("/owner-signup")}
+                style={{ width: '100%', padding: '13px 0', borderRadius: 12, background: V, color: '#fff',
+                  fontWeight: 700, fontSize: 14, border: 'none', cursor: 'pointer', marginTop: 20, fontFamily: BODY }}>
+                Try Again
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -48,7 +48,7 @@ export default function BookingSuccess({
   return (
     <div className="fixed inset-0 z-50 bg-[#f8f9fa] flex items-center justify-center p-6 sm:p-12 overflow-y-auto">
       {/* Decorative Abstract Background Elements */}
-      <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-[#630ed4]/5 rounded-full blur-[120px]"></div>
+      <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-[#7C3AED]/5 rounded-full blur-[120px]"></div>
       <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] bg-[#005b3d]/5 rounded-full blur-[100px]"></div>
       
       <main className="w-full max-w-2xl z-10 my-auto">
@@ -66,7 +66,7 @@ export default function BookingSuccess({
           </div>
           
           {/* Title Section */}
-          <h1 className="font-headline font-extrabold text-4xl md:text-5xl text-[#630ed4] tracking-tight mb-4">
+          <h1 className="font-display font-extrabold text-4xl md:text-5xl text-[#7C3AED] tracking-tight mb-4">
             Booking Confirmed!
           </h1>
           <p className="text-[#4a4455] text-lg max-w-md mx-auto mb-10">
@@ -98,20 +98,20 @@ export default function BookingSuccess({
             </div>
             
             {/* Queue Card */}
-            <div className="bg-white p-6 rounded-xl border border-[#630ed4]/5 flex flex-col justify-between aspect-video md:aspect-auto">
+            <div className="bg-white p-6 rounded-xl border border-[#7C3AED]/5 flex flex-col justify-between aspect-video md:aspect-auto">
               <div>
-                <span className="font-label text-[10px] font-bold uppercase tracking-widest text-[#7b7487] mb-2 block">Current Queue</span>
-                <h2 className="font-headline font-extrabold text-5xl text-[#630ed4]">#{queuePosition}</h2>
+                <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-[#7b7487] mb-2 block">Current Queue</span>
+                <h2 className="font-display font-extrabold text-5xl text-[#7C3AED]">#{queuePosition}</h2>
               </div>
             </div>
             
             {/* Time Card */}
-            <div className="bg-[#630ed4] text-white p-6 rounded-xl flex flex-col justify-between">
+            <div className="bg-[#7C3AED] text-white p-6 rounded-xl flex flex-col justify-between">
               <div>
-                <span className="font-label text-[10px] font-bold uppercase tracking-widest text-white/60 mb-2 block">Estimated Wait</span>
+                <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-white/60 mb-2 block">Estimated Wait</span>
                 <div className="flex items-baseline gap-1">
-                  <span className="font-headline font-extrabold text-4xl">{estimatedWait.replace(/\D/g, '') || "15"}</span>
-                  <span className="font-headline font-bold text-xl">mins</span>
+                  <span className="font-display font-extrabold text-4xl">{estimatedWait.replace(/\D/g, '') || "15"}</span>
+                  <span className="font-display font-bold text-xl">mins</span>
                 </div>
               </div>
             </div>
@@ -129,7 +129,7 @@ export default function BookingSuccess({
                   />
                 </div>
                 <div>
-                  <h3 className="font-headline font-bold text-xl text-[#191c1d]">{salonName}</h3>
+                  <h3 className="font-display font-bold text-xl text-[#191c1d]">{salonName}</h3>
                   <p className="text-[#4a4455] text-sm">{serviceName}</p>
                 </div>
               </div>
@@ -141,7 +141,7 @@ export default function BookingSuccess({
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 w-full mt-10">
-            <button onClick={onViewBookings} className="flex-1 text-white font-bold py-4 px-8 rounded-full shadow-lg hover:brightness-110 transition-all active:scale-95 flex items-center justify-center gap-2" style={{ background: 'linear-gradient(to right, #630ed4, #7c3aed)' }}>
+            <button onClick={onViewBookings} className="flex-1 text-white font-bold py-4 px-8 rounded-full shadow-lg hover:brightness-110 transition-all active:scale-95 flex items-center justify-center gap-2" style={{ background: 'linear-gradient(to right, #7C3AED, #A855F7)' }}>
               View Bookings
             </button>
             <button onClick={onModify} className="flex-1 bg-[#f0dbff] text-[#2c0051] font-bold py-4 px-8 rounded-full hover:bg-[#ddb7ff] transition-all active:scale-95 flex items-center justify-center gap-2">
@@ -154,7 +154,7 @@ export default function BookingSuccess({
         {/* Footer Help */}
         <p className="text-center text-[#7b7487] text-xs mt-8">
           A confirmation email has been sent to your registered address.<br/>
-          Need help? Contact <span className="text-[#630ed4] font-semibold">Snippr Concierge</span>
+          Need help? Contact <span className="text-[#7C3AED] font-semibold">Snippr Concierge</span>
         </p>
       </main>
     </div>

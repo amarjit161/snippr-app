@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { Scissors, Eye, EyeOff, CheckCircle2, Lock, User, Phone } from 'lucide-react';
+import { Scissors, Eye, EyeOff, CheckCircle2, Mail, User, Phone } from 'lucide-react';
+import { V, VA, G, BG, DISP, BODY, MONO } from '@/components/landing/tokens';
 
 type Step = 'email' | 'phone' | 'gender' | 'password' | 'complete';
 type Gender = 'Male' | 'Female' | 'Other' | null;
@@ -16,12 +17,34 @@ interface ProfileData {
   lastName: string;
 }
 
+const fieldStyle: React.CSSProperties = {
+  padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)',
+  background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 14, outline: 'none',
+  fontFamily: BODY, boxSizing: 'border-box', width: '100%',
+};
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase',
+  color: 'rgba(255,255,255,0.4)', marginBottom: 6, display: 'block',
+};
+
+const otpBoxStyle: React.CSSProperties = {
+  width: 44, height: 52, textAlign: 'center', fontSize: 18, fontWeight: 700, color: '#fff',
+  borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)',
+  outline: 'none', fontFamily: BODY,
+};
+
+const verifiedBoxStyle: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14,
+  background: `${G}18`, border: `1px solid ${G}40`,
+};
+
 export const ProfileCompletion = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [currentStep, setCurrentStep] = useState<Step>('email');
-  
+
   // Profile data
   const [profileData, setProfileData] = useState<ProfileData>({
     email: '',
@@ -50,7 +73,7 @@ export const ProfileCompletion = () => {
   // Load profile on mount
   useEffect(() => {
     if (authLoading) return; // Wait for auth to initialize
-    
+
     const loadProfile = async () => {
       console.log("PROFILE_COMPLETION: Starting loadProfile", { user: user?.id });
       try {
@@ -67,7 +90,7 @@ export const ProfileCompletion = () => {
           .eq('id', user.id)
           .maybeSingle();
 
-        const timeoutPromise = new Promise<any>((_, reject) => 
+        const timeoutPromise = new Promise<any>((_, reject) =>
           setTimeout(() => reject(new Error("Profile load timeout")), 8000)
         );
 
@@ -142,7 +165,7 @@ export const ProfileCompletion = () => {
 
     try {
       const formattedPhone = `+91${phone.replace(/\D/g, '').slice(-10)}`;
-      
+
       // Check if phone already registered
       const { data: existing } = await supabase
         .from('customer_profiles')
@@ -324,77 +347,72 @@ export const ProfileCompletion = () => {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-purple-50 via-white to-purple-50">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 animate-spin rounded-full border-4 border-purple-200 border-t-purple-600" />
-          <p className="text-sm text-gray-500">Loading your profile...</p>
+      <div style={{ minHeight: '100vh', background: BG, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: BODY }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+          <div className="animate-spin" style={{ height: 48, width: 48, borderRadius: '50%', border: `4px solid ${V}25`, borderTopColor: V }} />
+          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>Loading your profile...</p>
         </div>
       </div>
     );
   }
 
   // ── PROGRESS INDICATOR
-  const ProgressBar = () => (
-    <div className="mx-auto max-w-2xl px-4 mb-8">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900">Profile Completion</h2>
-        <span className="text-2xl font-bold text-purple-600">{getCompletionPercentage()}%</span>
-      </div>
-      <div className="h-3 w-full bg-gray-200 rounded-full overflow-hidden">
-        <div
-          className="h-full bg-gradient-to-r from-purple-500 to-purple-600 transition-all duration-500"
-          style={{ width: `${getCompletionPercentage()}%` }}
-        />
-      </div>
-      <div className="mt-4 grid grid-cols-4 gap-2">
-        <div className="text-center">
-          <div className={`mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full ${
-            getCompletionPercentage() >= 25 ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-600'
-          }`}>
-            ✓
-          </div>
-          <p className="text-xs font-medium text-gray-700">Email</p>
+  const ProgressBar = () => {
+    const pct = getCompletionPercentage();
+    const checkpoints: Array<{ key: string; label: string; threshold: number; icon: React.ReactNode }> = [
+      { key: 'email', label: 'Email', threshold: 25, icon: <Mail style={{ width: 16, height: 16 }} /> },
+      { key: 'phone', label: 'Phone', threshold: 75, icon: <Phone style={{ width: 16, height: 16 }} /> },
+      { key: 'gender', label: 'Gender (Optional)', threshold: 100, icon: <User style={{ width: 16, height: 16 }} /> },
+      { key: 'ready', label: 'Ready', threshold: 100, icon: <CheckCircle2 style={{ width: 16, height: 16 }} /> },
+    ];
+
+    return (
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
+          <h2 style={{ fontFamily: DISP, fontSize: 15, fontWeight: 700, color: '#fff' }}>Profile Completion</h2>
+          <span style={{ fontFamily: MONO, fontSize: 20, fontWeight: 700, color: V }}>{pct}%</span>
         </div>
-        <div className="text-center">
-          <div className={`mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full ${
-            getCompletionPercentage() >= 75 ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-600'
-          }`}>
-            {getCompletionPercentage() >= 75 ? '✓' : <Phone className="w-5 h-5" />}
-          </div>
-          <p className="text-xs font-medium text-gray-700">Phone</p>
+        <div style={{ height: 6, width: '100%', borderRadius: 99, background: 'rgba(255,255,255,0.07)', overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${pct}%`, borderRadius: 99, background: `linear-gradient(90deg, ${V}, ${VA})`, transition: 'width 0.5s ease' }} />
         </div>
-        <div className="text-center">
-          <div className={`mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full ${
-            getCompletionPercentage() >= 100 ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-600'
-          }`}>
-            {getCompletionPercentage() >= 100 ? '✓' : <User className="w-5 h-5" />}
-          </div>
-          <p className="text-xs font-medium text-gray-700">Gender (Optional)</p>
-        </div>
-        <div className="text-center">
-          <div className={`mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full ${
-            getCompletionPercentage() >= 100 ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-600'
-          }`}>
-            {getCompletionPercentage() >= 100 ? '✓' : <CheckCircle2 className="w-5 h-5" />}
-          </div>
-          <p className="text-xs font-medium text-gray-700">Ready</p>
+        <div style={{ marginTop: 18, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+          {checkpoints.map(cp => {
+            const done = pct >= cp.threshold;
+            return (
+              <div key={cp.key} style={{ textAlign: 'center' }}>
+                <div style={{
+                  margin: '0 auto 8px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  height: 36, width: 36, borderRadius: '50%',
+                  background: done ? V : 'rgba(255,255,255,0.06)',
+                  border: done ? 'none' : '1px solid rgba(255,255,255,0.1)',
+                  color: done ? '#fff' : 'rgba(255,255,255,0.35)',
+                }}>
+                  {done ? <CheckCircle2 style={{ width: 16, height: 16 }} /> : cp.icon}
+                </div>
+                <p style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.45)' }}>{cp.label}</p>
+              </div>
+            );
+          })}
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 py-12 px-4">
-      <div className="mx-auto max-w-2xl">
-        
+    <div style={{ minHeight: '100vh', background: BG, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '48px 24px', fontFamily: BODY, position: 'relative', overflow: 'hidden' }}>
+      <div aria-hidden="true" style={{ position: 'fixed', top: '10%', right: '5%', width: 400, height: 400, borderRadius: '50%',
+        background: `radial-gradient(circle, ${V}12, transparent 70%)`, filter: 'blur(60px)', pointerEvents: 'none' }} />
+
+      <div style={{ width: '100%', maxWidth: 640, position: 'relative', zIndex: 10 }}>
+
         {/* Header */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center justify-center w-16 h-16 
-                          bg-purple-600 rounded-2xl shadow-lg shadow-purple-200 mb-4">
-            <Scissors className="w-8 h-8 text-white" />
+        <div style={{ textAlign: 'center', marginBottom: 36 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 60, height: 60,
+            background: V, borderRadius: 20, marginBottom: 16, boxShadow: `0 8px 24px ${V}40` }}>
+            <Scissors style={{ width: 28, height: 28, color: '#fff' }} />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">Complete Your Profile</h1>
-          <p className="text-gray-500 text-lg mt-2">
+          <h1 style={{ fontFamily: DISP, fontSize: 28, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}>Complete Your Profile</h1>
+          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 15, marginTop: 8 }}>
             {currentStep === 'phone' && 'Add your verified phone number'}
             {currentStep === 'gender' && 'Tell us about yourself'}
             {currentStep === 'complete' && 'Profile complete! You\'re all set'}
@@ -405,63 +423,57 @@ export const ProfileCompletion = () => {
         <ProgressBar />
 
         {/* Main Content */}
-        <div className="bg-white rounded-3xl shadow-xl shadow-gray-100 p-8 border border-gray-100">
-          
+        <div style={{ borderRadius: 24, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', padding: 28, backdropFilter: 'blur(20px)' }}>
+
           {/* ── PHONE VERIFICATION */}
           {currentStep === 'phone' && (
-            <form onSubmit={!phoneVerified ? handleSendPhoneOTP : handleVerifyPhoneOTP} className="space-y-6">
+            <form onSubmit={!phoneVerified ? handleSendPhoneOTP : handleVerifyPhoneOTP} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  📧 Email (Verified)
-                </label>
-                <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
-                  <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
+                <label style={labelStyle}>Email (Verified)</label>
+                <div style={verifiedBoxStyle}>
+                  <CheckCircle2 style={{ width: 18, height: 18, color: G, flexShrink: 0 }} />
                   <div>
-                    <p className="font-medium text-gray-900">{profileData.email}</p>
-                    <p className="text-sm text-gray-500">Verified during registration</p>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>{profileData.email}</p>
+                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Verified during registration</p>
                   </div>
                 </div>
               </div>
 
               {!phoneVerified ? (
                 <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">
-                    📱 Phone Number (Required)
-                  </label>
-                  <p className="text-xs text-gray-500 mb-3">Enter a valid Indian phone number</p>
-                  <div className="flex gap-2">
-                    <div className="flex items-center px-3 py-3 bg-gray-50 border border-gray-200 
-                                    rounded-xl text-sm font-medium text-gray-700 flex-shrink-0">
-                      🇮🇳 +91
-                    </div>
+                  <label style={labelStyle}>Phone Number (Required)</label>
+                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginTop: -2, marginBottom: 10 }}>Enter a valid Indian phone number</p>
+                  <div style={{ display: 'flex' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 14px',
+                      borderRadius: '12px 0 0 12px', border: '1px solid rgba(255,255,255,0.1)', borderRight: 'none',
+                      background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: 600 }}>
+                      +91
+                    </span>
                     <input
                       type="tel"
                       value={phone}
                       onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                       placeholder="10-digit number"
                       maxLength={10}
-                      className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-sm 
-                                 focus:outline-none focus:ring-2 focus:ring-purple-500 
-                                 focus:border-transparent transition-all"
+                      style={{ ...fieldStyle, borderRadius: '0 12px 12px 0' }}
                     />
                   </div>
                   <button
                     type="submit"
                     disabled={processingStep || !phone || phone.length !== 10}
-                    className="w-full mt-4 bg-purple-600 text-white py-3 rounded-xl font-semibold 
-                               text-sm hover:bg-purple-700 transition-all disabled:opacity-50
-                               shadow-lg shadow-purple-200 active:scale-[0.98]"
+                    style={{ width: '100%', marginTop: 16, padding: '13px 0', borderRadius: 12,
+                      background: (processingStep || !phone || phone.length !== 10) ? `${V}80` : V,
+                      color: '#fff', fontWeight: 700, fontSize: 14, border: 'none', fontFamily: BODY,
+                      cursor: (processingStep || !phone || phone.length !== 10) ? 'not-allowed' : 'pointer' }}
                   >
                     {processingStep ? 'Sending OTP...' : 'Send OTP'}
                   </button>
                 </div>
               ) : (
                 <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">
-                    Enter OTP
-                  </label>
-                  <p className="text-xs text-gray-500 mb-3">OTP sent to +91 {phone}</p>
-                  <div className="flex gap-2 mb-4">
+                  <label style={labelStyle}>Enter OTP</label>
+                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginTop: -2, marginBottom: 12 }}>OTP sent to +91 {phone}</p>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
                     {Array.from({ length: 6 }).map((_, i) => (
                       <input
                         key={i}
@@ -477,28 +489,28 @@ export const ProfileCompletion = () => {
                             (e.target.nextElementSibling as HTMLInputElement).focus();
                           }
                         }}
-                        className="w-12 h-14 text-center text-lg font-bold border-2 border-gray-200 
-                                   rounded-xl focus:outline-none focus:border-purple-500 transition-all"
+                        style={otpBoxStyle}
                       />
                     ))}
                   </div>
                   <button
                     type="submit"
                     disabled={processingStep || phoneOtp.length !== 6}
-                    className="w-full bg-purple-600 text-white py-3 rounded-xl font-semibold 
-                               text-sm hover:bg-purple-700 transition-all disabled:opacity-50
-                               shadow-lg shadow-purple-200 active:scale-[0.98]"
+                    style={{ width: '100%', padding: '13px 0', borderRadius: 12,
+                      background: (processingStep || phoneOtp.length !== 6) ? `${V}80` : V,
+                      color: '#fff', fontWeight: 700, fontSize: 14, border: 'none', fontFamily: BODY,
+                      cursor: (processingStep || phoneOtp.length !== 6) ? 'not-allowed' : 'pointer' }}
                   >
                     {processingStep ? 'Verifying...' : 'Verify Phone'}
                   </button>
-                  <div className="mt-3 text-center">
+                  <div style={{ marginTop: 12, textAlign: 'center' }}>
                     {phoneOtpCountdown > 0 ? (
-                      <p className="text-sm text-gray-400">Resend OTP in {phoneOtpCountdown}s</p>
+                      <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Resend OTP in {phoneOtpCountdown}s</p>
                     ) : (
                       <button
                         type="button"
                         onClick={handleSendPhoneOTP}
-                        className="text-sm text-purple-600 font-medium hover:underline"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: VA, fontFamily: BODY }}
                       >
                         Resend OTP
                       </button>
@@ -511,30 +523,27 @@ export const ProfileCompletion = () => {
 
           {/* ── GENDER SELECTION */}
           {currentStep === 'gender' && (
-            <form onSubmit={handleSaveGender} className="space-y-6">
+            <form onSubmit={handleSaveGender} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div>
-                <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl mb-6">
-                  <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
+                <div style={{ ...verifiedBoxStyle, marginBottom: 22 }}>
+                  <CheckCircle2 style={{ width: 18, height: 18, color: G, flexShrink: 0 }} />
                   <div>
-                    <p className="font-medium text-gray-900">{profileData.phone}</p>
-                    <p className="text-sm text-gray-500">Phone verified</p>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>{profileData.phone}</p>
+                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Phone verified</p>
                   </div>
                 </div>
 
-                <label className="block text-sm font-semibold text-gray-900 mb-4">
-                  👤 Select Your Gender (Optional)
-                </label>
-                <div className="grid grid-cols-3 gap-3">
+                <label style={labelStyle}>Select Your Gender (Optional)</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                   {(['Male', 'Female', 'Other'] as const).map((g) => (
                     <button
                       key={g}
                       type="button"
                       onClick={() => setGender(g === gender ? null : g)}
-                      className={`py-4 rounded-xl text-sm font-semibold transition-all ${
-                        gender === g
-                          ? 'bg-purple-600 text-white shadow-lg shadow-purple-200'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
+                      style={{ padding: '14px 0', borderRadius: 12, fontSize: 13, fontWeight: gender === g ? 700 : 500, cursor: 'pointer',
+                        border: `1px solid ${gender === g ? V : 'rgba(255,255,255,0.1)'}`,
+                        background: gender === g ? `${V}28` : 'rgba(255,255,255,0.03)',
+                        color: gender === g ? '#fff' : 'rgba(255,255,255,0.5)', fontFamily: BODY }}
                     >
                       {g}
                     </button>
@@ -542,22 +551,22 @@ export const ProfileCompletion = () => {
                 </div>
               </div>
 
-              <div className="flex gap-3">
+              <div style={{ display: 'flex', gap: 10 }}>
                 <button
                   type="button"
                   onClick={handleCompleteProfile}
-                  className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold 
-                             text-sm hover:bg-gray-300 transition-all
-                             active:scale-[0.98]"
+                  style={{ flex: 1, padding: '13px 0', borderRadius: 12, background: 'rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', fontWeight: 700, fontSize: 14,
+                    cursor: 'pointer', fontFamily: BODY }}
                 >
                   Skip for Now
                 </button>
                 <button
                   type="submit"
                   disabled={processingStep}
-                  className="flex-1 bg-purple-600 text-white py-3 rounded-xl font-semibold 
-                             text-sm hover:bg-purple-700 transition-all disabled:opacity-50
-                             shadow-lg shadow-purple-200 active:scale-[0.98]"
+                  style={{ flex: 1, padding: '13px 0', borderRadius: 12, background: processingStep ? `${V}80` : V,
+                    color: '#fff', fontWeight: 700, fontSize: 14, border: 'none', fontFamily: BODY,
+                    cursor: processingStep ? 'not-allowed' : 'pointer' }}
                 >
                   {processingStep ? 'Saving...' : 'Save & Continue'}
                 </button>
@@ -567,108 +576,102 @@ export const ProfileCompletion = () => {
 
           {/* ── PROFILE COMPLETE */}
           {currentStep === 'complete' && (
-            <div className="space-y-6">
-              <div className="text-center mb-8">
-                <div className="inline-flex items-center justify-center w-20 h-20 
-                                bg-green-100 rounded-full mb-4">
-                  <CheckCircle2 className="w-12 h-12 text-green-600" />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 72, height: 72,
+                  borderRadius: '50%', background: `${G}18`, border: `1px solid ${G}30`, marginBottom: 14 }}>
+                  <CheckCircle2 style={{ width: 40, height: 40, color: G }} />
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900">Profile Complete! 🎉</h2>
+                <h2 style={{ fontFamily: DISP, fontSize: 22, fontWeight: 800, color: '#fff' }}>Profile Complete! 🎉</h2>
               </div>
 
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl p-6 space-y-4">
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+              <div style={{ borderRadius: 16, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <CheckCircle2 style={{ width: 18, height: 18, color: G, marginTop: 2, flexShrink: 0 }} />
                   <div>
-                    <p className="font-medium text-gray-900">Email Verified</p>
-                    <p className="text-sm text-gray-600">{profileData.email}</p>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>Email Verified</p>
+                    <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>{profileData.email}</p>
                   </div>
                 </div>
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <CheckCircle2 style={{ width: 18, height: 18, color: G, marginTop: 2, flexShrink: 0 }} />
                   <div>
-                    <p className="font-medium text-gray-900">Phone Verified</p>
-                    <p className="text-sm text-gray-600">{profileData.phone}</p>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>Phone Verified</p>
+                    <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>{profileData.phone}</p>
                   </div>
                 </div>
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <CheckCircle2 style={{ width: 18, height: 18, color: G, marginTop: 2, flexShrink: 0 }} />
                   <div>
-                    <p className="font-medium text-gray-900">Gender Selected</p>
-                    <p className="text-sm text-gray-600">{profileData.gender}</p>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>Gender Selected</p>
+                    <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>{profileData.gender}</p>
                   </div>
                 </div>
               </div>
 
               {/* Change Password Option */}
-              <div className="border-t pt-6">
-                <h3 className="text-sm font-semibold text-gray-900 mb-4">🔐 Change Password (Optional)</h3>
-                <form onSubmit={handleChangePassword} className="space-y-3">
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 22 }}>
+                <h3 style={{ fontFamily: DISP, fontSize: 14, fontWeight: 700, color: '#fff', marginBottom: 14 }}>Change Password (Optional)</h3>
+                <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Current Password
-                    </label>
-                    <div className="relative">
+                    <label style={labelStyle}>Current Password</label>
+                    <div style={{ position: 'relative' }}>
                       <input
                         type={showCurrentPassword ? 'text' : 'password'}
                         value={currentPassword}
                         onChange={e => setCurrentPassword(e.target.value)}
                         placeholder="••••••"
-                        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm 
-                                   focus:outline-none focus:ring-2 focus:ring-purple-500 pr-10"
+                        style={{ ...fieldStyle, paddingRight: 38 }}
                       />
                       <button
                         type="button"
                         onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none',
+                          cursor: 'pointer', color: 'rgba(255,255,255,0.35)', padding: 0, display: 'flex' }}
                       >
-                        {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {showCurrentPassword ? <EyeOff style={{ width: 15, height: 15 }} /> : <Eye style={{ width: 15, height: 15 }} />}
                       </button>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      New Password
-                    </label>
-                    <div className="relative">
+                    <label style={labelStyle}>New Password</label>
+                    <div style={{ position: 'relative' }}>
                       <input
                         type={showNewPassword ? 'text' : 'password'}
                         value={newPassword}
                         onChange={e => setNewPassword(e.target.value)}
                         placeholder="••••••"
-                        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm 
-                                   focus:outline-none focus:ring-2 focus:ring-purple-500 pr-10"
+                        style={{ ...fieldStyle, paddingRight: 38 }}
                       />
                       <button
                         type="button"
                         onClick={() => setShowNewPassword(!showNewPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none',
+                          cursor: 'pointer', color: 'rgba(255,255,255,0.35)', padding: 0, display: 'flex' }}
                       >
-                        {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {showNewPassword ? <EyeOff style={{ width: 15, height: 15 }} /> : <Eye style={{ width: 15, height: 15 }} />}
                       </button>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Confirm Password
-                    </label>
-                    <div className="relative">
+                    <label style={labelStyle}>Confirm Password</label>
+                    <div style={{ position: 'relative' }}>
                       <input
                         type={showConfirmPassword ? 'text' : 'password'}
                         value={confirmPassword}
                         onChange={e => setConfirmPassword(e.target.value)}
                         placeholder="••••••"
-                        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm 
-                                   focus:outline-none focus:ring-2 focus:ring-purple-500 pr-10"
+                        style={{ ...fieldStyle, paddingRight: 38 }}
                       />
                       <button
                         type="button"
                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none',
+                          cursor: 'pointer', color: 'rgba(255,255,255,0.35)', padding: 0, display: 'flex' }}
                       >
-                        {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {showConfirmPassword ? <EyeOff style={{ width: 15, height: 15 }} /> : <Eye style={{ width: 15, height: 15 }} />}
                       </button>
                     </div>
                   </div>
@@ -676,8 +679,11 @@ export const ProfileCompletion = () => {
                   <button
                     type="submit"
                     disabled={processingStep || !currentPassword || !newPassword || !confirmPassword}
-                    className="w-full bg-gray-600 text-white py-2 rounded-lg font-medium text-sm 
-                               hover:bg-gray-700 transition-all disabled:opacity-50 mt-2"
+                    style={{ width: '100%', marginTop: 4, padding: '11px 0', borderRadius: 12,
+                      background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+                      color: '#fff', fontWeight: 600, fontSize: 13, fontFamily: BODY,
+                      cursor: (processingStep || !currentPassword || !newPassword || !confirmPassword) ? 'not-allowed' : 'pointer',
+                      opacity: (processingStep || !currentPassword || !newPassword || !confirmPassword) ? 0.5 : 1 }}
                   >
                     {processingStep ? 'Updating...' : 'Update Password'}
                   </button>
@@ -687,9 +693,8 @@ export const ProfileCompletion = () => {
               {/* Continue Button */}
               <button
                 onClick={handleCompleteProfile}
-                className="w-full bg-purple-600 text-white py-3.5 rounded-xl font-semibold 
-                           text-sm hover:bg-purple-700 transition-all 
-                           shadow-lg shadow-purple-200 active:scale-[0.98]"
+                style={{ width: '100%', padding: '15px 0', borderRadius: 12, background: V, color: '#fff',
+                  fontWeight: 700, fontSize: 14, border: 'none', cursor: 'pointer', fontFamily: BODY }}
               >
                 Start Booking Salons →
               </button>
@@ -702,4 +707,3 @@ export const ProfileCompletion = () => {
 };
 
 export default ProfileCompletion;
-

@@ -2,7 +2,41 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ChevronRight, Clock, Plus, Scissors, Trash2 } from "lucide-react";
+import { CheckCircle2, ChevronRight, Clock, Loader2, Plus, Scissors, Trash2 } from "lucide-react";
+import { V, VA, G, BG, DISP, BODY } from "@/components/landing/tokens";
+
+const fieldStyle: React.CSSProperties = {
+  padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.1)",
+  background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: 14, outline: "none",
+  fontFamily: BODY, boxSizing: "border-box", width: "100%",
+};
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 10, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase",
+  color: "rgba(255,255,255,0.4)", marginBottom: 6, display: "block",
+};
+
+const rowCardStyle: React.CSSProperties = {
+  display: "flex", gap: 10, alignItems: "flex-start",
+  borderRadius: 14, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.02)", padding: 12,
+};
+
+const removeBtnStyle: React.CSSProperties = {
+  width: 38, height: 38, borderRadius: 10, border: "1px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.1)",
+  color: "#F87171", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, marginTop: 2,
+};
+
+const primaryBtnStyle = (disabled: boolean): React.CSSProperties => ({
+  background: disabled ? `${V}80` : V, color: "#fff", fontWeight: 700, borderRadius: 12,
+  fontFamily: BODY, border: "none", cursor: disabled ? "not-allowed" : "pointer",
+  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+});
+
+const ghostBtnStyle: React.CSSProperties = {
+  padding: "13px 18px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(255,255,255,0.03)", color: "rgba(255,255,255,0.6)", fontSize: 14, fontWeight: 600,
+  cursor: "pointer", fontFamily: BODY,
+};
 
 interface Service {
   name: string;
@@ -24,50 +58,64 @@ interface FormData {
 
 // ✅ MOVED OUTSIDE: StepBar component (prevents remount on every render)
 const StepBar = ({ currentStep }: { currentStep: number }) => (
-  <div className="flex items-center justify-center gap-2 mb-8">
-    {["Account", "Salon Info", "Services", "Done"].map((label, i) => {
-      const stepNum = i + 1;
-      const isActive = currentStep === stepNum;
-      const isDone = currentStep > stepNum;
+  <div style={{ marginBottom: 28 }}>
+    <div style={{ display: "flex", gap: 6 }}>
+      {["Account", "Salon Info", "Services", "Done"].map((label, i) => {
+        const stepNum = i + 1;
+        const isActive = currentStep === stepNum;
+        const isDone = currentStep > stepNum;
 
-      return (
-        <div key={label} className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5">
+        return (
+          <div key={label} style={{ flex: 1 }}>
             <div
-              className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
-                isDone
-                  ? "bg-green-500 text-white"
-                  : isActive
-                    ? "bg-purple-600 text-white ring-4 ring-purple-100"
-                    : "bg-gray-100 text-gray-400"
-              }`}
-            >
-              {isDone ? "✓" : stepNum}
+              style={{
+                height: 4, borderRadius: 99, marginBottom: 8,
+                background: isDone ? G : isActive ? `linear-gradient(90deg, ${V}, ${VA})` : "rgba(255,255,255,0.08)",
+                boxShadow: isActive ? `0 0 10px ${V}80` : "none",
+                transition: "all 0.3s ease",
+              }}
+            />
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span
+                style={{
+                  width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
+                  background: isDone ? G : isActive ? VA : "rgba(255,255,255,0.2)",
+                  boxShadow: isActive ? `0 0 8px ${VA}` : "none",
+                }}
+              />
+              <span
+                className="hidden sm:block"
+                style={{
+                  fontSize: 10, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase",
+                  color: isActive ? "#fff" : isDone ? G : "rgba(255,255,255,0.3)",
+                }}
+              >
+                {label}
+              </span>
             </div>
-            <span
-              className={`text-xs font-medium hidden sm:block ${
-                isActive ? "text-purple-600" : isDone ? "text-green-600" : "text-gray-400"
-              }`}
-            >
-              {label}
-            </span>
           </div>
-          {i < 3 && <div className={`w-8 h-0.5 rounded ${isDone ? "bg-green-400" : "bg-gray-200"}`} />}
-        </div>
-      );
-    })}
+        );
+      })}
+    </div>
   </div>
 );
 
 // ✅ MOVED OUTSIDE: Card component (prevents remount on every render)
 const OnboardingCard = ({ children, currentStep }: { children: React.ReactNode; currentStep: number }) => (
-  <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-    <div className="w-full max-w-lg bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-      <div className="flex items-center gap-2 mb-6">
-        <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
-          <Scissors className="w-4 h-4 text-white" />
+  <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center",
+    padding: 16, fontFamily: BODY, position: "relative", overflow: "hidden" }}>
+    <div aria-hidden="true" style={{ position: "fixed", top: "10%", left: "8%", width: 400, height: 400, borderRadius: "50%",
+      background: `radial-gradient(circle, ${V}12, transparent 70%)`, filter: "blur(60px)", pointerEvents: "none" }} />
+    <div aria-hidden="true" style={{ position: "fixed", bottom: "5%", right: "8%", width: 380, height: 380, borderRadius: "50%",
+      background: `radial-gradient(circle, ${VA}0F, transparent 70%)`, filter: "blur(60px)", pointerEvents: "none" }} />
+
+    <div style={{ width: "100%", maxWidth: 520, position: "relative", zIndex: 10, borderRadius: 24,
+      background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", padding: 28, backdropFilter: "blur(20px)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24 }}>
+        <div style={{ width: 32, height: 32, borderRadius: 10, background: V, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Scissors style={{ width: 16, height: 16, color: "#fff" }} />
         </div>
-        <span className="font-bold text-gray-900">Snippr</span>
+        <span style={{ fontFamily: DISP, fontWeight: 800, color: "#fff", fontSize: 16 }}>Snippr</span>
       </div>
       {currentStep > 0 && currentStep < 4 && <StepBar currentStep={currentStep} />}
       {children}
@@ -256,10 +304,10 @@ export const Onboarding = () => {
 
   if (step === 0)
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600 mx-auto mb-3" />
-          <p className="text-gray-500 text-sm">Verifying your account...</p>
+      <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: BODY }}>
+        <div style={{ textAlign: "center" }}>
+          <Loader2 className="animate-spin" style={{ width: 36, height: 36, color: V, margin: "0 auto 12px" }} />
+          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Verifying your account...</p>
         </div>
       </div>
     );
@@ -267,20 +315,22 @@ export const Onboarding = () => {
   if (step === 1)
     return (
       <OnboardingCard currentStep={step}>
-        <div className="text-center mb-6">
-          <div className="text-5xl mb-3">🎉</div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Email verified!</h1>
-          <p className="text-gray-500 text-sm">no cap, you're literally about to get your salon on Snippr</p>
+        <div style={{ textAlign: "center", marginBottom: 24 }}>
+          <div style={{ fontSize: 44, marginBottom: 10 }}>🎉</div>
+          <h1 style={{ fontFamily: DISP, fontSize: 24, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em", marginBottom: 6 }}>
+            Email verified!
+          </h1>
+          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>no cap, you're literally about to get your salon on Snippr</p>
         </div>
 
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">What's your name? 👤</label>
+        <div style={{ marginBottom: 22 }}>
+          <label style={labelStyle}>What's your name? 👤</label>
           <input
             type="text"
             placeholder="e.g. Rahul Sharma"
             value={formData.ownerName}
             onChange={(e) => updateForm("ownerName", e.target.value)}
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+            style={fieldStyle}
           />
         </div>
 
@@ -292,9 +342,9 @@ export const Onboarding = () => {
             }
             setStep(2);
           }}
-          className="w-full bg-purple-600 text-white py-3 rounded-xl font-semibold hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
+          style={{ width: "100%", padding: "13px 0", ...primaryBtnStyle(false), fontSize: 14 }}
         >
-          Let's set up your salon <ChevronRight className="w-4 h-4" />
+          Let's set up your salon <ChevronRight style={{ width: 16, height: 16 }} />
         </button>
       </OnboardingCard>
     );
@@ -302,96 +352,95 @@ export const Onboarding = () => {
   if (step === 2)
     return (
       <OnboardingCard currentStep={step}>
-        <div className="mb-6">
-          <h1 className="text-xl font-bold text-gray-900 mb-1">Your Salon Details 💈</h1>
-          <p className="text-gray-500 text-sm">This is what customers will see when they search for you</p>
+        <div style={{ marginBottom: 22 }}>
+          <h1 style={{ fontFamily: DISP, fontSize: 20, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em", marginBottom: 6 }}>
+            Your Salon Details 💈
+          </h1>
+          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>This is what customers will see when they search for you</p>
         </div>
 
-        <div className="space-y-4 mb-6">
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 22 }}>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Salon Name *</label>
+            <label style={labelStyle}>Salon Name *</label>
             <input
               type="text"
               placeholder="e.g. Looks by Rahul"
               value={formData.salonName}
               onChange={(e) => updateForm("salonName", e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+              style={fieldStyle}
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone *</label>
+              <label style={labelStyle}>Phone *</label>
               <input
                 type="tel"
                 placeholder="9876543210"
                 value={formData.phone}
                 onChange={(e) => updateForm("phone", e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                style={fieldStyle}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">City *</label>
+              <label style={labelStyle}>City *</label>
               <input
                 type="text"
                 placeholder="Delhi"
                 value={formData.city}
                 onChange={(e) => updateForm("city", e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                style={fieldStyle}
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Address</label>
+            <label style={labelStyle}>Address</label>
             <input
               type="text"
               placeholder="Shop 4, Main Market..."
               value={formData.address}
               onChange={(e) => updateForm("address", e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+              style={fieldStyle}
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                <Clock className="w-3 h-3 inline mr-1" />Opens
+              <label style={labelStyle}>
+                <Clock style={{ width: 11, height: 11, display: "inline", marginRight: 4, verticalAlign: "middle" }} />Opens
               </label>
               <input
                 type="time"
                 value={formData.openTime}
                 onChange={(e) => updateForm("openTime", e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                style={fieldStyle}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                <Clock className="w-3 h-3 inline mr-1" />Closes
+              <label style={labelStyle}>
+                <Clock style={{ width: 11, height: 11, display: "inline", marginRight: 4, verticalAlign: "middle" }} />Closes
               </label>
               <input
                 type="time"
                 value={formData.closeTime}
                 onChange={(e) => updateForm("closeTime", e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                style={fieldStyle}
               />
             </div>
           </div>
         </div>
 
-        <div className="flex gap-3">
-          <button
-            onClick={() => setStep(1)}
-            className="px-4 py-3 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50"
-          >
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={() => setStep(1)} style={ghostBtnStyle}>
             Back
           </button>
           <button
             onClick={handleSalonSetup}
             disabled={loading}
-            className="flex-1 bg-purple-600 text-white py-3 rounded-xl font-semibold hover:bg-purple-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            style={{ flex: 1, padding: "13px 0", ...primaryBtnStyle(loading), fontSize: 14 }}
           >
-            {loading ? "Saving..." : <><span>Next: Add Services</span> <ChevronRight className="w-4 h-4" /></>}
+            {loading ? "Saving..." : <><span>Next: Add Services</span> <ChevronRight style={{ width: 16, height: 16 }} /></>}
           </button>
         </div>
       </OnboardingCard>
@@ -400,15 +449,17 @@ export const Onboarding = () => {
   if (step === 3)
     return (
       <OnboardingCard currentStep={step}>
-        <div className="mb-6">
-          <h1 className="text-xl font-bold text-gray-900 mb-1">Add Your Services ✂️</h1>
-          <p className="text-gray-500 text-sm">Customers will pick from these when booking</p>
+        <div style={{ marginBottom: 20 }}>
+          <h1 style={{ fontFamily: DISP, fontSize: 20, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em", marginBottom: 6 }}>
+            Add Your Services ✂️
+          </h1>
+          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Customers will pick from these when booking</p>
         </div>
 
-        <div className="space-y-3 mb-4">
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
           {formData.services.map((service, idx) => (
-            <div key={idx} className="flex gap-2 items-start">
-              <div className="flex-1 grid grid-cols-3 gap-2">
+            <div key={idx} style={rowCardStyle}>
+              <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                 <input
                   type="text"
                   placeholder="e.g. Haircut"
@@ -418,7 +469,7 @@ export const Onboarding = () => {
                     updated[idx].name = e.target.value;
                     updateForm("services", updated);
                   }}
-                  className="col-span-1 px-3 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                  style={fieldStyle}
                 />
                 <input
                   type="number"
@@ -429,7 +480,7 @@ export const Onboarding = () => {
                     updated[idx].price = e.target.value;
                     updateForm("services", updated);
                   }}
-                  className="px-3 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                  style={fieldStyle}
                 />
                 <select
                   value={service.duration}
@@ -438,7 +489,7 @@ export const Onboarding = () => {
                     updated[idx].duration = e.target.value;
                     updateForm("services", updated);
                   }}
-                  className="px-3 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm bg-white"
+                  style={{ ...fieldStyle, colorScheme: "dark" }}
                 >
                   <option value="15">15 min</option>
                   <option value="30">30 min</option>
@@ -452,9 +503,9 @@ export const Onboarding = () => {
                   const updated = formData.services.filter((_, i) => i !== idx);
                   updateForm("services", updated.length ? updated : [{ name: "", price: "", duration: "30" }]);
                 }}
-                className="p-2.5 rounded-xl text-red-400 hover:bg-red-50 mt-0.5"
+                style={removeBtnStyle}
               >
-                <Trash2 className="w-4 h-4" />
+                <Trash2 style={{ width: 15, height: 15 }} />
               </button>
             </div>
           ))}
@@ -462,24 +513,26 @@ export const Onboarding = () => {
 
         <button
           onClick={() => updateForm("services", [...formData.services, { name: "", price: "", duration: "30" }])}
-          className="w-full py-2.5 rounded-xl border-2 border-dashed border-gray-200 text-gray-500 text-sm font-medium hover:border-purple-300 hover:text-purple-600 transition-colors flex items-center justify-center gap-1.5 mb-6"
+          style={{
+            width: "100%", padding: "11px 0", borderRadius: 12, border: "1px dashed rgba(255,255,255,0.18)",
+            background: "rgba(255,255,255,0.02)", color: "rgba(255,255,255,0.5)", fontSize: 13, fontWeight: 600,
+            cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            marginBottom: 22, fontFamily: BODY,
+          }}
         >
-          <Plus className="w-4 h-4" /> Add another service
+          <Plus style={{ width: 15, height: 15 }} /> Add another service
         </button>
 
-        <div className="flex gap-3">
-          <button
-            onClick={() => setStep(2)}
-            className="px-4 py-3 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50"
-          >
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={() => setStep(2)} style={ghostBtnStyle}>
             Back
           </button>
           <button
             onClick={handleServicesSetup}
             disabled={loading}
-            className="flex-1 bg-purple-600 text-white py-3 rounded-xl font-semibold hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2"
+            style={{ flex: 1, padding: "13px 0", ...primaryBtnStyle(loading), fontSize: 14 }}
           >
-            {loading ? "Saving..." : <><span>Complete Setup</span> <ChevronRight className="w-4 h-4" /></>}
+            {loading ? "Saving..." : <><span>Complete Setup</span> <ChevronRight style={{ width: 16, height: 16 }} /></>}
           </button>
         </div>
       </OnboardingCard>
@@ -487,27 +540,41 @@ export const Onboarding = () => {
 
   if (step === 4)
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-lg bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
-          <div className="text-6xl mb-4">🎉</div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">ur salon is LIVE bestie</h1>
-          <p className="text-gray-500 text-sm mb-8">
-            Customers can now find and book at <strong>{formData.salonName}</strong>. Let's go check your dashboard!
+      <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 16, fontFamily: BODY, position: "relative", overflow: "hidden" }}>
+        <div aria-hidden="true" style={{ position: "fixed", top: "10%", left: "8%", width: 400, height: 400, borderRadius: "50%",
+          background: `radial-gradient(circle, ${G}12, transparent 70%)`, filter: "blur(60px)", pointerEvents: "none" }} />
+        <div aria-hidden="true" style={{ position: "fixed", bottom: "5%", right: "8%", width: 380, height: 380, borderRadius: "50%",
+          background: `radial-gradient(circle, ${VA}0F, transparent 70%)`, filter: "blur(60px)", pointerEvents: "none" }} />
+
+        <div style={{ width: "100%", maxWidth: 520, position: "relative", zIndex: 10, textAlign: "center", borderRadius: 24,
+          background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", padding: 28, backdropFilter: "blur(20px)" }}>
+          <div style={{ fontSize: 56, marginBottom: 14 }}>🎉</div>
+          <h1 style={{ fontFamily: DISP, fontSize: 24, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em", marginBottom: 8 }}>
+            ur salon is LIVE bestie
+          </h1>
+          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, marginBottom: 28 }}>
+            Customers can now find and book at <strong style={{ color: "#fff" }}>{formData.salonName}</strong>. Let's go check your dashboard!
           </p>
-          <div className="bg-purple-50 rounded-xl p-4 mb-8 text-left">
-            <p className="text-xs font-semibold text-purple-700 uppercase tracking-wider mb-3">What's ready for you</p>
+          <div style={{ borderRadius: 14, background: `${G}14`, border: `1px solid ${G}30`, padding: 16, marginBottom: 28, textAlign: "left" }}>
+            <p style={{ fontSize: 10, fontWeight: 700, color: G, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+              What's ready for you
+            </p>
             {[
-              "✅ Salon profile created",
-              "✅ Booking slots configured",
-              "✅ Services added",
-              "✅ Live booking link ready",
+              "Salon profile created",
+              "Booking slots configured",
+              "Services added",
+              "Live booking link ready",
             ].map((item) => (
-              <p key={item} className="text-sm text-purple-800 mb-1.5">{item}</p>
+              <p key={item} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "rgba(255,255,255,0.75)", marginBottom: 8 }}>
+                <CheckCircle2 style={{ width: 14, height: 14, color: G, flexShrink: 0 }} /> {item}
+              </p>
             ))}
           </div>
           <button
             onClick={() => navigate("/owner-dashboard")}
-            className="w-full bg-purple-600 text-white py-3.5 rounded-xl font-bold hover:bg-purple-700 transition-colors text-base"
+            style={{ width: "100%", padding: "14px 0", borderRadius: 12, background: G, color: "#fff", fontWeight: 700,
+              fontSize: 15, border: "none", cursor: "pointer", fontFamily: BODY }}
           >
             Go to Dashboard 🚀
           </button>

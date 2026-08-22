@@ -3,9 +3,14 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useErrorHandler } from "@/hooks/useErrorHandler";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Loader2, Lock, Mail, Scissors } from "lucide-react";
+import { V, VA, BG, DISP, BODY } from "@/components/landing/tokens";
+
+const fieldStyle: React.CSSProperties = {
+  padding: "12px 14px 12px 40px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.1)",
+  background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: 14, outline: "none",
+  fontFamily: BODY, boxSizing: "border-box", width: "100%",
+};
 
 export const OwnerSignUp = () => {
   const [email, setEmail] = useState("");
@@ -16,15 +21,15 @@ export const OwnerSignUp = () => {
   const { handleError } = useErrorHandler();
 
   const renderSteps = (active: 1 | 2 | 3) => (
-    <div className="mb-6 flex items-center justify-center gap-2 text-xs font-medium text-muted-foreground">
-      <span className={`h-2.5 w-2.5 rounded-full ${active === 1 ? "bg-primary" : "bg-zinc-300"}`} />
-      <span className={active === 1 ? "text-foreground" : ""}>Create Account</span>
+    <div className="mb-6 flex items-center justify-center gap-2 text-xs font-medium" style={{ color: "rgba(255,255,255,0.35)" }}>
+      <span className="h-2 w-2 rounded-full" style={{ background: active === 1 ? V : "rgba(255,255,255,0.15)" }} />
+      <span style={active === 1 ? { color: "#fff" } : undefined}>Create Account</span>
       <span>→</span>
-      <span className={`h-2.5 w-2.5 rounded-full ${active === 2 ? "bg-primary" : "bg-zinc-300"}`} />
-      <span className={active === 2 ? "text-foreground" : ""}>Verify Email</span>
+      <span className="h-2 w-2 rounded-full" style={{ background: active === 2 ? V : "rgba(255,255,255,0.15)" }} />
+      <span style={active === 2 ? { color: "#fff" } : undefined}>Verify Email</span>
       <span>→</span>
-      <span className={`h-2.5 w-2.5 rounded-full ${active === 3 ? "bg-primary" : "bg-zinc-300"}`} />
-      <span className={active === 3 ? "text-foreground" : ""}>Setup Salon</span>
+      <span className="h-2 w-2 rounded-full" style={{ background: active === 3 ? V : "rgba(255,255,255,0.15)" }} />
+      <span style={active === 3 ? { color: "#fff" } : undefined}>Setup Salon</span>
     </div>
   );
 
@@ -79,33 +84,42 @@ export const OwnerSignUp = () => {
     setLoading(false);
   };
 
+  const pageStyle: React.CSSProperties = { minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: BODY, position: "relative", overflow: "hidden", padding: "40px 16px" };
+  const cardStyle: React.CSSProperties = { width: "100%", maxWidth: 420, borderRadius: 24, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(24px)", padding: 28, position: "relative", zIndex: 10 };
+  const glowBlob = (
+    <div aria-hidden="true" style={{ position: "fixed", top: "8%", left: "8%", width: 420, height: 420, borderRadius: "50%",
+      background: `radial-gradient(circle, ${V}12, transparent 70%)`, filter: "blur(60px)", pointerEvents: "none" }} />
+  );
+
   if (emailSent) {
     return (
-      <div className="min-h-screen bg-background px-4 py-10">
-        <div className="mx-auto max-w-md rounded-xl border border-gray-200 bg-white p-8 shadow-sm">
+      <div style={pageStyle}>
+        {glowBlob}
+        <div style={cardStyle}>
           {renderSteps(2)}
 
           <div className="mb-6 text-center">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl" style={{ background: `${V}1E`, color: VA }}>
               <Scissors className="h-7 w-7" />
             </div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Step 2 of 3</p>
-            <h1 className="mt-1 font-display text-2xl font-bold">Check your email</h1>
-            <p className="mt-1 text-sm text-muted-foreground">We sent a verification link to</p>
-            <p className="mt-1 font-semibold text-primary">{email}</p>
+            <p className="text-xs font-medium uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.35)" }}>Step 2 of 3</p>
+            <h1 style={{ fontFamily: DISP, fontSize: 24, fontWeight: 800, color: "#fff", marginTop: 4 }}>Check your email</h1>
+            <p className="mt-1 text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>We sent a verification link to</p>
+            <p className="mt-1 font-semibold" style={{ color: VA }}>{email}</p>
           </div>
 
-          <p className="text-center text-sm text-muted-foreground">
+          <p className="text-center text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>
             Click the link in the email to verify your account and continue setting up your salon.
           </p>
 
-          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
+          <div className="mt-4 rounded-xl p-4 text-sm" style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.25)", color: "#FBBF24" }}>
             ⚠️ Check your spam folder if you don't see it within 2 minutes.
           </div>
 
           <button
             onClick={() => setEmailSent(false)}
-            className="mt-4 w-full text-center text-sm text-muted-foreground underline"
+            className="mt-4 w-full text-center text-sm underline"
+            style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", fontFamily: BODY }}
           >
             Use a different email
           </button>
@@ -115,68 +129,71 @@ export const OwnerSignUp = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background px-4 py-10">
-      <div className="mx-auto max-w-md rounded-xl border border-gray-200 bg-white p-8 shadow-sm">
+    <div style={pageStyle}>
+      {glowBlob}
+      <div style={cardStyle}>
         {renderSteps(1)}
 
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-green-50 text-green-600">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: "rgba(16,185,129,0.12)", color: "#10B981" }}>
             <Scissors className="h-6 w-6" />
           </div>
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Step 1 of 3</p>
-          <h1 className="mt-1 font-display text-2xl font-bold">Create Owner Account</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Register your salon on Snippr</p>
+          <p className="text-xs font-medium uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.35)" }}>Step 1 of 3</p>
+          <h1 style={{ fontFamily: DISP, fontSize: 24, fontWeight: 800, color: "#fff", marginTop: 4 }}>Create Owner Account</h1>
+          <p className="mt-1 text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>Register your salon on Snippr</p>
         </div>
 
-        <form onSubmit={handleSignUp} className="space-y-4">
+        <form onSubmit={handleSignUp} className="space-y-3.5">
           <div className="relative">
-            <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
+            <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: "rgba(255,255,255,0.35)" }} />
+            <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Owner email"
-              className="pl-10"
+              style={fieldStyle}
             />
           </div>
 
           <div className="relative">
-            <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
+            <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: "rgba(255,255,255,0.35)" }} />
+            <input
               type="password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Minimum 8 characters"
-              className="pl-10"
+              style={fieldStyle}
             />
           </div>
 
           <div className="relative">
-            <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
+            <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: "rgba(255,255,255,0.35)" }} />
+            <input
               type="password"
               required
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Confirm password"
-              className="pl-10"
+              style={fieldStyle}
             />
           </div>
 
-          <p className="text-center text-xs text-muted-foreground">
+          <p className="text-center text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
             By registering, you agree to our Terms of Service and Privacy Policy.
           </p>
 
-          <Button type="submit" disabled={loading} className="h-11 w-full rounded-xl">
+          <button type="submit" disabled={loading}
+            style={{ width: "100%", padding: "13px 0", borderRadius: 12, background: loading ? `${V}80` : V, color: "#fff",
+              fontWeight: 700, fontSize: 14, border: "none", cursor: "pointer", fontFamily: BODY, display: "flex", alignItems: "center", justifyContent: "center" }}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create Account & Verify Email"}
-          </Button>
+          </button>
         </form>
 
-        <p className="mt-4 text-center text-sm">
+        <p className="mt-4 text-center text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>
           Already have an account?{" "}
-          <Link to="/owner-login" className="font-medium text-primary hover:underline">
+          <Link to="/owner-login" className="font-medium" style={{ color: VA }}>
             Sign In
           </Link>
         </p>

@@ -29,7 +29,7 @@ export default function Careers() {
           <span className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-purple-100">
             <Sparkles className="h-3.5 w-3.5" /> Careers at snippr
           </span>
-          <h1 className="mt-6 text-4xl font-extrabold tracking-tight sm:text-5xl">Come build the vibe.</h1>
+          <h1 className="mt-6 font-display text-4xl font-extrabold tracking-tight sm:text-5xl">Come build the vibe.</h1>
           <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-purple-100 sm:text-lg">
             We’re a small startup with big energy. If you love shipping beautiful products, moving fast, and making real-world experiences feel effortless, you’ll fit right in.
           </p>
@@ -68,7 +68,7 @@ export default function Careers() {
 
         <section className="mt-10 rounded-[28px] bg-white p-8 shadow-sm">
           <p className="text-xs font-bold uppercase tracking-wider text-[#4f378a]">Why snippr</p>
-          <h2 className="mt-2 text-3xl font-bold tracking-tight">A tiny team. A real product. A lot of momentum.</h2>
+          <h2 className="mt-2 font-display text-3xl font-bold tracking-tight">A tiny team. A real product. A lot of momentum.</h2>
           <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-600">
             We’re building a modern salon experience that feels premium, quick, and genuinely useful. If you want to contribute, learn fast, and help turn a strong idea into a standout brand, let’s talk.
           </p>

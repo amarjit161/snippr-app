@@ -17,7 +17,7 @@ export default function Privacy() {
               Privacy
             </span>
 
-            <h1 className="mt-6 text-4xl font-black leading-tight tracking-tight md:text-6xl">Your privacy matters.</h1>
+            <h1 className="mt-6 font-display text-4xl font-black leading-tight tracking-tight md:text-6xl">Your privacy matters.</h1>
 
             <p className="mt-6 text-lg leading-relaxed text-[#4b4556]">
               snippr only uses your data to run bookings, queue timing, and support. We do not sell your personal data.

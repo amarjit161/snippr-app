@@ -2,7 +2,19 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Mail, ArrowLeft } from 'lucide-react';
+import { Mail, ArrowLeft, CheckCircle } from 'lucide-react';
+import { V, VA, BG, DISP, BODY } from '@/components/landing/tokens';
+
+const fieldStyle: React.CSSProperties = {
+  padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)',
+  background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 14, outline: 'none',
+  fontFamily: BODY, boxSizing: 'border-box', width: '100%',
+};
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase',
+  color: 'rgba(255,255,255,0.4)', marginBottom: 6, display: 'block',
+};
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
@@ -42,78 +54,62 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-extrabold text-gray-900 mb-2">Reset password</h1>
-          <p className="text-gray-600">We’ll send you a reset code and a link to open the reset page</p>
+    <div style={{ minHeight: '100vh', background: BG, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: BODY, position: 'relative', overflow: 'hidden' }}>
+      <div aria-hidden="true" style={{ position: 'fixed', top: '10%', right: '5%', width: 400, height: 400, borderRadius: '50%',
+        background: `radial-gradient(circle, ${V}12, transparent 70%)`, filter: 'blur(60px)', pointerEvents: 'none' }} />
+
+      <div style={{ width: '100%', maxWidth: 440, position: 'relative', zIndex: 10 }}>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <h1 style={{ fontFamily: DISP, fontSize: 28, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', marginBottom: 8 }}>
+            Reset password
+          </h1>
+          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>
+            We'll send you a reset code and a link to open the reset page
+          </p>
         </div>
 
-        {/* Card */}
-        <div className="bg-white rounded-2xl shadow-lg p-8">
+        <div style={{ borderRadius: 24, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', padding: 28, backdropFilter: 'blur(20px)' }}>
           {!sent ? (
-            <form onSubmit={handleReset} className="space-y-4">
-              {/* Email Input */}
+            <form onSubmit={handleReset} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Email address
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                    disabled={loading}
-                  />
+                <label style={labelStyle}>Email Address</label>
+                <div style={{ position: 'relative' }}>
+                  <Mail style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: 'rgba(255,255,255,0.35)' }} />
+                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" disabled={loading}
+                    style={{ ...fieldStyle, paddingLeft: 40 }} />
                 </div>
               </div>
 
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-semibold py-2.5 rounded-xl transition-all duration-200 mt-6"
-              >
-                {loading ? 'Sending...' : 'Send reset code'}
+              <button type="submit" disabled={loading}
+                style={{ width: '100%', padding: '13px 0', borderRadius: 12, background: loading ? `${V}80` : V, color: '#fff',
+                  fontWeight: 700, fontSize: 14, border: 'none', cursor: 'pointer', marginTop: 6, fontFamily: BODY }}>
+                {loading ? 'Sending…' : 'Send reset code'}
               </button>
 
-              {/* Back to Login */}
-              <Link
-                to="/login"
-                className="w-full flex items-center justify-center gap-2 text-purple-600 hover:text-purple-700 font-semibold py-2.5"
-              >
-                <ArrowLeft className="h-4 w-4" />
+              <Link to="/login"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: VA, fontWeight: 600, fontSize: 13, textDecoration: 'none', padding: '8px 0' }}>
+                <ArrowLeft style={{ width: 14, height: 14 }} />
                 Back to login
               </Link>
             </form>
           ) : (
-            <div className="space-y-6 text-center">
-              {/* Success Icon */}
-              <div className="flex justify-center">
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                  <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
+            <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(16,185,129,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <CheckCircle style={{ width: 26, height: 26, color: '#10B981' }} />
                 </div>
               </div>
 
-              {/* Message */}
               <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-2">Check your email</h2>
-                <p className="text-gray-600 text-sm">
-                  We sent a reset code and link to <span className="font-semibold">{email}</span>
+                <h2 style={{ fontFamily: DISP, fontSize: 20, fontWeight: 700, color: '#fff', marginBottom: 8 }}>Check your email</h2>
+                <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
+                  We sent a reset code and link to <span style={{ fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{email}</span>
                 </p>
               </div>
 
-              {/* Back to Login */}
-              <Link
-                to="/login"
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2.5 rounded-xl transition-all duration-200 block text-center"
-              >
+              <Link to="/login"
+                style={{ display: 'block', textAlign: 'center', width: '100%', padding: '13px 0', borderRadius: 12, background: V, color: '#fff',
+                  fontWeight: 700, fontSize: 14, textDecoration: 'none', fontFamily: BODY, boxSizing: 'border-box' }}>
                 Back to login
               </Link>
             </div>

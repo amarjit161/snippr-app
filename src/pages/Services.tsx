@@ -6,6 +6,7 @@ import { OwnerShell } from "@/components/dashboard/OwnerShell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/design/Skeleton";
 import { toast } from "sonner";
 
 type SalonRow = { id: string };
@@ -40,7 +41,7 @@ export default function Services() {
           .maybeSingle();
 
         if (salonError) throw salonError;
-        
+
         const validatedSalon = salonData as SalonRow | null;
         setSalon(validatedSalon);
 
@@ -52,7 +53,7 @@ export default function Services() {
             .eq("salon_id", validatedSalon.id)
             .order("name")
             .limit(100);
-          
+
           if (fetchError) throw fetchError;
           setServices((data as ServiceRow[]) || []);
         }
@@ -98,11 +99,11 @@ export default function Services() {
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       if (!currentUser) throw new Error("Owner session expired. Please re-login.");
 
-      const { error } = await (supabase.from("services") as any).insert({ 
-        salon_id: salon?.id, 
-        name: (newService?.name ?? "").trim(), 
-        price: Number(newService?.price ?? 0), 
-        duration: Number(newService?.duration ?? 0) 
+      const { error } = await (supabase.from("services") as any).insert({
+        salon_id: salon?.id,
+        name: (newService?.name ?? "").trim(),
+        price: Number(newService?.price ?? 0),
+        duration: Number(newService?.duration ?? 0)
       });
 
       if (error) {
@@ -122,12 +123,12 @@ export default function Services() {
   const handleSave = async () => {
     if (!editingServiceId) return;
     try {
-      const { error } = await supabaseAny.from("services").update({ 
-        name: serviceDraft.name.trim(), 
-        price: Number(serviceDraft.price), 
-        duration: Number(serviceDraft.duration) 
+      const { error } = await supabaseAny.from("services").update({
+        name: serviceDraft.name.trim(),
+        price: Number(serviceDraft.price),
+        duration: Number(serviceDraft.duration)
       }).eq("id", editingServiceId);
-      
+
       if (error) throw error;
       setEditingServiceId(null);
       toast.success("Service updated");
@@ -150,34 +151,55 @@ export default function Services() {
     }
   };
 
-  if (loading) return <div className="mx-auto h-72 max-w-4xl rounded-xl bg-gray-200/70 animate-pulse" />;
+  if (loading) {
+    return (
+      <OwnerShell onLogout={() => { localStorage.removeItem("owner"); navigate("/owner-login", { replace: true }); }}>
+        <div className="mx-auto max-w-4xl space-y-6">
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-elevation-1">
+            <div className="h-8 w-32 animate-pulse rounded-lg bg-muted" />
+            <div className="mt-3 h-4 w-56 animate-pulse rounded-lg bg-muted" />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            {[0, 1, 2, 3].map((key) => (
+              <div key={key} className="rounded-2xl border border-border bg-card p-5 shadow-elevation-1">
+                <Skeleton width="55%" height={16} />
+                <div className="mt-2.5">
+                  <Skeleton width="40%" height={12} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </OwnerShell>
+    );
+  }
   if (!owner || !salon) return null;
 
   return (
     <OwnerShell onLogout={() => { localStorage.removeItem("owner"); navigate("/owner-login", { replace: true }); }}>
       <div className="mx-auto max-w-4xl space-y-6">
-        <section className="rounded-xl border border-[#e3e2e5] bg-white p-6 shadow-sm">
-          <h1 className="font-display text-3xl font-extrabold tracking-tight">Services</h1>
-          <p className="mt-1 text-sm text-[#494551]">Manage your salon services and pricing.</p>
+        <section className="rounded-2xl border border-border bg-card p-6 shadow-elevation-1">
+          <h1 className="font-display text-3xl font-extrabold tracking-tight text-foreground">Services</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Manage your salon services and pricing.</p>
         </section>
 
-        <Card className="rounded-xl border border-[#e3e2e5] bg-white shadow-sm">
+        <Card className="rounded-2xl border-border bg-card shadow-elevation-1">
           <CardContent className="p-6">
             <form onSubmit={handleAdd} className="grid gap-3 md:grid-cols-12">
               <Input placeholder="Service name" value={newService.name} onChange={(e) => setNewService((prev) => ({ ...prev, name: e.target.value }))} className="md:col-span-5" />
               <Input placeholder="Price" type="number" value={newService.price} onChange={(e) => setNewService((prev) => ({ ...prev, price: e.target.value }))} className="md:col-span-3" />
               <Input placeholder="Duration" type="number" value={newService.duration} onChange={(e) => setNewService((prev) => ({ ...prev, duration: e.target.value }))} className="md:col-span-3" />
-              <Button type="submit" className="md:col-span-1 rounded-xl"><Plus className="h-4 w-4" /></Button>
+              <Button type="submit" className="md:col-span-1"><Plus className="h-4 w-4" /></Button>
             </form>
           </CardContent>
         </Card>
 
         <div className="grid gap-4 md:grid-cols-2">
           {services.length === 0 ? (
-            <Card className="rounded-xl border border-dashed border-[#e3e2e5] bg-white shadow-sm md:col-span-2"><CardContent className="p-8 text-center text-sm text-[#494551]">No data yet.</CardContent></Card>
+            <Card className="rounded-2xl border-dashed border-border bg-card shadow-none md:col-span-2"><CardContent className="p-8 text-center text-sm text-muted-foreground">No data yet.</CardContent></Card>
           ) : services.map((service) => (
-            <Card key={service.id} className="rounded-xl border border-[#e3e2e5] bg-white shadow-sm">
-              <CardContent className="p-5 space-y-3">
+            <Card key={service.id} className="rounded-2xl border-border bg-card shadow-elevation-1 transition-shadow hover:shadow-elevation-2">
+              <CardContent className="space-y-3 p-5">
                 {editingServiceId === service.id ? (
                   <>
                     <Input value={serviceDraft.name} onChange={(e) => setServiceDraft((prev) => ({ ...prev, name: e.target.value }))} />
@@ -186,16 +208,16 @@ export default function Services() {
                       <Input type="number" value={serviceDraft.duration} onChange={(e) => setServiceDraft((prev) => ({ ...prev, duration: e.target.value }))} />
                     </div>
                     <div className="flex gap-2">
-                      <Button onClick={handleSave} className="rounded-xl"><Loader2 className="mr-2 h-4 w-4 opacity-0" />Save</Button>
-                      <Button type="button" variant="outline" className="rounded-xl" onClick={() => setEditingServiceId(null)}>Cancel</Button>
+                      <Button onClick={handleSave}><Loader2 className="mr-2 h-4 w-4 opacity-0" />Save</Button>
+                      <Button type="button" variant="outline" onClick={() => setEditingServiceId(null)}>Cancel</Button>
                     </div>
                   </>
                 ) : (
                   <>
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-semibold">{service?.name ?? "Service"}</p>
-                        <p className="text-sm text-[#494551]">INR {service?.price ?? 0} • {service?.duration ?? 0} mins</p>
+                        <p className="font-display text-base font-bold text-foreground">{service?.name ?? "Service"}</p>
+                        <p className="mt-1 font-mono text-xs text-muted-foreground">INR {service?.price ?? 0} • {service?.duration ?? 0} mins</p>
                       </div>
                       <BadgeActions setEditingServiceId={setEditingServiceId} setServiceDraft={setServiceDraft} service={service} onDelete={handleDelete} />
                     </div>
@@ -212,10 +234,9 @@ export default function Services() {
 
 function BadgeActions({ service, setEditingServiceId, setServiceDraft, onDelete }: any) {
   return (
-    <div className="flex gap-2">
-      <Button type="button" variant="outline" className="rounded-xl" onClick={() => { setEditingServiceId(service?.id); setServiceDraft({ name: service?.name ?? "", price: String(service?.price ?? 0), duration: String(service?.duration ?? 0) }); }}><Pencil className="h-4 w-4" /></Button>
-      <Button type="button" variant="outline" className="rounded-xl" onClick={() => onDelete(service.id)}><Trash2 className="h-4 w-4" /></Button>
+    <div className="flex shrink-0 gap-2">
+      <Button type="button" variant="outline" size="icon" onClick={() => { setEditingServiceId(service?.id); setServiceDraft({ name: service?.name ?? "", price: String(service?.price ?? 0), duration: String(service?.duration ?? 0) }); }}><Pencil className="h-4 w-4" /></Button>
+      <Button type="button" variant="outline" size="icon" className="text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => onDelete(service.id)}><Trash2 className="h-4 w-4" /></Button>
     </div>
   );
 }
-

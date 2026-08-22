@@ -76,7 +76,7 @@ export function AssignmentLoader({
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 p-6 sm:p-8"
+        className="rounded-2xl bg-gradient-to-r from-primary/10 to-accent/10 border-2 border-primary/20 p-6 sm:p-8"
       >
         <div className="text-center space-y-6">
           {/* Shimmer Header */}
@@ -91,8 +91,8 @@ export function AssignmentLoader({
               transition={{ duration: 2, repeat: Infinity }}
               className="relative"
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-indigo-400 rounded-full blur-xl opacity-50 animate-pulse" />
-              <div className="relative w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
+              <div className="absolute inset-0 bg-gradient-to-r from-primary to-accent rounded-full blur-xl opacity-50 animate-pulse" />
+              <div className="relative w-20 h-20 bg-gradient-to-br from-primary to-accent rounded-full flex items-center justify-center">
                 <User className="w-10 h-10 text-white" />
               </div>
             </motion.div>
@@ -105,7 +105,7 @@ export function AssignmentLoader({
                 key={i}
                 animate={{ scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] }}
                 transition={{ duration: 1.5, delay: i * 0.2, repeat: Infinity }}
-                className="w-2 h-2 bg-blue-500 rounded-full"
+                className="w-2 h-2 bg-primary rounded-full"
               />
             ))}
           </div>
@@ -208,7 +208,7 @@ export function AssignmentLoader({
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ delay: 0.3, type: "spring" }}
-              className="w-16 h-16 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg"
+              className="w-16 h-16 bg-gradient-to-br from-primary to-accent rounded-full flex items-center justify-center flex-shrink-0 shadow-lg"
             >
               <User className="w-8 h-8 text-white" />
             </motion.div>

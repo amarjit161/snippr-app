@@ -52,7 +52,7 @@ const normalizeQueueRow = (row: any): QueueRow => {
     user_id: row.customer_id || row.user_id,
     barber_id: row.stylist_id || row.barber_id,
     time_slot: row.booking_time || row.time_slot,
-    barbers: row.stylists || row.barbers || null,
+    barbers: row.barbers || null,
     customer_first_name: row.customer_profiles?.first_name || row.customer_first_name || null,
     customer_last_name: row.customer_profiles?.last_name || row.customer_last_name || null,
     customer_phone: row.customer_profiles?.phone || row.customer_phone || null,
@@ -134,6 +134,7 @@ export default function OwnerDashboard() {
   const [owner, setOwner] = useState<OwnerRecord | null>(null);
   const [salon, setSalon] = useState<SalonRow | null>(null);
   const [queueItems, setQueueItems] = useState<QueueRow[]>([]);
+  const [barbers, setBarbers] = useState<{ id: string; name: string; chair_number: number | null; specialization: string | null }[]>([]);
   const [profileMap, setProfileMap] = useState<Record<string, string>>({});
   const [queueDatePreset, setQueueDatePreset] = useState<QueueDatePreset>("today");
   const [customQueueDate, setCustomQueueDate] = useState(todayISO());
@@ -239,7 +240,7 @@ export default function OwnerDashboard() {
         const [queueRes, barbersRes, servicesRes] = await Promise.all([
           supabase
             .from("bookings")
-            .select("*, services (*), stylists (*), salons (*), customer_profiles(first_name, last_name, phone, email)")
+            .select("*, services (*), barbers (*), salons (*), customer_profiles(first_name, last_name, phone, email)")
             .eq("salon_id", salonData.id)
             .order("created_at", { ascending: false })
             .limit(200),
@@ -275,7 +276,9 @@ export default function OwnerDashboard() {
           }
         }
 
-        // Barbers & Services aren't currently in standalone state apart from the queue join, 
+        if (barbersRes.data) setBarbers(barbersRes.data as any[]);
+
+        // Services aren't currently in standalone state apart from the queue join,
         // but we keep the logic ready if needed for other UI parts.
 
         console.log("FETCH_DASHBOARD_SUCCESS");
@@ -296,7 +299,7 @@ export default function OwnerDashboard() {
     try {
       const { data, error } = await (supabase as any)
         .from("bookings")
-        .select("*, services (*), stylists (*), salons (*), customer_profiles(first_name, last_name, phone, email)")
+        .select("*, services (*), barbers (*), salons (*), customer_profiles(first_name, last_name, phone, email)")
         .eq("salon_id", id)
         .order("created_at", { ascending: false })
         .limit(200); // Add limit for performance
@@ -316,7 +319,7 @@ export default function OwnerDashboard() {
     try {
       const { data } = await supabase
         .from("bookings")
-        .select("*, services (*), stylists (*), salons (*), customer_profiles(first_name, last_name, phone, email)")
+        .select("*, services (*), barbers (*), salons (*), customer_profiles(first_name, last_name, phone, email)")
         .eq("id", queueId)
         .maybeSingle();
       return normalizeQueueRow(data);
@@ -561,7 +564,7 @@ export default function OwnerDashboard() {
       // Local refresh
       const { data } = await supabaseAny
         .from("bookings")
-        .select("*, services (*), stylists (*), salons (*), customer_profiles(first_name, last_name, phone, email)")
+        .select("*, services (*), barbers (*), salons (*), customer_profiles(first_name, last_name, phone, email)")
         .eq("salon_id", salon.id)
         .order("created_at", { ascending: true })
         .limit(200);
@@ -583,10 +586,10 @@ export default function OwnerDashboard() {
 
   if (loadingSalon) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f4f3f6]">
+      <div className="flex min-h-screen items-center justify-center bg-muted">
         <div className="text-center">
           <Loader2 className="mx-auto h-10 w-10 animate-spin text-primary" />
-          <p className="mt-4 text-sm font-medium text-[#494551]">Resolving your salon identity...</p>
+          <p className="mt-4 text-sm font-medium text-muted-foreground">Resolving your salon identity...</p>
         </div>
       </div>
     );
@@ -594,11 +597,11 @@ export default function OwnerDashboard() {
 
   if (!salon) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f4f3f6]">
-        <div className="max-w-md rounded-2xl border border-[#e3e2e5] bg-white p-8 text-center shadow-sm">
+      <div className="flex min-h-screen items-center justify-center bg-muted">
+        <div className="max-w-md rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
           <Sparkles className="mx-auto h-12 w-12 text-amber-500" />
           <h2 className="mt-6 text-2xl font-bold">Salon Not Found</h2>
-          <p className="mt-2 text-[#494551]">We couldn't find a salon associated with your account. Please register your salon to continue.</p>
+          <p className="mt-2 text-muted-foreground">We couldn't find a salon associated with your account. Please register your salon to continue.</p>
           <Button className="mt-8 w-full rounded-xl" onClick={() => navigate("/register-salon")}>Register Salon</Button>
           <Button variant="outline" className="mt-3 w-full rounded-xl" onClick={() => { signOut(); navigate("/owner-login"); }}>Logout</Button>
         </div>
@@ -612,7 +615,7 @@ export default function OwnerDashboard() {
         <div className="flex h-[60vh] items-center justify-center">
           <div className="text-center">
             <Loader2 className="mx-auto h-10 w-10 animate-spin text-primary" />
-            <p className="mt-4 text-sm font-medium text-[#494551]">Orchestrating real-time dashboard...</p>
+            <p className="mt-4 text-sm font-medium text-muted-foreground">Orchestrating real-time dashboard...</p>
           </div>
         </div>
       </OwnerShell>
@@ -630,16 +633,16 @@ export default function OwnerDashboard() {
   return (
     <OwnerShell onLogout={() => { signOut(); navigate("/owner-login", { replace: true }); }}>
       <div ref={pageRef} className="space-y-6">
-        <header ref={headerRef as any} className="dashboard-animate flex flex-col gap-4 rounded-xl border border-[#e3e2e5] bg-white p-5 shadow-sm lg:flex-row lg:items-start lg:justify-between">
+        <header ref={headerRef as any} className="dashboard-animate flex flex-col gap-4 rounded-xl border border-border bg-card p-5 shadow-sm lg:flex-row lg:items-start lg:justify-between">
           <div>
             <Badge variant="secondary" className="rounded-full px-3 py-1 text-xs font-semibold">Owner Dashboard</Badge>
             <h1 className="mt-3 font-display text-3xl font-extrabold tracking-tight sm:text-4xl">
               {salon?.name || "Owner Console"}
             </h1>
-            <p className="mt-2 max-w-2xl text-sm text-[#494551]">Operate your salon with a premium real-time workflow.</p>
+            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Operate your salon with a premium real-time workflow.</p>
           </div>
 
-          <div className="flex items-center gap-3 rounded-xl border border-[#e3e2e5] bg-white px-4 py-3 shadow-sm">
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-sm">
             <div className="h-10 w-10 overflow-hidden rounded-full border-2 border-violet-200 bg-slate-100">
               <img 
                 src={profileImage} 
@@ -651,7 +654,7 @@ export default function OwnerDashboard() {
             </div>
             <div className="text-right">
               <p className="text-sm font-bold">{owner?.name ?? "Owner"}</p>
-              <p className="text-xs text-[#494551]">{owner?.email ?? "email@example.com"}</p>
+              <p className="text-xs text-muted-foreground">{owner?.email ?? "email@example.com"}</p>
             </div>
             <Button variant="outline" className="h-9 rounded-xl" onClick={() => navigate("/settings")}>Settings</Button>
           </div>
@@ -659,20 +662,20 @@ export default function OwnerDashboard() {
 
         <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
           {[
-            { label: "Total Customers", value: summaryCards.bookingsToday, badge: "+12%", badgeClass: "bg-green-50 text-green-700", icon: Users, iconWrap: "bg-violet-100 text-violet-700", cardClass: "bg-white", valueClass: "text-[#1a1c1e]" },
-            { label: "Today's Earnings", value: formatMoney(summaryCards.revenueToday), badge: "+5.4%", badgeClass: "bg-green-50 text-green-700", icon: DollarSign, iconWrap: "bg-orange-100 text-orange-700", cardClass: "bg-white", valueClass: "text-[#1a1c1e]" },
+            { label: "Total Customers", value: summaryCards.bookingsToday, badge: "+12%", badgeClass: "bg-green-50 text-green-700", icon: Users, iconWrap: "bg-violet-100 text-violet-700", cardClass: "bg-card", valueClass: "text-foreground" },
+            { label: "Today's Earnings", value: formatMoney(summaryCards.revenueToday), badge: "+5.4%", badgeClass: "bg-green-50 text-green-700", icon: DollarSign, iconWrap: "bg-orange-100 text-orange-700", cardClass: "bg-card", valueClass: "text-foreground" },
             { label: "Active Queue count", value: summaryCards.activeQueue, badge: "Live", badgeClass: "bg-white/15 text-white", icon: Activity, iconWrap: "bg-white/20 text-white", cardClass: "bg-gradient-to-br from-primary to-primary/80 text-white", valueClass: "text-white" },
-            { label: "Avg. Wait Time", value: `${summaryCards.avgDuration}m`, badge: "-2m", badgeClass: "bg-red-50 text-red-700", icon: Timer, iconWrap: "bg-amber-100 text-amber-700", cardClass: "bg-white", valueClass: "text-[#1a1c1e]" },
+            { label: "Avg. Wait Time", value: `${summaryCards.avgDuration}m`, badge: "-2m", badgeClass: "bg-red-50 text-red-700", icon: Timer, iconWrap: "bg-amber-100 text-amber-700", cardClass: "bg-card", valueClass: "text-foreground" },
           ].map((card) => {
             const Icon = card.icon;
             return (
-              <Card key={card.label} className={`dashboard-animate rounded-xl border border-[#e3e2e5] shadow-sm ${card.cardClass}`}>
+              <Card key={card.label} className={`dashboard-animate rounded-xl border border-border shadow-sm ${card.cardClass}`}>
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between">
                     <div className={`rounded-2xl p-3 ${card.iconWrap}`}><Icon className="h-5 w-5" /></div>
                     <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${card.badgeClass}`}>{card.badge}</span>
                   </div>
-                  <p className="mt-4 text-xs font-bold uppercase tracking-[0.15em] text-[#6b6474]">{card.label}</p>
+                  <p className="mt-4 text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground">{card.label}</p>
                   <p className={`mt-1 font-display text-3xl font-extrabold ${card.valueClass}`}>{card.value}</p>
                 </CardContent>
               </Card>
@@ -681,46 +684,46 @@ export default function OwnerDashboard() {
         </section>
 
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-          <Card className="dashboard-animate rounded-xl border border-[#e3e2e5] bg-white shadow-sm xl:col-span-2">
+          <Card className="dashboard-animate rounded-xl border border-border bg-card shadow-sm xl:col-span-2">
             <CardContent className="p-6">
               <div className="mb-6 flex items-center justify-between gap-3">
                 <div>
                   <h3 className="font-display text-xl font-bold">Peak Traffic Trends</h3>
-                  <p className="text-sm text-[#494551]">Real-time salon operations and queue metrics.</p>
+                  <p className="text-sm text-muted-foreground">Real-time salon operations and queue metrics.</p>
                 </div>
-                <select className="rounded-full border border-[#e3e2e5] bg-[#f4f3f6] px-4 py-2 text-xs font-bold outline-none">
+                <select className="rounded-full border border-border bg-muted px-4 py-2 text-xs font-bold outline-none">
                   <option>Last 7 Days</option>
                   <option>Last 30 Days</option>
                 </select>
               </div>
-              <div className="relative h-56 overflow-hidden rounded-xl bg-[#f4f3f6]">
+              <div className="relative h-56 overflow-hidden rounded-xl bg-muted">
                 <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none">
                   <defs>
                     <linearGradient id="owner-chart-gradient" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0%" stopColor="#6750a4" stopOpacity="0.45" />
-                      <stop offset="100%" stopColor="#6750a4" stopOpacity="0" />
+                      <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.45" />
+                      <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0" />
                     </linearGradient>
                   </defs>
                   <path d="M0 220 Q 140 180 250 195 T 480 150 T 760 120 T 1024 35 L 1024 256 L 0 256 Z" fill="url(#owner-chart-gradient)" />
-                  <path d="M0 220 Q 140 180 250 195 T 480 150 T 760 120 T 1024 35" fill="none" stroke="#6750a4" strokeWidth="4" />
+                  <path d="M0 220 Q 140 180 250 195 T 480 150 T 760 120 T 1024 35" fill="none" stroke="hsl(var(--primary))" strokeWidth="4" />
                 </svg>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="dashboard-animate rounded-xl border border-[#e3e2e5] bg-[#f4f3f6] shadow-sm">
+          <Card className="dashboard-animate rounded-xl border border-border bg-muted shadow-sm">
             <CardContent className="flex h-full flex-col items-center justify-center p-6 text-center">
               <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-orange-100 text-orange-600"><Plus className="h-7 w-7" /></div>
               <h3 className="font-display text-lg font-bold">New Walk-in?</h3>
-              <p className="mt-2 text-sm text-[#494551]">Add customers directly to the queue without a pre-booking.</p>
-              <Button className="mt-5 h-11 w-full rounded-full bg-[#1f2023] text-white hover:bg-[#2f3033]" onClick={() => navigate("/queue")}>Manual Entry</Button>
+              <p className="mt-2 text-sm text-muted-foreground">Add customers directly to the queue without a pre-booking.</p>
+              <Button className="mt-5 h-11 w-full rounded-full" onClick={() => navigate("/queue")}>Manual Entry</Button>
               <Button variant="outline" className="mt-3 h-11 w-full rounded-full" onClick={() => navigate("/salons")}>Add Booking</Button>
             </CardContent>
           </Card>
         </section>
 
         <section className="dashboard-animate grid grid-cols-1 gap-6 xl:grid-cols-3">
-          <Card className="rounded-xl border border-[#e3e2e5] bg-white shadow-sm xl:col-span-2">
+          <Card className="rounded-xl border border-border bg-card shadow-sm xl:col-span-2">
             <CardContent className="p-6">
               <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                 <h3 className="font-display text-2xl font-bold">Live Queue</h3>
@@ -728,7 +731,7 @@ export default function OwnerDashboard() {
                   <select
                     value={queueDatePreset}
                     onChange={(event) => setQueueDatePreset(event.target.value as QueueDatePreset)}
-                    className="h-10 rounded-full border border-[#e3e2e5] bg-white px-4 text-sm font-semibold outline-none"
+                    className="h-10 rounded-full border border-border bg-card px-4 text-sm font-semibold outline-none"
                   >
                     <option value="today">Today</option>
                     <option value="tomorrow">Tomorrow</option>
@@ -739,17 +742,17 @@ export default function OwnerDashboard() {
                       type="date"
                       value={customQueueDate}
                       onChange={(event) => setCustomQueueDate(event.target.value)}
-                      className="h-10 rounded-full border border-[#e3e2e5] bg-white px-4 text-sm font-semibold outline-none"
+                      className="h-10 rounded-full border border-border bg-card px-4 text-sm font-semibold outline-none"
                     />
                   ) : null}
-                  <span className="rounded-full border border-[#1f2023] px-3 py-1 text-xs font-bold">
+                  <span className="rounded-full border border-border px-3 py-1 text-xs font-bold text-foreground">
                     {activeQueueItems.length} people waiting
                   </span>
                 </div>
               </div>
 
               {activeQueueItems.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-[#d9d6df] p-10 text-center text-sm text-[#6b6474]">
+                <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
                   No active queue for this date.
                 </div>
               ) : (
@@ -774,21 +777,21 @@ export default function OwnerDashboard() {
 
                     return (
                       <>
-                        <div key={item.id} className="flex flex-col gap-3 rounded-2xl border border-[#eeedf0] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div key={item.id} className="flex flex-col gap-3 rounded-2xl border border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex items-center gap-4">
                           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-violet-100 text-lg font-bold text-violet-700">
                             {initials || "C"}
                           </div>
                           <div>
-                            <p className="text-lg font-bold text-[#1a1c1e]">{customerName}</p>
-                            <p className="text-sm text-[#656170]">✂ {serviceName} <span className="mx-1">•</span> Barber: {barberName}</p>
+                            <p className="text-lg font-bold text-foreground">{customerName}</p>
+                            <p className="text-sm text-muted-foreground">✂ {serviceName} <span className="mx-1">•</span> Barber: {barberName}</p>
                           </div>
                         </div>
 
                         <div className="flex items-center justify-between gap-3 sm:justify-end">
                           <div className="text-right">
-                            <p className="text-2xl font-extrabold leading-none text-[#101828]">{bookingTime}</p>
-                            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6b6474]">Scheduled</p>
+                            <p className="text-2xl font-extrabold leading-none text-foreground">{bookingTime}</p>
+                            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Scheduled</p>
                           </div>
                           {(item.status === "waiting" || item.status === "pending") && canAcceptSelectedDate ? (
                             <Button
@@ -864,36 +867,46 @@ export default function OwnerDashboard() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-xl border border-[#e3e2e5] bg-white shadow-sm">
+          <Card className="rounded-xl border border-border bg-card shadow-sm">
             <CardContent className="p-6">
-              <h4 className="text-2xl font-bold text-[#1a1c1e]">Barber Status</h4>
+              <h4 className="text-2xl font-bold text-foreground">Barber Status</h4>
               <div className="mt-4 space-y-3">
-                {[
-                  { name: "Marcus", status: "Busy", tone: "bg-amber-400" },
-                  { name: "Sarah", status: "Available", tone: "bg-emerald-500" },
-                  { name: "David", status: "On Break", tone: "bg-slate-400" },
-                ].map((entry) => (
-                  <div key={entry.name} className="flex items-center justify-between rounded-xl border border-[#eeedf0] px-3 py-2">
-                    <p className="text-lg font-semibold text-[#202328]">{entry.name}</p>
-                    <span className="inline-flex items-center gap-1 rounded-full border border-[#1f2023] px-2 py-1 text-xs font-bold">
-                      <span className={`h-2 w-2 rounded-full ${entry.tone}`} />
-                      {entry.status}
-                    </span>
-                  </div>
-                ))}
+                {barbers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No staff added yet.</p>
+                ) : (
+                  barbers.map((barber) => {
+                    const inChair = queueItems.some(
+                      (item) => item.barber_id === barber.id && ["in_service", "in_progress"].includes(item.status)
+                    );
+                    return (
+                      <div key={barber.id} className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
+                        <div>
+                          <p className="text-lg font-semibold text-foreground">{barber.name}</p>
+                          {barber.specialization && (
+                            <p className="text-xs text-muted-foreground">{barber.specialization}</p>
+                          )}
+                        </div>
+                        <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-1 text-xs font-bold text-foreground">
+                          <span className={`h-2 w-2 rounded-full ${inChair ? "bg-success" : "bg-muted-foreground/40"}`} />
+                          {inChair ? "In Chair" : "—"}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </CardContent>
           </Card>
         </section>
 
-        <section ref={queueRef as any} className="dashboard-animate overflow-hidden rounded-xl border border-[#e3e2e5] bg-white shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eeedf0] px-6 py-4">
+        <section ref={queueRef as any} className="dashboard-animate overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-6 py-4">
             <h3 className="font-display text-xl font-bold">Live Queue Status</h3>
             <div className="flex flex-wrap items-center gap-3">
               <select
                 value={queueDatePreset}
                 onChange={(event) => setQueueDatePreset(event.target.value as QueueDatePreset)}
-                className="h-10 rounded-full border border-[#e3e2e5] bg-[#f4f3f6] px-4 text-sm font-semibold outline-none"
+                className="h-10 rounded-full border border-border bg-muted px-4 text-sm font-semibold outline-none"
               >
                 <option value="today">Today</option>
                 <option value="tomorrow">Tomorrow</option>
@@ -904,7 +917,7 @@ export default function OwnerDashboard() {
                   type="date"
                   value={customQueueDate}
                   onChange={(event) => setCustomQueueDate(event.target.value)}
-                  className="h-10 rounded-full border border-[#e3e2e5] bg-[#f4f3f6] px-4 text-sm font-semibold outline-none"
+                  className="h-10 rounded-full border border-border bg-muted px-4 text-sm font-semibold outline-none"
                 />
               ) : null}
               <Button variant="outline" className="rounded-full" onClick={() => salon && fetchDashboardData(salon.id)} disabled={queueLoading || !salon}>
@@ -915,22 +928,22 @@ export default function OwnerDashboard() {
           </div>
 
           {queueLoading ? (
-            <div className="p-10 text-center text-sm text-[#494551]">Loading queue...</div>
+            <div className="p-10 text-center text-sm text-muted-foreground">Loading queue...</div>
           ) : queueEmpty ? (
-            <div className="p-14 text-center text-sm text-[#6b6474]">No data yet.</div>
+            <div className="p-14 text-center text-sm text-muted-foreground">No data yet.</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full text-left">
-                <thead className="bg-[#f4f3f6]">
+                <thead className="bg-muted">
                   <tr>
-                    <th className="px-6 py-3 text-[10px] uppercase tracking-[0.18em] text-[#6b6474]">Customer</th>
-                    <th className="px-6 py-3 text-[10px] uppercase tracking-[0.18em] text-[#6b6474]">Service</th>
-                    <th className="px-6 py-3 text-[10px] uppercase tracking-[0.18em] text-[#6b6474]">Wait Time</th>
-                    <th className="px-6 py-3 text-[10px] uppercase tracking-[0.18em] text-[#6b6474]">Status</th>
-                    <th className="px-6 py-3 text-[10px] uppercase tracking-[0.18em] text-[#6b6474]">Actions</th>
+                    <th className="px-6 py-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Customer</th>
+                    <th className="px-6 py-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Service</th>
+                    <th className="px-6 py-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Wait Time</th>
+                    <th className="px-6 py-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Status</th>
+                    <th className="px-6 py-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#eeedf0]">
+                <tbody className="divide-y divide-border">
                   {filteredQueueItems.map((item) => {
                     const walkinName = (item as any).customer_first_name && (item as any).customer_last_name 
                       ? `${(item as any).customer_first_name} ${(item as any).customer_last_name}`
@@ -949,8 +962,8 @@ export default function OwnerDashboard() {
                             <span className="text-sm font-semibold">{customerName}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-sm text-[#494551]">{serviceName}</td>
-                        <td className="px-6 py-4 text-sm font-semibold text-[#ab3500]">{waitTime}m</td>
+                        <td className="px-6 py-4 text-sm text-muted-foreground">{serviceName}</td>
+                        <td className="px-6 py-4 text-sm font-semibold text-warning">{waitTime}m</td>
                         <td className="px-6 py-4"><span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase transition-colors ${statusClass[status] || "bg-slate-100 text-slate-700"}`}>{formatStatus(status)}</span></td>
                         <td className="px-6 py-4">
                           <div className="flex gap-2">

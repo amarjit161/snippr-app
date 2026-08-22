@@ -1,37 +1,23 @@
-import {
-  Apple,
-  ArrowRight,
-  CalendarDays,
-  CheckCircle,
-  Clock3,
-  Globe,
-  Hourglass,
-  MapPin,
-  Scissors,
-  Search,
-  Share2,
-  ShoppingBag,
-  Star,
-  User,
-} from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { CalendarDays, Hourglass, Search, User } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import gsap from "gsap";
-import salon1 from "@/assets/salon-1.jpg";
-import salon2 from "@/assets/salon-2.jpg";
-import salon3 from "@/assets/salon-3.jpg";
-import salon4 from "@/assets/salon-4.jpg";
-
-const heroImage = salon1;
-
-const navLinkClass = "text-slate-600 font-medium hover:text-violet-600 transition-colors";
+import { LandingNavbar } from "@/components/landing/LandingNavbar";
+import { Hero } from "@/components/landing/Hero";
+import { ExploreSalons } from "@/components/landing/ExploreSalons";
+import { Problem } from "@/components/landing/Problem";
+import { Solution } from "@/components/landing/Solution";
+import { JourneySection } from "@/components/landing/JourneySection";
+import { MarketingDashboard } from "@/components/landing/MarketingDashboard";
+import { AppScreens } from "@/components/landing/AppScreens";
+import { Trust } from "@/components/landing/Trust";
+import { CTA } from "@/components/landing/CTA";
+import { Footer } from "@/components/landing/Footer";
 
 export default function Index() {
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
-  const userLabel = profile?.name?.trim() || user?.email || user?.phone || "U";
-  const avatarInitial = userLabel.charAt(0).toUpperCase();
+  const { user } = useAuth();
   const [transitioning, setTransitioning] = useState(false);
 
   useEffect(() => {
@@ -65,75 +51,6 @@ export default function Index() {
       navigate(nextUrl, { replace: true });
     }
   }, [navigate]);
-
-  const salons = useMemo(
-    () => [
-      {
-        name: "The Collective Artistry",
-        tag: "Luxury Styling & Color Bar",
-        location: "Hauz Khas, Delhi",
-        wait: "12 min wait",
-        rating: 4.9,
-        distance: "2.1 km",
-        image: heroImage,
-        accent: "from-[#1f1f1f]/20 to-[#1f1f1f]/70",
-      },
-      {
-        name: "Urban Groomers",
-        tag: "Modern barbering & grooming lounge.",
-        location: "Connaught Place, Delhi",
-        wait: "5 min wait",
-        rating: 4.8,
-        distance: "2.4 km",
-        image: salon2,
-        accent: "from-black/20 to-black/75",
-      },
-      {
-        name: "Aura Wellness",
-        tag: "Holistic hair treatments and scalp spa.",
-        location: "Green Park, Delhi",
-        wait: "Immediate start",
-        rating: 4.7,
-        distance: "0.8 km",
-        image: salon3,
-        accent: "from-black/15 to-black/80",
-      },
-      {
-        name: "Velvet Blades",
-        tag: "Minimal cuts with premium flow.",
-        location: "South Extension, Delhi",
-        wait: "9 min wait",
-        rating: 4.8,
-        distance: "1.6 km",
-        image: salon4,
-        accent: "from-black/20 to-black/80",
-      },
-      {
-        name: "Crown Studio",
-        tag: "Editorial grooming, fresh trims.",
-        location: "Punjabi Bagh, Delhi",
-        wait: "11 min wait",
-        rating: 4.6,
-        distance: "3.3 km",
-        image: heroImage,
-        accent: "from-black/20 to-black/75",
-      },
-    ],
-    []
-  );
-
-  const [activeSalonIndex, setActiveSalonIndex] = useState(0);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setActiveSalonIndex((current) => (current + 1) % salons.length);
-    }, 4200);
-
-    return () => window.clearInterval(timer);
-  }, [salons.length]);
-
-  const activeSalon = salons[activeSalonIndex];
-  const nextSalons = salons.filter((_, index) => index !== activeSalonIndex).slice(0, 2);
 
   const goToBookings = () => {
     if (transitioning) return;
@@ -170,294 +87,38 @@ export default function Index() {
   };
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[#faf9fc] text-[#1a1c1e] antialiased">
-      <header data-landing-header className="sticky top-0 z-50 mx-auto flex w-full flex-col gap-3 bg-[rgba(250,249,252,0.8)] px-4 py-3 shadow-sm backdrop-blur-xl sm:px-6 md:flex-row md:items-center md:justify-between md:py-4">
-        <div className="flex items-center justify-between gap-4">
-          <span className="text-xl font-extrabold tracking-tight text-violet-900 sm:text-2xl">snippr</span>
-          <nav className="flex items-center gap-4 overflow-x-auto md:hidden">
-            <button className="border-b-2 border-violet-700 font-bold text-violet-700" onClick={() => navigate("/salons")}>Explore</button>
-            <button className={navLinkClass} onClick={goToBookings}>Bookings</button>
-            <button className={navLinkClass} onClick={() => navigate("/queue")}>Live Queue</button>
-          </nav>
-          <div className="flex items-center gap-3 md:hidden">
-            {user ? (
-              <button
-                onClick={goToBookings}
-                className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border-2 border-[#6750a4]/20 bg-[#e8e8eb] text-sm font-bold text-[#4f378a]"
-                aria-label="User profile"
-              >
-                {avatarInitial}
-              </button>
-            ) : (
-              <button
-                onClick={() => navigate("/login")}
-                className="rounded-full border border-[#e3e2e5] bg-white px-3 py-2 text-xs font-semibold text-[#4f378a] shadow-sm"
-                aria-label="Sign in"
-              >
-                Sign in
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="hidden items-center gap-8 md:flex">
-          <nav className="flex items-center gap-6">
-            <button className="border-b-2 border-violet-700 font-bold text-violet-700" onClick={() => navigate("/salons")}>Explore</button>
-            <button className={navLinkClass} onClick={goToBookings}>Bookings</button>
-            <button className={navLinkClass} onClick={() => navigate("/queue")}>Live Queue</button>
-          </nav>
-          <div className="flex items-center gap-4">
-          {user ? (
-            <button
-              onClick={goToBookings}
-              className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border-2 border-[#6750a4]/20 bg-[#e8e8eb] text-sm font-bold text-[#4f378a]"
-              aria-label="User profile"
-            >
-              {avatarInitial}
-            </button>
-          ) : (
-            <button
-              onClick={() => navigate("/login")}
-              className="flex h-10 items-center gap-2 rounded-full border border-[#e3e2e5] bg-white px-4 text-sm font-semibold text-[#4f378a] shadow-sm transition hover:bg-[#f4f3f6]"
-              aria-label="Sign in"
-            >
-              <User className="h-4 w-4" />
-              Sign in
-            </button>
-          )}
-        </div>
-        </div>
-      </header>
+    <div className="min-h-screen antialiased" style={{ background: "#050507" }}>
+      <LandingNavbar onBookings={goToBookings} />
 
       <main>
-        <section data-landing-hero className="mx-auto flex max-w-7xl flex-col items-center gap-10 px-4 pb-16 pt-12 sm:px-6 sm:pt-16 lg:flex-row lg:px-16 lg:pt-24">
-          <div className="flex-1 space-y-8">
-            <div className="flex flex-wrap gap-3">
-              <span className="rounded-full bg-[#e9ddff] px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-[#4f378a]">AI Wait Time</span>
-              <span className="rounded-full bg-[#ffdbd0] px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-[#832600]">Live Queue</span>
-              <span className="rounded-full bg-[#ffdf93] px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-[#503d00]">Smart ETA</span>
-            </div>
-
-            <h1 className="text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl lg:text-7xl">
-              Skip the wait at <br />
-              <span className="italic text-[#4f378a]">premium</span> salons.
-            </h1>
-
-            <p className="max-w-xl text-base leading-relaxed text-[#494551] sm:text-lg lg:text-xl">
-              snippr uses predictive intelligence to choreograph your salon visit. No more waiting areas just arrive exactly when your stylist is ready.
-            </p>
-
-            <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap">
-              <button
-                onClick={() => navigate("/salons")}
-                className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-[#4f378a] to-[#6750a4] px-6 py-3.5 text-base font-bold text-white shadow-lg transition-all hover:opacity-90 sm:px-8 sm:py-4 sm:text-lg"
-              >
-                Join Queue
-                <ArrowRight className="h-5 w-5" />
-              </button>
-              <button
-                onClick={() => navigate("/how-it-works")}
-                className="rounded-2xl bg-[#e8e8eb] px-6 py-3.5 text-base font-bold text-[#1a1c1e] transition-all hover:bg-[#e3e2e5] sm:px-8 sm:py-4 sm:text-lg"
-              >
-                How it works
-              </button>
-            </div>
-          </div>
-
-          <div className="relative flex-1">
-            <div className="relative z-10 w-full overflow-hidden rounded-[2rem] shadow-2xl">
-              <img src={heroImage} alt="Modern salon interior" className="h-full w-full object-cover" />
-            </div>
-
-            <div className="relative z-20 mt-4 max-w-[240px] rounded-2xl bg-white p-5 shadow-xl sm:absolute sm:-bottom-6 sm:-left-6 sm:mt-0 sm:p-6">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="h-3 w-3 animate-pulse rounded-full bg-[#ab3500]" />
-                <span className="text-xs font-bold uppercase tracking-widest text-[#ab3500]">Live Now</span>
-              </div>
-              <p className="text-3xl font-bold text-[#4f378a]">12 mins</p>
-              <p className="text-sm font-medium text-[#494551]">Estimated wait at Luxe Studio</p>
-            </div>
-          </div>
-        </section>
-
-        <section data-landing-feature className="mx-auto max-w-7xl px-6 py-24 lg:px-16">
-          <div className="mb-12 flex flex-col gap-4 sm:items-end sm:justify-between lg:flex-row">
-            <div>
-              <h2 className="text-2xl font-bold sm:text-3xl">Explore Salons</h2>
-              <p className="mt-2 font-medium text-[#494551]">Top rated destinations near your current location</p>
-            </div>
-            <button onClick={() => navigate("/salons")} className="flex items-center gap-2 font-bold text-[#4f378a] hover:underline">
-              View all
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-            <div className="group relative min-h-[320px] cursor-pointer overflow-hidden rounded-3xl md:col-span-2 lg:h-[400px]" onClick={() => navigate("/salons")}>
-              <img 
-                src={activeSalon?.image ?? "/default-salon.jpg"} 
-                alt={activeSalon?.name ?? "Salon"} 
-                loading="lazy"
-                decoding="async"
-                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" 
-              />
-              <div className={`absolute inset-0 bg-gradient-to-t ${activeSalon?.accent ?? ""}`} />
-              <div className="absolute bottom-0 left-0 w-full p-5 text-white sm:p-8">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
-                  <div>
-                    <h3 className="text-xl font-bold sm:text-2xl">{activeSalon?.name ?? "Salon"}</h3>
-                    <p className="font-medium opacity-90">{activeSalon?.tag ?? ""}</p>
-                    <p className="mt-2 text-sm text-white/80">{activeSalon?.location ?? ""}</p>
-                  </div>
-                  <div className="flex items-center gap-2 rounded-full bg-white/20 px-4 py-2 backdrop-blur-md">
-                    <Star className="h-4 w-4 fill-current text-yellow-400" />
-                    <span className="font-bold">{activeSalon?.rating ?? "4.8"}</span>
-                  </div>
-                </div>
-
-                <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-white/90">
-                  <span className="rounded-full bg-white/15 px-3 py-1 font-semibold backdrop-blur-sm">{activeSalon?.distance ?? ""}</span>
-                  <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 font-semibold backdrop-blur-sm">
-                    <Clock3 className="h-4 w-4" />
-                    {activeSalon?.wait ?? ""}
-                  </span>
-                </div>
-              </div>
-
-              <div className="absolute left-4 top-4 rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-white backdrop-blur-md">
-                Live slider
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-4 sm:gap-6">
-              {nextSalons.map((salon) => {
-                const Icon = (salon?.name ?? "").includes("Aura") ? SparklesIcon : Scissors;
-
-                return (
-                  <div key={salon?.name ?? "salon"} className="group flex-1 rounded-3xl border border-transparent bg-white p-5 shadow-sm transition-all hover:border-[#4f378a]/10 hover:shadow-md sm:p-6">
-                    <div className="mb-4 flex items-start justify-between">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#4f378a]/10 text-[#4f378a]">
-                        <Icon />
-                      </div>
-                      <span className="rounded-full bg-[#e8e8eb] px-3 py-1 text-xs font-bold text-[#494551]">{salon?.distance ?? ""}</span>
-                    </div>
-                    <h4 className="text-lg font-bold transition-colors group-hover:text-[#4f378a]">{salon?.name ?? "Salon"}</h4>
-                    <p className="mb-2 mt-1 text-sm text-[#494551]">{salon?.tag ?? ""}</p>
-                    <p className="mb-4 text-xs font-medium text-[#6b6474]">{salon?.location ?? ""}</p>
-                    <div className={`flex items-center gap-2 text-sm font-bold ${(salon?.wait ?? "") === "Immediate start" ? "text-green-600" : "text-[#ab3500]"}`}>
-                      {salon.wait === "Immediate start" ? <CheckCircle className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}
-                      {salon.wait}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="mt-6 flex items-center justify-center gap-2">
-            {salons.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => setActiveSalonIndex(index)}
-                className={`h-2 rounded-full transition-all ${index === activeSalonIndex ? "w-8 bg-[#4f378a]" : "w-2 bg-[#cbc4d2]"}`}
-                aria-label={`Go to salon slide ${index + 1}`}
-              />
-            ))}
-          </div>
-        </section>
-
-        <section data-landing-cta className="px-6 py-24">
-          <div className="relative mx-auto max-w-4xl overflow-hidden rounded-3xl bg-gradient-to-br from-[#4f378a] to-[#6750a4] p-6 text-center text-white sm:p-12">
-            <div className="absolute -right-32 -top-32 h-64 w-64 rounded-full bg-white/5 blur-3xl" />
-            <div className="absolute -bottom-32 -left-32 h-64 w-64 rounded-full bg-[#cfbcff]/20 blur-3xl" />
-
-            <div className="relative z-10 mb-4 inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/15 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-purple-100">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-[#ffb59d]" />
-              App under build
-            </div>
-            <h2 className="relative z-10 mb-6 text-3xl font-extrabold sm:text-4xl">Ready to cut the queue?</h2>
-            <p className="relative z-10 mx-auto mb-10 max-w-xl text-base opacity-90 sm:text-lg">
-              snippr app is coming soon. We are building something iconic for your next salon run.
-            </p>
-
-            <div className="relative z-10 flex flex-col justify-center gap-4 sm:flex-row sm:flex-wrap">
-              <button disabled className="flex cursor-not-allowed items-center justify-center gap-2 rounded-2xl bg-white px-8 py-4 font-bold text-[#4f378a] opacity-90">
-                <Apple className="h-5 w-5" />
-                App Store - Soon
-              </button>
-              <button disabled className="flex cursor-not-allowed items-center justify-center gap-2 rounded-2xl bg-white/20 px-8 py-4 font-bold text-white backdrop-blur-md opacity-85">
-                <ShoppingBag className="h-5 w-5" />
-                Google Play - Soon
-              </button>
-            </div>
-
-            <p className="relative z-10 mt-4 text-sm font-medium text-purple-100/90">Early access drops first. Stay tuned.</p>
-          </div>
-        </section>
+        <Hero onBookings={goToBookings} />
+        <ExploreSalons />
+        <Problem />
+        <Solution />
+        <JourneySection />
+        <MarketingDashboard />
+        <AppScreens />
+        <Trust />
+        <CTA />
       </main>
 
-      <footer className="mt-12 bg-slate-50 px-4 py-16 sm:px-8">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-12 flex flex-col items-start justify-between gap-12 md:flex-row">
-            <div className="max-w-sm">
-              <span className="mb-4 block text-2xl font-black text-slate-900">snippr</span>
-              <p className="text-sm leading-relaxed text-slate-500">
-                Redefining the salon experience through intelligent scheduling. Precision in every second, convenience in every click.
-              </p>
-            </div>
+      <Footer />
 
-            <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 sm:gap-12">
-              <div>
-                <h5 className="mb-4 text-sm font-bold text-slate-900">Product</h5>
-                <ul className="space-y-3 text-xs text-slate-500">
-                  <li><button className="transition-colors hover:text-orange-600">Explore</button></li>
-                  <li><button className="transition-colors hover:text-orange-600">Live Queue</button></li>
-                  <li><button className="transition-colors hover:text-orange-600">Bookings</button></li>
-                </ul>
-              </div>
-
-              <div>
-                <h5 className="mb-4 text-sm font-bold text-slate-900">Company</h5>
-                <ul className="space-y-3 text-xs text-slate-500">
-                  <li><button className="transition-colors hover:text-orange-600" onClick={() => navigate("/careers")}>Careers</button></li>
-                  <li><button className="transition-colors hover:text-orange-600" onClick={() => navigate("/owner-dashboard")}>Salon Partner Portal</button></li>
-                  <li><button className="transition-colors hover:text-orange-600" onClick={() => navigate("/support")}>Support</button></li>
-                </ul>
-              </div>
-
-              <div>
-                <h5 className="mb-4 text-sm font-bold text-slate-900">Legal</h5>
-                <ul className="space-y-3 text-xs text-slate-500">
-                  <li><button className="transition-colors hover:text-orange-600" onClick={() => navigate("/privacy")}>Privacy</button></li>
-                  <li><button className="transition-colors hover:text-orange-600">Terms</button></li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col items-center justify-between gap-6 border-t border-slate-200 pt-8 md:flex-row">
-            <p className="text-xs text-slate-500">© 2024 snippr. Precision in every second.</p>
-            <div className="flex gap-6">
-              <button className="text-slate-400 transition-colors hover:text-orange-600"><Share2 className="h-4 w-4" /></button>
-              <button className="text-slate-400 transition-colors hover:text-orange-600"><Globe className="h-4 w-4" /></button>
-            </div>
-          </div>
-        </div>
-      </footer>
-
-      <nav className="fixed bottom-0 left-0 z-50 flex w-full items-center justify-around rounded-t-3xl bg-[rgba(250,249,252,0.86)] px-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl md:hidden">
-        <button className="flex scale-90 flex-col items-center justify-center rounded-2xl bg-violet-100 px-6 py-2 text-violet-800 transition-all" onClick={() => navigate("/salons")}>
+      <nav className="fixed bottom-0 left-0 z-50 flex w-full items-center justify-around px-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-3 md:hidden"
+        style={{ background: "rgba(5,5,7,0.9)", backdropFilter: "blur(20px)", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+        <button className="flex flex-col items-center justify-center rounded-2xl px-6 py-2 text-white" style={{ background: "#7C3AED" }} onClick={() => navigate("/salons")}>
           <Search className="h-5 w-5" />
           <span className="mt-1 text-[10px] font-bold uppercase tracking-widest">Explore</span>
         </button>
-        <button className="flex flex-col items-center justify-center rounded-2xl px-6 py-2 text-slate-400 transition-all hover:bg-slate-100" onClick={() => navigate("/bookings")}>
+        <button className="flex flex-col items-center justify-center rounded-2xl px-6 py-2" style={{ color: "rgba(255,255,255,0.4)" }} onClick={() => navigate("/bookings")}>
           <CalendarDays className="h-5 w-5" />
           <span className="mt-1 text-[10px] font-bold uppercase tracking-widest">Bookings</span>
         </button>
-        <button className="flex flex-col items-center justify-center rounded-2xl px-6 py-2 text-slate-400 transition-all hover:bg-slate-100" onClick={() => navigate("/queue")}>
+        <button className="flex flex-col items-center justify-center rounded-2xl px-6 py-2" style={{ color: "rgba(255,255,255,0.4)" }} onClick={() => navigate("/queue")}>
           <Hourglass className="h-5 w-5" />
           <span className="mt-1 text-[10px] font-bold uppercase tracking-widest">Live Queue</span>
         </button>
-        <button className="flex flex-col items-center justify-center rounded-2xl px-6 py-2 text-slate-400 transition-all hover:bg-slate-100" onClick={() => navigate("/login")}>
+        <button className="flex flex-col items-center justify-center rounded-2xl px-6 py-2" style={{ color: "rgba(255,255,255,0.4)" }} onClick={() => navigate(user ? "/my-profile" : "/login")}>
           <User className="h-5 w-5" />
           <span className="mt-1 text-[10px] font-bold uppercase tracking-widest">Profile</span>
         </button>
@@ -465,15 +126,3 @@ export default function Index() {
     </div>
   );
 }
-
-function SparklesIcon() {
-  return (
-    <span className="inline-flex h-5 w-5 items-center justify-center">
-      <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
-        <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M18.5 14l.75 2.25L21.5 17l-2.25.75L18.5 20l-.75-2.25L15.5 17l2.25-.75L18.5 14z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </span>
-  );
-}
-

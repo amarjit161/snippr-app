@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import Header from '@/components/Header';
 import { ChevronLeft, MapPin, Calendar, Clock, Scissors, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { ErrorState } from '@/components/design/ErrorState';
 
 interface BookingDetail {
   id: string;
@@ -92,7 +93,7 @@ export default function BookingDetail() {
       try {
         const { data, error } = await supabase
           .from('bookings')
-          .select('*, salons(*), services(*), stylists(*), customer_profiles(first_name, last_name, phone, email)')
+          .select('*, salons(*), services(*), barbers(*), customer_profiles(first_name, last_name, phone, email)')
           .eq('id', id)
           .eq('customer_id', user.id)
           .maybeSingle();
@@ -158,12 +159,12 @@ export default function BookingDetail() {
 
   if (loading) {
     return (
-      <div>
+      <div className="min-h-screen bg-background">
         <Header />
-        <div className="min-h-screen flex items-center justify-center">
+        <div className="flex items-center justify-center py-24">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading booking details...</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-muted border-t-primary mx-auto"></div>
+            <p className="mt-4 text-muted-foreground">Loading booking details...</p>
           </div>
         </div>
       </div>
@@ -172,10 +173,12 @@ export default function BookingDetail() {
 
   if (!booking) {
     return (
-      <div>
+      <div className="min-h-screen bg-background">
         <Header />
-        <div className="min-h-screen flex items-center justify-center">
-          <p className="text-gray-600">Booking not found</p>
+        <div className="flex items-center justify-center px-6 py-24">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card">
+            <ErrorState message="Booking not found" />
+          </div>
         </div>
       </div>
     );
@@ -190,41 +193,41 @@ export default function BookingDetail() {
   const salonImage = booking.salons?.image_url || '/default-salon.jpg';
 
   return (
-    <div>
+    <div className="min-h-screen bg-background">
       <Header />
-      <div className="min-h-screen bg-[#faf9fc] py-8 px-4">
+      <div className="py-8 px-4">
         <div className="max-w-2xl mx-auto">
           {/* Back Button */}
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 mb-6"
+            className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground mb-6"
           >
             <ChevronLeft className="h-4 w-4" />
             Back
           </button>
 
           {/* Main Card */}
-          <div className="bg-white rounded-2xl shadow-sm border border-[#e5e2ea] p-6 md:p-8">
+          <div className="bg-card rounded-2xl shadow-elevation-2 border border-border p-6 md:p-8">
             {/* Header */}
             <div className="mb-8">
-              <h1 className="text-3xl md:text-4xl font-extrabold text-[#1a1c1e] mb-2">
+              <h1 className="font-display text-3xl md:text-4xl font-extrabold text-foreground mb-2">
                 {salonName}
               </h1>
-              <p className="text-gray-600 flex items-center gap-2">
+              <p className="text-muted-foreground flex items-center gap-2">
                 <MapPin className="h-4 w-4" />
                 {salonAddress}
               </p>
             </div>
 
             {/* Status Tracker */}
-            <div className="mb-10 py-8 bg-gradient-to-r from-purple-50 to-transparent rounded-2xl px-6">
-              <h3 className="text-sm font-bold text-gray-600 uppercase tracking-wider mb-6">
+            <div className="mb-10 py-8 bg-gradient-to-r from-primary/5 to-transparent rounded-2xl px-6">
+              <h3 className="font-mono text-sm font-bold text-muted-foreground uppercase tracking-wider mb-6">
                 Booking Status
               </h3>
               <div className="flex items-center justify-between relative">
-                <div className="absolute top-4 left-0 right-0 h-0.5 bg-gray-200 z-0">
+                <div className="absolute top-4 left-0 right-0 h-0.5 bg-muted z-0">
                   <div
-                    className="h-full bg-gradient-to-r from-purple-600 to-purple-400 transition-all duration-500"
+                    className="h-full bg-gradient-to-r from-primary to-accent transition-all duration-500"
                     style={{ width: `${(currentStep / (statusSteps.length - 1)) * 100}%` }}
                   />
                 </div>
@@ -234,10 +237,10 @@ export default function BookingDetail() {
                       className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all
                         ${
                           i < currentStep
-                            ? 'bg-purple-600 text-white'
+                            ? 'bg-primary text-primary-foreground'
                             : i === currentStep
-                            ? 'bg-purple-600 text-white ring-4 ring-purple-200'
-                            : 'bg-gray-200 text-gray-400'
+                            ? 'bg-primary text-primary-foreground ring-4 ring-primary/20'
+                            : 'bg-muted text-muted-foreground'
                         }
                       `}
                     >
@@ -245,7 +248,7 @@ export default function BookingDetail() {
                     </div>
                     <span
                       className={`text-xs mt-2 font-medium text-center
-                        ${i <= currentStep ? 'text-purple-700 font-semibold' : 'text-gray-400'}
+                        ${i <= currentStep ? 'text-primary font-semibold' : 'text-muted-foreground'}
                       `}
                     >
                       {step}
@@ -257,25 +260,25 @@ export default function BookingDetail() {
 
             {/* OTP Display */}
             {isOTPValid && (
-              <div className="mb-8 bg-gradient-to-br from-purple-600 to-purple-800 rounded-2xl p-6 text-white text-center">
-                <p className="text-purple-200 text-xs font-semibold uppercase tracking-wider mb-4">
+              <div className="mb-8 bg-gradient-to-br from-primary to-accent rounded-2xl p-6 text-primary-foreground text-center">
+                <p className="text-primary-foreground/70 text-xs font-semibold uppercase tracking-wider mb-4 font-mono">
                   Your Arrival Code
                 </p>
                 <div className="flex items-center justify-center gap-2 mb-4">
                   {booking.arrival_otp?.split('').map((digit, i) => (
                     <div
                       key={i}
-                      className="w-14 h-16 bg-white/20 rounded-xl flex items-center justify-center 
-                                 text-3xl font-black text-white border-2 border-white/30"
+                      className="w-14 h-16 bg-white/20 rounded-xl flex items-center justify-center
+                                 text-3xl font-black text-primary-foreground border-2 border-white/30 font-mono"
                     >
                       {digit}
                     </div>
                   ))}
                 </div>
-                <p className="text-purple-200 text-sm">
+                <p className="text-primary-foreground/70 text-sm">
                   Show this code to the salon when you arrive
                 </p>
-                <p className="text-purple-300 text-xs mt-2">
+                <p className="text-primary-foreground/60 text-xs mt-2">
                   Valid until {booking.otp_expires_at ? new Date(booking.otp_expires_at).toLocaleString('en-IN') : 'service starts'}
                 </p>
               </div>
@@ -284,40 +287,40 @@ export default function BookingDetail() {
             {/* Booking Details Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
               {/* Service */}
-              <div className="bg-[#f4f3f6] rounded-xl p-4">
-                <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+              <div className="bg-muted rounded-xl p-4">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                   <Scissors className="h-4 w-4" />
-                  <span className="uppercase text-xs font-bold tracking-wider">Service</span>
+                  <span className="font-mono uppercase text-xs font-bold tracking-wider">Service</span>
                 </div>
-                <p className="text-lg font-bold text-[#1a1c1e]">{serviceName}</p>
+                <p className="text-lg font-bold text-foreground">{serviceName}</p>
               </div>
 
               {/* Barber */}
-              <div className="bg-[#f4f3f6] rounded-xl p-4">
-                <div className="text-sm text-gray-600 mb-1">
-                  <span className="uppercase text-xs font-bold tracking-wider">Barber</span>
+              <div className="bg-muted rounded-xl p-4">
+                <div className="text-sm text-muted-foreground mb-1">
+                  <span className="font-mono uppercase text-xs font-bold tracking-wider">Barber</span>
                 </div>
-                <p className="text-lg font-bold text-[#1a1c1e]">{barberName}</p>
+                <p className="text-lg font-bold text-foreground">{barberName}</p>
               </div>
 
               {/* Date */}
-              <div className="bg-[#f4f3f6] rounded-xl p-4">
-                <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+              <div className="bg-muted rounded-xl p-4">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                   <Calendar className="h-4 w-4" />
-                  <span className="uppercase text-xs font-bold tracking-wider">Date</span>
+                  <span className="font-mono uppercase text-xs font-bold tracking-wider">Date</span>
                 </div>
-                <p className="text-lg font-bold text-[#1a1c1e]">
+                <p className="text-lg font-bold text-foreground">
                   {formatDateLabel(booking.booking_date)}
                 </p>
               </div>
 
               {/* Time */}
-              <div className="bg-[#f4f3f6] rounded-xl p-4">
-                <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+              <div className="bg-muted rounded-xl p-4">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                   <Clock className="h-4 w-4" />
-                  <span className="uppercase text-xs font-bold tracking-wider">Time</span>
+                  <span className="font-mono uppercase text-xs font-bold tracking-wider">Time</span>
                 </div>
-                <p className="text-lg font-bold text-[#1a1c1e]">
+                <p className="text-lg font-bold text-foreground">
                   {formatTimeSlot(booking.time_slot)}
                 </p>
               </div>
@@ -338,7 +341,7 @@ export default function BookingDetail() {
             <div className="flex gap-3">
               <button
                 onClick={() => window.open(`https://maps.google.com/?q=${encodeURIComponent(salonAddress)}`, '_blank')}
-                className="flex-1 bg-white border-2 border-purple-600 text-purple-600 font-bold py-3 px-6 rounded-full hover:bg-purple-50 transition-all"
+                className="flex-1 bg-card border-2 border-primary text-primary font-bold py-3 px-6 rounded-full hover:bg-primary/5 transition-all"
               >
                 View on Map
               </button>
@@ -346,7 +349,7 @@ export default function BookingDetail() {
                 <button
                   onClick={handleCancel}
                   disabled={cancelling}
-                  className="flex-1 bg-red-100 text-red-600 font-bold py-3 px-6 rounded-full hover:bg-red-200 transition-all disabled:opacity-50"
+                  className="flex-1 bg-destructive/10 text-destructive font-bold py-3 px-6 rounded-full hover:bg-destructive/20 transition-all disabled:opacity-50"
                 >
                   {cancelling ? 'Cancelling...' : 'Cancel Booking'}
                 </button>

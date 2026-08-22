@@ -125,7 +125,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       try {
         const { data, error } = await supabaseWithTimeout(
-          supabase.from("owners").select("id, name, email, phone, business_name, created_at").eq("id", sessionId).maybeSingle()
+          supabase.from("owners").select("id, name, email, phone, created_at").eq("id", sessionId).maybeSingle()
         );
 
         if (error) throw error;

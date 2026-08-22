@@ -16,26 +16,26 @@
 
 @layer base {
   :root {
-    --background: 260 25% 98%;
-    --foreground: 210 15% 10%;
+    --background: 0 0% 98%;
+    --foreground: 0 0% 5%;
     --card: 0 0% 100%;
-    --card-foreground: 210 15% 10%;
+    --card-foreground: 0 0% 5%;
     --popover: 0 0% 100%;
-    --popover-foreground: 210 15% 10%;
-    --primary: 257 41% 39%;
+    --popover-foreground: 0 0% 5%;
+    --primary: 262 83% 58%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 20 100% 74%;
-    --secondary-foreground: 210 15% 10%;
-    --muted: 260 16% 94%;
-    --muted-foreground: 260 6% 34%;
-    --accent: 20 100% 60%;
+    --secondary: 256 100% 97%;
+    --secondary-foreground: 262 83% 58%;
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
+    --accent: 271 81% 66%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 72% 55%;
     --destructive-foreground: 0 0% 100%;
-    --border: 260 14% 86%;
-    --input: 260 14% 86%;
-    --ring: 257 41% 39%;
-    --radius: 1rem;
+    --border: 240 5% 90%;
+    --input: 240 5% 90%;
+    --ring: 262 83% 58%;
+    --radius: 0.75rem;
     --success: 152 55% 42%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 55%;
@@ -51,25 +51,25 @@
   }
 
   .dark {
-    --background: 224 23% 9%;
-    --foreground: 260 18% 95%;
-    --card: 224 18% 13%;
-    --card-foreground: 260 18% 95%;
-    --popover: 224 18% 13%;
-    --popover-foreground: 260 18% 95%;
-    --primary: 257 41% 46%;
+    --background: 240 15% 4%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 8%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 8%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 262 83% 58%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 20 100% 62%;
-    --secondary-foreground: 224 23% 9%;
-    --muted: 224 18% 17%;
-    --muted-foreground: 260 10% 64%;
-    --accent: 20 100% 58%;
+    --secondary: 240 14% 11%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 14% 11%;
+    --muted-foreground: 240 4% 46%;
+    --accent: 271 81% 66%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 62% 45%;
     --destructive-foreground: 0 0% 100%;
-    --border: 224 18% 20%;
-    --input: 224 18% 20%;
-    --ring: 257 41% 46%;
+    --border: 240 10% 18%;
+    --input: 240 10% 18%;
+    --ring: 262 83% 58%;
     --success: 152 55% 38%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
@@ -105,6 +105,15 @@
 
   .ds-gradient-header {
     @apply rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-100 via-indigo-50 to-orange-50 shadow-sm;
+  }
+
+  .glass-panel {
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+  }
+
+  .banner-slide {
+    animation: bannerSlide 0.3s ease;
   }
 }
 
@@ -144,5 +153,33 @@ body {
   to {
     transform: translateX(0);
     opacity: 1;
+  }
+}
+
+/* Ported from the Figma redesign export (utils/constants.ts CSS block) */
+@keyframes livePulse   { 0%,100%{opacity:1} 50%{opacity:0.25} }
+@keyframes successGlow { 0%,100%{box-shadow:0 0 0 rgba(16,185,129,0)} 50%{box-shadow:0 0 48px 6px rgba(16,185,129,0.28)} }
+@keyframes breathe     { 0%,100%{transform:translateY(0px)} 50%{transform:translateY(-5px)} }
+@keyframes vibrate     { 0%,100%{transform:translateX(0)} 15%{transform:translateX(-2.5px)} 30%{transform:translateX(2.5px)} 50%{transform:translateX(-1.5px)} 70%{transform:translateX(1.5px)} 90%{transform:translateX(-0.5px)} }
+@keyframes shimmer     { from{transform:translateX(-100%)} to{transform:translateX(150%)} }
+@keyframes ripple      { from{transform:scale(0);opacity:0.5} to{transform:scale(4);opacity:0} }
+@keyframes heroSweep   { 0%{transform:translateX(-60%) skewX(-18deg);opacity:0} 5%{opacity:1} 95%{opacity:1} 100%{transform:translateX(220%) skewX(-18deg);opacity:0} }
+@keyframes bannerSlide { from{transform:translateY(-56px);opacity:0} to{transform:translateY(0);opacity:1} }
+@keyframes confettiFall { 0%{transform:translateY(0) rotate(0deg);opacity:1} 100%{transform:translateY(90vh) rotate(540deg);opacity:0} }
+@keyframes checkPop     { 0%{transform:scale(0)} 60%{transform:scale(1.15)} 100%{transform:scale(1)} }
+@keyframes slideUpFade  { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+
+.live-dot    { animation: livePulse   2s   ease-in-out infinite; }
+.success-g   { animation: successGlow 2.8s ease-in-out infinite; }
+.breathe     { animation: breathe     5s   ease-in-out infinite; }
+.vibrate     { animation: vibrate     0.4s ease; }
+.check-pop   { animation: checkPop    0.5s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

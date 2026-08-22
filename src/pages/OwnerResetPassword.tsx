@@ -1,12 +1,27 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { AlertCircle, CheckCircle2, Loader2, Lock, Mail } from "lucide-react";
 import { toast } from "sonner";
+import { V, VA, BG, DISP, BODY } from "@/components/landing/tokens";
 
 type Status = "loading" | "ready" | "success" | "error";
+
+const fieldStyle: React.CSSProperties = {
+  padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.1)",
+  background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: 14, outline: "none",
+  fontFamily: BODY, boxSizing: "border-box", width: "100%",
+};
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 10, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase",
+  color: "rgba(255,255,255,0.4)", marginBottom: 6, display: "block",
+};
+
+const btnStyle: React.CSSProperties = {
+  width: "100%", padding: "13px 0", borderRadius: 12, color: "#fff", fontWeight: 700, fontSize: 14,
+  border: "none", fontFamily: BODY, display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+};
 
 export default function OwnerResetPassword() {
   const navigate = useNavigate();
@@ -182,106 +197,126 @@ export default function OwnerResetPassword() {
   };
 
   return (
-    <div className="min-h-screen bg-background px-4 py-10">
-      <div className="mx-auto max-w-md rounded-xl border border-gray-200 bg-white p-8 shadow-sm">
+    <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: BODY, position: "relative", overflow: "hidden", padding: "40px 16px" }}>
+      <div aria-hidden="true" style={{ position: "fixed", top: "12%", right: "8%", width: 400, height: 400, borderRadius: "50%",
+        background: `radial-gradient(circle, ${V}12, transparent 70%)`, filter: "blur(60px)", pointerEvents: "none" }} />
+
+      <div style={{ width: "100%", maxWidth: 400, borderRadius: 24, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+        padding: 28, backdropFilter: "blur(20px)", position: "relative", zIndex: 10 }}>
         {status === "loading" && (
-          <div className="space-y-3 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
-              <Loader2 className="h-6 w-6 animate-spin" />
+          <div style={{ textAlign: "center" }}>
+            <div style={{ margin: "0 auto 14px", width: 48, height: 48, borderRadius: 14, background: `${V}22`, border: `1px solid ${V}40`,
+              display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Loader2 className="h-6 w-6 animate-spin" style={{ color: V }} />
             </div>
-            <h1 className="font-display text-2xl font-bold">Preparing reset</h1>
-            <p className="text-sm text-muted-foreground">Please wait while we validate your recovery link.</p>
+            <h1 style={{ fontFamily: DISP, fontSize: 24, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em" }}>Preparing reset</h1>
+            <p style={{ marginTop: 6, fontSize: 13, color: "rgba(255,255,255,0.4)" }}>Please wait while we validate your recovery link.</p>
           </div>
         )}
 
         {status === "ready" && (
           <>
-            <div className="mb-6 text-center">
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-green-50 text-green-600">
-                <Lock className="h-6 w-6" />
+            <div style={{ textAlign: "center", marginBottom: 24 }}>
+              <div style={{ margin: "0 auto 14px", width: 48, height: 48, borderRadius: 14, background: `${VA}22`, border: `1px solid ${VA}40`,
+                display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Lock style={{ width: 22, height: 22, color: VA }} />
               </div>
-              <h1 className="font-display text-2xl font-bold">
+              <h1 style={{ fontFamily: DISP, fontSize: 24, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em" }}>
                 {codeRequired ? "Verify your email" : "Set new password"}
               </h1>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p style={{ marginTop: 4, fontSize: 13, color: "rgba(255,255,255,0.4)" }}>
                 {codeRequired
                   ? "Enter the OTP code from your reset email"
                   : "Choose a strong password for your owner account."}
               </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               {codeRequired && (
                 <>
-                  <div className="relative">
-                    <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="your-email@example.com"
-                      className="pl-10"
-                      readOnly={emailLocked}
-                      required
-                    />
+                  <div>
+                    <label style={labelStyle}>Email Address</label>
+                    <div style={{ position: "relative" }}>
+                      <Mail style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, color: "rgba(255,255,255,0.35)" }} />
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="your-email@example.com"
+                        readOnly={emailLocked}
+                        required
+                        style={{ ...fieldStyle, paddingLeft: 40, opacity: emailLocked ? 0.6 : 1 }}
+                      />
+                    </div>
                   </div>
 
-                  <div className="relative">
-                    <Input
+                  <div>
+                    <label style={labelStyle}>OTP Code</label>
+                    <input
                       type="text"
                       value={verificationCode}
                       onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, maxOtpLength))}
                       placeholder="Enter OTP"
                       maxLength={maxOtpLength}
-                      className="text-center font-mono text-lg tracking-widest"
                       required
+                      style={{ ...fieldStyle, textAlign: "center", fontSize: 18, fontWeight: 700, letterSpacing: "0.25em" }}
                     />
-                    <p className="mt-1 text-xs text-muted-foreground">Enter the OTP from your email</p>
+                    <p style={{ marginTop: 8, fontSize: 11, color: "rgba(255,255,255,0.3)", textAlign: "center" }}>Enter the OTP from your email</p>
                   </div>
 
-                  <Button
+                  <button
                     type="submit"
                     disabled={
                       saving ||
                       verificationCode.trim().length < minOtpLength ||
                       verificationCode.trim().length > maxOtpLength
                     }
-                    className="h-11 w-full rounded-xl"
+                    style={{
+                      ...btnStyle,
+                      background: (saving || verificationCode.trim().length < minOtpLength || verificationCode.trim().length > maxOtpLength) ? `${V}80` : V,
+                      cursor: (saving || verificationCode.trim().length < minOtpLength || verificationCode.trim().length > maxOtpLength) ? "not-allowed" : "pointer",
+                    }}
                   >
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify Code"}
-                  </Button>
+                  </button>
                 </>
               )}
 
               {!codeRequired && (
                 <>
-                  <div className="relative">
-                    <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="New password"
-                      className="pl-10"
-                      required
-                    />
+                  <div>
+                    <label style={labelStyle}>New Password</label>
+                    <div style={{ position: "relative" }}>
+                      <Lock style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, color: "rgba(255,255,255,0.35)" }} />
+                      <input
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="New password"
+                        required
+                        style={{ ...fieldStyle, paddingLeft: 40 }}
+                      />
+                    </div>
                   </div>
 
-                  <div className="relative">
-                    <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Confirm new password"
-                      className="pl-10"
-                      required
-                    />
+                  <div>
+                    <label style={labelStyle}>Confirm Password</label>
+                    <div style={{ position: "relative" }}>
+                      <Lock style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, color: "rgba(255,255,255,0.35)" }} />
+                      <input
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Confirm new password"
+                        required
+                        style={{ ...fieldStyle, paddingLeft: 40 }}
+                      />
+                    </div>
                   </div>
 
-                  <Button type="submit" disabled={saving} className="h-11 w-full rounded-xl">
+                  <button type="submit" disabled={saving} style={{ ...btnStyle, background: saving ? `${V}80` : V, cursor: saving ? "not-allowed" : "pointer" }}>
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update Password"}
-                  </Button>
+                  </button>
                 </>
               )}
             </form>
@@ -289,23 +324,25 @@ export default function OwnerResetPassword() {
         )}
 
         {status === "success" && (
-          <div className="space-y-3 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-green-50 text-green-600">
-              <CheckCircle2 className="h-6 w-6" />
+          <div style={{ textAlign: "center" }}>
+            <div style={{ margin: "0 auto 14px", width: 48, height: 48, borderRadius: 14, background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.3)",
+              display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <CheckCircle2 style={{ width: 22, height: 22, color: "#10B981" }} />
             </div>
-            <h1 className="font-display text-2xl font-bold">Password updated</h1>
-            <p className="text-sm text-muted-foreground">Redirecting to owner login.</p>
+            <h1 style={{ fontFamily: DISP, fontSize: 24, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em" }}>Password updated</h1>
+            <p style={{ marginTop: 6, fontSize: 13, color: "rgba(255,255,255,0.4)" }}>Redirecting to owner login.</p>
           </div>
         )}
 
         {status === "error" && (
-          <div className="space-y-4 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-red-50 text-red-600">
-              <AlertCircle className="h-6 w-6" />
+          <div style={{ textAlign: "center" }}>
+            <div style={{ margin: "0 auto 14px", width: 48, height: 48, borderRadius: 14, background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.3)",
+              display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <AlertCircle style={{ width: 22, height: 22, color: "#EF4444" }} />
             </div>
-            <h1 className="font-display text-2xl font-bold">Reset link invalid</h1>
-            <p className="text-sm text-muted-foreground">{errorMessage}</p>
-            <Button className="h-11 w-full rounded-xl" onClick={() => navigate("/owner-login")}>Back to owner login</Button>
+            <h1 style={{ fontFamily: DISP, fontSize: 24, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em" }}>Reset link invalid</h1>
+            <p style={{ marginTop: 6, marginBottom: 20, fontSize: 13, color: "rgba(255,255,255,0.4)" }}>{errorMessage}</p>
+            <button onClick={() => navigate("/owner-login")} style={{ ...btnStyle, background: V, cursor: "pointer" }}>Back to owner login</button>
           </div>
         )}
       </div>

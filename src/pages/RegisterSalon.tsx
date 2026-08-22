@@ -1,13 +1,54 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import Header from "@/components/Header";
 import { toast } from "sonner";
-import { Camera, Loader2, MapPin, Plus, Trash2 } from "lucide-react";
+import { Camera, Loader2, MapPin, Plus, Scissors, Store, Trash2, Users, Clock, User } from "lucide-react";
 import imageCompression from "browser-image-compression";
+import { V, VA, G, BG, DISP, BODY } from "@/components/landing/tokens";
+
+const fieldStyle: React.CSSProperties = {
+  padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.1)",
+  background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: 14, outline: "none",
+  fontFamily: BODY, boxSizing: "border-box", width: "100%",
+};
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 10, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase",
+  color: "rgba(255,255,255,0.4)", marginBottom: 6, display: "block",
+};
+
+const cardStyle: React.CSSProperties = {
+  borderRadius: 24, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+  padding: 28, backdropFilter: "blur(20px)",
+};
+
+const sectionTitleStyle: React.CSSProperties = {
+  fontFamily: DISP, fontSize: 16, fontWeight: 700, color: "#fff", marginBottom: 16,
+  display: "flex", alignItems: "center", gap: 8,
+};
+
+const rowCardStyle: React.CSSProperties = {
+  display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end",
+  borderRadius: 14, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.02)", padding: 14,
+};
+
+const removeBtnStyle: React.CSSProperties = {
+  width: 40, height: 40, borderRadius: 10, border: "1px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.1)",
+  color: "#F87171", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0,
+};
+
+const addBtnStyle: React.CSSProperties = {
+  display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10,
+  border: `1px solid ${V}40`, background: `${V}14`, color: VA, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: BODY,
+};
+
+const outlineBtnStyle: React.CSSProperties = {
+  display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 10,
+  border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.03)", color: "rgba(255,255,255,0.75)",
+  fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: BODY,
+};
 
 type OwnerRecord = {
   id: string;
@@ -295,10 +336,12 @@ export default function RegisterSalon() {
 
   if (loadingOwner) {
     return (
-      <div className="mx-auto grid max-w-3xl grid-cols-1 gap-6 p-6 md:grid-cols-2">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-40 rounded-xl bg-gray-200 animate-pulse" />
-        ))}
+      <div style={{ minHeight: "100vh", background: BG, fontFamily: BODY }}>
+        <div className="mx-auto grid max-w-3xl grid-cols-1 gap-6 p-6 md:grid-cols-2">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="animate-pulse" style={{ height: 160, borderRadius: 16, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+          ))}
+        </div>
       </div>
     );
   }
@@ -306,124 +349,188 @@ export default function RegisterSalon() {
   if (!owner) return null;
 
   return (
-    <div className="min-h-screen bg-background pb-28">
-      <Header userName={owner?.name || owner?.email || "Owner"} isAdmin={false} />
+    <div style={{ minHeight: "100vh", background: BG, fontFamily: BODY, position: "relative", overflow: "hidden", paddingBottom: 80 }}>
+      <div aria-hidden="true" style={{ position: "fixed", top: "8%", left: "6%", width: 420, height: 420, borderRadius: "50%",
+        background: `radial-gradient(circle, ${V}12, transparent 70%)`, filter: "blur(60px)", pointerEvents: "none" }} />
+      <div aria-hidden="true" style={{ position: "fixed", bottom: "5%", right: "8%", width: 380, height: 380, borderRadius: "50%",
+        background: `radial-gradient(circle, ${VA}0F, transparent 70%)`, filter: "blur(60px)", pointerEvents: "none" }} />
 
-      <main className="mx-auto max-w-7xl space-y-6 px-4 py-8 md:px-6">
-        <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h1 className="font-display text-3xl font-bold">Register Salon</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Set up your salon profile, services, and team.</p>
-        </section>
+      <div style={{ position: "relative", zIndex: 10 }}>
+        <Header userName={owner?.name || owner?.email || "Owner"} isAdmin={false} />
+      </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
-            <h2 className="text-lg font-semibold">Basic Info</h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              <Input placeholder="Salon Name" value={salonName} onChange={(e) => setSalonName(e.target.value)} />
-              <Input placeholder="Owner Name" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
-              <Input value={email} readOnly className="md:col-span-2" />
-              <Input placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} className="md:col-span-2" />
-            </div>
-          </section>
+      <main style={{ maxWidth: 640, margin: "0 auto", padding: "32px 16px 0", position: "relative", zIndex: 10 }}>
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <div style={{ margin: "0 auto 14px", width: 48, height: 48, borderRadius: 14, background: `${V}22`, border: `1px solid ${V}40`,
+            display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Store style={{ width: 22, height: 22, color: V }} />
+          </div>
+          <h1 style={{ fontFamily: DISP, fontSize: 26, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em" }}>Register Salon</h1>
+          <p style={{ marginTop: 4, fontSize: 13, color: "rgba(255,255,255,0.4)" }}>Set up your salon profile, services, and team.</p>
+        </div>
 
-          <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
-            <h2 className="text-lg font-semibold">Location</h2>
-            <Button type="button" variant="outline" onClick={detectLocation} disabled={detectingLocation}>
-              {detectingLocation ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MapPin className="mr-2 h-4 w-4" />} Auto detect
-            </Button>
-            <div className="grid gap-4 md:grid-cols-2">
-              <Input placeholder="Full address" value={address} onChange={(e) => setAddress(e.target.value)} className="md:col-span-2" />
-              <Input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} />
-              <Input placeholder="Pincode" value={pincode} onChange={(e) => setPincode(e.target.value)} />
-            </div>
-          </section>
-
-          <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
-            <h2 className="text-lg font-semibold">Salon Timing</h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              <Input type="time" value={openTime} onChange={(e) => setOpenTime(e.target.value)} />
-              <Input type="time" value={closeTime} onChange={(e) => setCloseTime(e.target.value)} />
-            </div>
-            <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white p-4">
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <div style={cardStyle}>
+            <h2 style={sectionTitleStyle}><User style={{ width: 16, height: 16, color: VA }} /> Basic Info</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
-                <p className="font-medium">Auto close toggle</p>
-                <p className="text-xs text-muted-foreground">Mark salon closed manually for now.</p>
+                <label style={labelStyle}>Salon Name</label>
+                <input placeholder="Salon Name" value={salonName} onChange={(e) => setSalonName(e.target.value)} style={fieldStyle} />
               </div>
-              <Switch checked={autoClose} onCheckedChange={setAutoClose} />
+              <div>
+                <label style={labelStyle}>Owner Name</label>
+                <input placeholder="Owner Name" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} style={fieldStyle} />
+              </div>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={labelStyle}>Email</label>
+                <input value={email} readOnly style={{ ...fieldStyle, opacity: 0.6, cursor: "not-allowed" }} />
+              </div>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={labelStyle}>Phone</label>
+                <input placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} style={fieldStyle} />
+              </div>
             </div>
-          </section>
+          </div>
 
-          <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Services</h2>
-              <Button type="button" variant="outline" onClick={addService}>
-                <Plus className="mr-2 h-4 w-4" /> Add Service
-              </Button>
+          <div style={cardStyle}>
+            <h2 style={sectionTitleStyle}><MapPin style={{ width: 16, height: 16, color: VA }} /> Location</h2>
+            <button type="button" onClick={detectLocation} disabled={detectingLocation} style={{ ...outlineBtnStyle, marginBottom: 14 }}>
+              {detectingLocation ? <Loader2 className="animate-spin" style={{ width: 14, height: 14 }} /> : <MapPin style={{ width: 14, height: 14 }} />} Auto detect
+            </button>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={labelStyle}>Full address</label>
+                <input placeholder="Full address" value={address} onChange={(e) => setAddress(e.target.value)} style={fieldStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>City</label>
+                <input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} style={fieldStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Pincode</label>
+                <input placeholder="Pincode" value={pincode} onChange={(e) => setPincode(e.target.value)} style={fieldStyle} />
+              </div>
             </div>
-            <div className="space-y-4">
+          </div>
+
+          <div style={cardStyle}>
+            <h2 style={sectionTitleStyle}><Clock style={{ width: 16, height: 16, color: VA }} /> Salon Timing</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+              <div>
+                <label style={labelStyle}>Opening Time</label>
+                <input type="time" value={openTime} onChange={(e) => setOpenTime(e.target.value)} style={fieldStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Closing Time</label>
+                <input type="time" value={closeTime} onChange={(e) => setCloseTime(e.target.value)} style={fieldStyle} />
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: 14,
+              border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.02)", padding: 14 }}>
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>Auto close toggle</p>
+                <p style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>Mark salon closed manually for now.</p>
+              </div>
+              <Switch checked={autoClose} onCheckedChange={setAutoClose}
+                style={{ background: autoClose ? V : "rgba(255,255,255,0.1)" }} />
+            </div>
+          </div>
+
+          <div style={cardStyle}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <h2 style={{ ...sectionTitleStyle, marginBottom: 0 }}><Scissors style={{ width: 16, height: 16, color: VA }} /> Services</h2>
+              <button type="button" onClick={addService} style={addBtnStyle}>
+                <Plus style={{ width: 14, height: 14 }} /> Add Service
+              </button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {services.map((service, index) => (
-                <div key={`service-${index}`} className="grid gap-3 rounded-xl border border-border p-4 md:grid-cols-12">
-                  <Input placeholder="Service name" value={service?.name ?? ""} onChange={(e) => updateService(index, "name", e.target.value)} className="md:col-span-5" />
-                  <Input type="number" placeholder="Price" value={service?.price ?? ""} onChange={(e) => updateService(index, "price", e.target.value)} className="md:col-span-3" />
-                  <Input type="number" placeholder="Duration" value={service?.duration ?? ""} onChange={(e) => updateService(index, "duration", e.target.value)} className="md:col-span-3" />
-                  <Button type="button" variant="outline" className="md:col-span-1" onClick={() => setServices((prev) => prev.filter((_, i) => i !== index))}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                <div key={`service-${index}`} style={rowCardStyle}>
+                  <div style={{ flex: "2 1 140px" }}>
+                    <label style={labelStyle}>Service name</label>
+                    <input placeholder="Service name" value={service?.name ?? ""} onChange={(e) => updateService(index, "name", e.target.value)} style={fieldStyle} />
+                  </div>
+                  <div style={{ flex: "1 1 90px" }}>
+                    <label style={labelStyle}>Price</label>
+                    <input type="number" placeholder="Price" value={service?.price ?? ""} onChange={(e) => updateService(index, "price", e.target.value)} style={fieldStyle} />
+                  </div>
+                  <div style={{ flex: "1 1 90px" }}>
+                    <label style={labelStyle}>Duration</label>
+                    <input type="number" placeholder="Duration" value={service?.duration ?? ""} onChange={(e) => updateService(index, "duration", e.target.value)} style={fieldStyle} />
+                  </div>
+                  <button type="button" onClick={() => setServices((prev) => prev.filter((_, i) => i !== index))} style={removeBtnStyle}>
+                    <Trash2 style={{ width: 15, height: 15 }} />
+                  </button>
                 </div>
               ))}
             </div>
-          </section>
+          </div>
 
-          <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Barbers</h2>
-              <Button type="button" variant="outline" onClick={addBarber}>
-                <Plus className="mr-2 h-4 w-4" /> Add Barber
-              </Button>
+          <div style={cardStyle}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <h2 style={{ ...sectionTitleStyle, marginBottom: 0 }}><Users style={{ width: 16, height: 16, color: VA }} /> Barbers</h2>
+              <button type="button" onClick={addBarber} style={addBtnStyle}>
+                <Plus style={{ width: 14, height: 14 }} /> Add Barber
+              </button>
             </div>
-            <div className="space-y-4">
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {barbers.map((barber, index) => (
-                <div key={`barber-${index}`} className="grid gap-3 rounded-xl border border-border p-4 md:grid-cols-12">
-                  <Input placeholder="Name" value={barber?.name ?? ""} onChange={(e) => updateBarber(index, "name", e.target.value)} className="md:col-span-4" />
-                  <Input type="number" placeholder="Chair Number" value={barber?.chair ?? ""} onChange={(e) => updateBarber(index, "chair", e.target.value)} className="md:col-span-3" />
-                  <Input placeholder="Specialization" value={barber?.specialization ?? ""} onChange={(e) => updateBarber(index, "specialization", e.target.value)} className="md:col-span-4" />
-                  <Button type="button" variant="outline" className="md:col-span-1" onClick={() => setBarbers((prev) => prev.filter((_, i) => i !== index))}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                <div key={`barber-${index}`} style={rowCardStyle}>
+                  <div style={{ flex: "1 1 120px" }}>
+                    <label style={labelStyle}>Name</label>
+                    <input placeholder="Name" value={barber?.name ?? ""} onChange={(e) => updateBarber(index, "name", e.target.value)} style={fieldStyle} />
+                  </div>
+                  <div style={{ flex: "1 1 90px" }}>
+                    <label style={labelStyle}>Chair Number</label>
+                    <input type="number" placeholder="Chair Number" value={barber?.chair ?? ""} onChange={(e) => updateBarber(index, "chair", e.target.value)} style={fieldStyle} />
+                  </div>
+                  <div style={{ flex: "1 1 120px" }}>
+                    <label style={labelStyle}>Specialization</label>
+                    <input placeholder="Specialization" value={barber?.specialization ?? ""} onChange={(e) => updateBarber(index, "specialization", e.target.value)} style={fieldStyle} />
+                  </div>
+                  <button type="button" onClick={() => setBarbers((prev) => prev.filter((_, i) => i !== index))} style={removeBtnStyle}>
+                    <Trash2 style={{ width: 15, height: 15 }} />
+                  </button>
                 </div>
               ))}
             </div>
-          </section>
+          </div>
 
-          <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
-            <h2 className="text-lg font-semibold">Salon Image</h2>
-            <div className="rounded-xl border border-dashed border-gray-200 p-4">
-              <label className="flex cursor-pointer items-center gap-3 text-sm font-medium text-foreground">
-                <Camera className="h-4 w-4" /> Upload image (optional, max 5MB)
+          <div style={cardStyle}>
+            <h2 style={sectionTitleStyle}><Camera style={{ width: 16, height: 16, color: VA }} /> Salon Image</h2>
+            <div style={{ borderRadius: 16, border: "1px dashed rgba(255,255,255,0.15)", padding: 20 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>
+                <Camera style={{ width: 16, height: 16, color: VA }} /> Upload image (optional, max 5MB)
                 <input type="file" accept="image/*" className="hidden" onChange={(e) => setImageFile(e.target.files?.[0] ?? null)} />
               </label>
               {uploadingImage && (
-                <p className="mt-3 inline-flex items-center text-sm text-muted-foreground">
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Uploading image...
+                <p style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "rgba(255,255,255,0.5)" }}>
+                  <Loader2 className="animate-spin" style={{ width: 16, height: 16 }} /> Uploading image...
                 </p>
               )}
               {imagePreview ? (
-                <img src={imagePreview} alt="Salon preview" className="mt-4 h-48 w-full rounded-xl object-cover" />
+                <img src={imagePreview} alt="Salon preview" style={{ marginTop: 16, height: 200, width: "100%", borderRadius: 12, objectFit: "cover" }} />
               ) : (
-                <p className="mt-3 text-sm text-muted-foreground">No image selected.</p>
+                <p style={{ marginTop: 12, fontSize: 13, color: "rgba(255,255,255,0.3)" }}>No image selected.</p>
               )}
             </div>
-          </section>
-
-          <div className="sticky bottom-4 z-20 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <Button type="submit" disabled={submitting || uploadingImage} className="h-12 w-full rounded-xl">
-              {submitting || uploadingImage ? (
-                <span className="inline-flex items-center"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {uploadingImage ? "Uploading image..." : "Saving..."}</span>
-              ) : (
-                "Register Salon"
-              )}
-            </Button>
           </div>
+
+          <button
+            type="submit"
+            disabled={submitting || uploadingImage}
+            style={{ width: "100%", padding: "15px 0", borderRadius: 12,
+              background: (submitting || uploadingImage) ? `${V}80` : V,
+              color: "#fff", fontWeight: 700, fontSize: 15, border: "none",
+              cursor: (submitting || uploadingImage) ? "not-allowed" : "pointer",
+              fontFamily: BODY, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+          >
+            {submitting || uploadingImage ? (
+              <><Loader2 className="animate-spin" style={{ width: 18, height: 18 }} /> {uploadingImage ? "Uploading image..." : "Saving..."}</>
+            ) : (
+              "Register Salon"
+            )}
+          </button>
         </form>
       </main>
     </div>

@@ -63,7 +63,7 @@ const normalizeQueueItem = (item: any): QueueItem => {
     barber_id: item.stylist_id || item.barber_id,
     time_slot: item.booking_time || item.time_slot,
     arrival_otp: item.otp || item.arrival_otp,
-    barbers: item.stylists || item.barbers || null,
+    barbers: item.barbers || null,
   };
 };
 
@@ -98,7 +98,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
         *,
         services (*),
         salons (*),
-        stylists (*)
+        barbers (*)
       `)
       .eq("salon_id", salonId)
       .order("position", { ascending: true, nullsFirst: false })
@@ -204,7 +204,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
     try {
       const { data } = await supabaseAny
         .from("bookings")
-        .select("*, services (*), stylists (*), salons (*)")
+        .select("*, services (*), barbers (*), salons (*)")
         .eq("id", queueId)
         .maybeSingle();
       return normalizeQueueItem(data);

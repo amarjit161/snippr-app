@@ -3,10 +3,22 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Phone } from 'lucide-react';
+import { V, VA, BG, DISP, BODY } from '@/components/landing/tokens';
 
 const calculateCompletion = (fields: { firstName?: string; lastName?: string; phone?: string; gender?: string; email?: string }): number => {
   const filled = Object.values(fields).filter(Boolean).length;
   return Math.round((filled / 5) * 100);
+};
+
+const fieldStyle: React.CSSProperties = {
+  padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)',
+  background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 14, outline: 'none',
+  fontFamily: BODY, boxSizing: 'border-box', width: '100%',
+};
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase',
+  color: 'rgba(255,255,255,0.4)', marginBottom: 6, display: 'block',
 };
 
 export default function CompleteProfile() {
@@ -110,99 +122,97 @@ export default function CompleteProfile() {
   const completion = calculateCompletion({ firstName, lastName, email: userEmail, phone, gender });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div style={{ minHeight: '100vh', background: BG, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: BODY, position: 'relative', overflow: 'hidden' }}>
+      <div aria-hidden="true" style={{ position: 'fixed', top: '10%', right: '5%', width: 400, height: 400, borderRadius: '50%',
+        background: `radial-gradient(circle, ${V}12, transparent 70%)`, filter: 'blur(60px)', pointerEvents: 'none' }} />
+
+      <div style={{ width: '100%', maxWidth: 460, position: 'relative', zIndex: 10 }}>
         {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-extrabold text-gray-900 mb-2">Complete your profile</h1>
-          <p className="text-gray-600">Just a few details to get you started</p>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <h1 style={{ fontFamily: DISP, fontSize: 28, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', marginBottom: 8 }}>
+            Complete your profile
+          </h1>
+          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>
+            Just a few details to get you started
+          </p>
         </div>
 
         {/* Card */}
-        <div className="bg-white rounded-2xl shadow-lg p-8 space-y-6">
+        <div style={{ borderRadius: 24, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', padding: 28, backdropFilter: 'blur(20px)' }}>
           {/* Progress Bar */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-gray-600">Profile completion</span>
-              <span className="text-xs font-bold text-purple-600">{completion}%</span>
+          <div style={{ marginBottom: 22 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>
+              <span>Profile completion</span><span>{completion}%</span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-purple-600 h-2 rounded-full transition-all"
-                style={{ width: `${completion}%` }}
-              />
+            <div style={{ height: 3, borderRadius: 99, background: 'rgba(255,255,255,0.07)' }}>
+              <div style={{ width: `${completion}%`, height: '100%', borderRadius: 99, background: `linear-gradient(90deg, ${V}, ${VA})`, transition: 'width 0.4s ease' }} />
             </div>
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSave} className="space-y-4">
+          <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {/* First Name */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                First name *
-              </label>
+              <label style={labelStyle}>First name *</label>
               <input
                 type="text"
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 placeholder="John"
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                 disabled={loading}
+                style={fieldStyle}
               />
             </div>
 
             {/* Last Name */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Last name *
-              </label>
+              <label style={labelStyle}>Last name *</label>
               <input
                 type="text"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 placeholder="Doe"
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                 disabled={loading}
+                style={fieldStyle}
               />
             </div>
 
             {/* Phone */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Phone (optional)
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-3 text-gray-400 font-medium">+91</span>
-                <Phone className="absolute left-12 top-3 h-5 w-5 text-gray-400" />
+              <label style={labelStyle}>Phone (optional)</label>
+              <div style={{ display: 'flex' }}>
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 14px',
+                  borderRadius: '12px 0 0 12px', border: '1px solid rgba(255,255,255,0.1)', borderRight: 'none',
+                  background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: 600 }}>
+                  <Phone style={{ width: 14, height: 14, marginRight: 6 }} />
+                  +91
+                </span>
                 <input
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                  placeholder="9876543210"
+                  placeholder="98765 43210"
                   maxLength={10}
-                  className="w-full pl-20 pr-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                   disabled={loading}
+                  style={{ ...fieldStyle, borderRadius: '0 12px 12px 0' }}
                 />
               </div>
             </div>
 
             {/* Gender Pills */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Gender (optional)
-              </label>
-              <div className="flex gap-2">
-                {['Male', 'Female', 'Other'].map((g) => (
+              <label style={labelStyle}>Gender (optional)</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                {(['Male', 'Female', 'Other'] as const).map((g) => (
                   <button
                     key={g}
                     type="button"
-                    onClick={() => setGender(g as 'Male' | 'Female' | 'Other')}
+                    onClick={() => setGender(g)}
                     disabled={loading}
-                    className={`flex-1 py-2 px-3 rounded-xl border-2 text-sm font-semibold transition-all ${
-                      gender === g
-                        ? 'border-purple-600 bg-purple-50 text-purple-700'
-                        : 'border-gray-200 text-gray-600 hover:border-purple-300'
-                    }`}
+                    style={{ padding: '10px 0', borderRadius: 99, fontSize: 13, fontWeight: gender === g ? 700 : 500, cursor: 'pointer',
+                      border: `1px solid ${gender === g ? V : 'rgba(255,255,255,0.1)'}`,
+                      background: gender === g ? `${V}28` : 'rgba(255,255,255,0.03)',
+                      color: gender === g ? '#fff' : 'rgba(255,255,255,0.5)' }}
                   >
                     {g}
                   </button>
@@ -214,7 +224,8 @@ export default function CompleteProfile() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-semibold py-2.5 rounded-xl transition-all duration-200 mt-6"
+              style={{ width: '100%', padding: '13px 0', borderRadius: 12, background: loading ? `${V}80` : V, color: '#fff',
+                fontWeight: 700, fontSize: 14, border: 'none', cursor: 'pointer', marginTop: 6, fontFamily: BODY }}
             >
               {loading ? 'Saving...' : 'Save & Continue'}
             </button>
@@ -224,4 +235,3 @@ export default function CompleteProfile() {
     </div>
   );
 }
-

@@ -16,14 +16,14 @@ const NotFound = () => {
         <Scissors className="h-10 w-10" />
       </div>
       <div className="text-center">
-        <h1 className="mb-2 text-7xl font-extrabold tracking-tight text-gray-900">404</h1>
-        <h2 className="mb-4 text-2xl font-bold text-gray-800">Oops! Page not found</h2>
+        <h1 className="mb-2 font-display text-7xl font-extrabold tracking-tight text-gray-900">404</h1>
+        <h2 className="mb-4 font-display text-2xl font-bold text-gray-800">Oops! Page not found</h2>
         <p className="mx-auto mb-8 max-w-md text-gray-500">
           It looks like the page you are looking for has been snipped away or doesn't exist.
         </p>
-        <Link 
-          to="/" 
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-purple-200 transition-all hover:bg-purple-700 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0"
+        <Link
+          to="/"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-8 py-3.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-purple-200 transition-all hover:bg-primary/90 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0"
         >
           <Home className="h-4 w-4" />
           Return to Home

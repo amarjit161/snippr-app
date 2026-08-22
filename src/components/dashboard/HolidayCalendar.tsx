@@ -140,7 +140,7 @@ export function HolidayCalendar({ salonId }: HolidayCalendarProps) {
         supabase
           .from("bookings")
           .select(
-            "id, booking_date, created_at, booking_time, status, customer_profiles(first_name, last_name, phone), services(name), stylists(name)"
+            "id, booking_date, created_at, booking_time, status, customer_profiles(first_name, last_name, phone), services(name), barbers(name)"
           )
           .eq("salon_id", salonId)
           .gte("booking_date", monthStartIso)
@@ -149,7 +149,7 @@ export function HolidayCalendar({ salonId }: HolidayCalendarProps) {
         supabase
           .from("bookings")
           .select(
-            "id, booking_date, created_at, booking_time, status, customer_profiles(first_name, last_name, phone), services(name), stylists(name)"
+            "id, booking_date, created_at, booking_time, status, customer_profiles(first_name, last_name, phone), services(name), barbers(name)"
           )
           .eq("salon_id", salonId)
           .is("booking_date", null)
@@ -164,7 +164,7 @@ export function HolidayCalendar({ salonId }: HolidayCalendarProps) {
       const merged = [...(scheduledRes.data || []), ...(walkInRes.data || [])].map((b: any) => ({
         ...b,
         time_slot: b.booking_time,
-        barbers: b.stylists,
+        barbers: b.barbers,
         customer_first_name: b.customer_profiles?.first_name || null,
         customer_last_name: b.customer_profiles?.last_name || null,
         customer_phone: b.customer_profiles?.phone || null,

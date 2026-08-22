@@ -5,12 +5,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/Header";
-import { Loader2, Clock3, MapPin, Scissors, CalendarDays, ChevronLeft } from "lucide-react";
+import { Loader2, Clock3, MapPin, Scissors, CalendarDays, ChevronLeft, Star } from "lucide-react";
 import { toast } from "sonner";
 import gsap from "gsap";
 import { CancelConfirmation } from "@/components/CancelConfirmation";
 import { CancelPopup, CompletionCelebration } from "@/components/CancelConfirmationPage";
 import { RescheduleModal } from "@/components/RescheduleModal";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { sendBookingEmail } from "@/services/emailService";
 import { generateOTP } from "@/lib/otpUtils";
 
@@ -31,6 +33,12 @@ const isOTPActive = (status?: string): boolean => {
   const normalized = normalizeStatus(status);
   const activeStatuses = new Set(["pending", "waiting", "confirmed", "accepted", "in_progress"]);
   return activeStatuses.has(normalized);
+};
+
+// A booking can be reviewed once the salon has marked it done/completed.
+const isReviewableStatus = (status?: string): boolean => {
+  const normalized = normalizeStatus(status);
+  return normalized === "done" || normalized === "completed";
 };
 
 const toDateLabel = (date?: string) => {
@@ -72,7 +80,7 @@ const BOOKING_SELECT = `
   customer_profiles (first_name, last_name, phone, email),
   services (id, name, price, duration),
   salons (id, name, owner_id, address, location, city, image_url),
-  stylists (id, name)
+  barbers (id, name)
 `;
 
 const isPastDate = (date?: string) => {
@@ -82,15 +90,19 @@ const isPastDate = (date?: string) => {
   return date < nowDate;
 };
 
+type ReviewInfo = { id: string; rating: number; comment: string | null };
+
 type BookingCardProps = {
   booking: any;
   onCancel: (id: string) => void;
   onManage: (booking: any) => void;
   showActions: boolean;
   updatingId: string | null;
+  existingReview?: ReviewInfo | null;
+  onLeaveReview?: (booking: any) => void;
 };
 
-const BookingCard = ({ booking: b, onCancel, onManage, showActions, updatingId }: BookingCardProps) => {
+const BookingCard = ({ booking: b, onCancel, onManage, showActions, updatingId, existingReview, onLeaveReview }: BookingCardProps) => {
   const cardRef = useRef<HTMLElement | null>(null);
   const isTouchPointer = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
 
@@ -149,7 +161,7 @@ const BookingCard = ({ booking: b, onCancel, onManage, showActions, updatingId }
     <article
       ref={cardRef}
       data-booking-card
-      className="overflow-hidden rounded-3xl border border-[#e5e2ea] bg-white shadow-sm will-change-transform"
+      className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm will-change-transform"
       onMouseMove={handleMove}
       onMouseEnter={() => {
         if (isTouchPointer) return;
@@ -176,59 +188,59 @@ const BookingCard = ({ booking: b, onCancel, onManage, showActions, updatingId }
         <div className="p-6 sm:p-7">
           <div className="mb-3 flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-4xl font-extrabold tracking-tight text-[#111525]">{salonName}</h2>
-              <p className="mt-1 text-lg text-[#6b6474]">
+              <h2 className="text-4xl font-extrabold tracking-tight text-foreground">{salonName}</h2>
+              <p className="mt-1 text-lg text-muted-foreground">
                 📍 {[b.salons?.city, b.salons?.address || b.salons?.location].filter(Boolean).join(", ") || "Address unavailable"}
               </p>
             </div>
-            <span className="rounded-full bg-[#7a43e9] px-3 py-1 text-sm font-bold text-white">
+            <span className="rounded-full bg-primary px-3 py-1 text-sm font-bold text-primary-foreground">
               {status === "accepted" || status === "confirmed" ? "Confirmed" : status}
             </span>
           </div>
 
-          <div className="grid gap-4 border-y border-[#ece9f0] py-5 sm:grid-cols-2">
+          <div className="grid gap-4 border-y border-border py-5 sm:grid-cols-2">
             <div className="space-y-3">
-              <p className="flex items-center gap-2 text-xl font-semibold text-[#171a27]">
-                <Scissors className="h-5 w-5 text-[#7a43e9]" /> {serviceName}
+              <p className="flex items-center gap-2 text-xl font-semibold text-foreground">
+                <Scissors className="h-5 w-5 text-primary" /> {serviceName}
               </p>
-              <p className="flex items-center gap-2 text-xl text-[#3d3f49]">
-                <Clock3 className="h-5 w-5 text-[#7a43e9]" /> {formatTimeSlot(b.time_slot)}
+              <p className="flex items-center gap-2 text-xl text-foreground/70">
+                <Clock3 className="h-5 w-5 text-primary" /> {formatTimeSlot(b.time_slot)}
               </p>
             </div>
 
             <div className="space-y-3">
-              <p className="flex items-center gap-2 text-xl text-[#3d3f49]">
-                <CalendarDays className="h-5 w-5 text-[#7a43e9]" /> {toDateLabel(b.booking_date)}
+              <p className="flex items-center gap-2 text-xl text-foreground/70">
+                <CalendarDays className="h-5 w-5 text-primary" /> {toDateLabel(b.booking_date)}
               </p>
-              <p className="flex items-center gap-2 text-xl text-[#3d3f49]">
-                <MapPin className="h-5 w-5 text-[#7a43e9]" /> {b.salons?.city || "Location unavailable"}
+              <p className="flex items-center gap-2 text-xl text-foreground/70">
+                <MapPin className="h-5 w-5 text-primary" /> {b.salons?.city || "Location unavailable"}
               </p>
             </div>
           </div>
 
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-4xl font-extrabold text-[#7a43e9]">{formatPrice(price)}</p>
+            <p className="text-4xl font-extrabold text-primary">{formatPrice(price)}</p>
 
             {/* OTP Display for active bookings - Valid until completed/cancelled */}
             {isOTPActive(status) && b.arrival_otp && (
               <div className="w-full">
-                <div className="pt-4 border-t border-gray-100">
-                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-2">
+                <div className="pt-4 border-t border-border">
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-2">
                     Arrival Code (Show at Salon)
                   </p>
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex gap-1.5">
                       {b.arrival_otp.split('').map((digit: string, i: number) => (
-                        <div key={i} 
-                             className="w-9 h-10 bg-purple-50 border-2 border-purple-200 rounded-lg 
-                                        flex items-center justify-center text-lg font-black text-purple-700">
+                        <div key={i}
+                             className="w-9 h-10 bg-primary/10 border-2 border-primary/30 rounded-lg
+                                        flex items-center justify-center text-lg font-black text-primary">
                           {digit}
                         </div>
                       ))}
                     </div>
                     <div className="text-right">
-                      <p className="text-xs text-gray-400">Valid until done</p>
-                      <p className="text-xs text-green-600 font-medium mt-0.5">● Active</p>
+                      <p className="text-xs text-muted-foreground">Valid until done</p>
+                      <p className="text-xs text-success font-medium mt-0.5">● Active</p>
                     </div>
                   </div>
                 </div>
@@ -258,6 +270,35 @@ const BookingCard = ({ booking: b, onCancel, onManage, showActions, updatingId }
           {showActions && rescheduleLocked && (
             <p className="mt-2 text-xs text-amber-700">Reschedule is disabled after barber accepts the booking.</p>
           )}
+
+          {!showActions && isReviewableStatus(status) ? (
+            existingReview ? (
+              <div className="mt-4 rounded-2xl border border-border bg-muted/30 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Your review</p>
+                <div className="mt-1.5 flex items-center gap-0.5">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      className={`h-4 w-4 ${star <= existingReview.rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"}`}
+                    />
+                  ))}
+                </div>
+                {existingReview.comment ? (
+                  <p className="mt-2 text-sm text-foreground/90">{existingReview.comment}</p>
+                ) : null}
+              </div>
+            ) : (
+              <div className="mt-4">
+                <Button
+                  variant="outline"
+                  className="h-10 gap-2 rounded-full"
+                  onClick={() => onLeaveReview?.(b)}
+                >
+                  <Star className="h-4 w-4" /> Leave a review
+                </Button>
+              </div>
+            )
+          ) : null}
         </div>
       </div>
     </article>
@@ -271,7 +312,9 @@ export default function Dashboard() {
   
   const [bookings, setBookings] = useState<any[]>([]);
   const [fetching, setFetching] = useState(true);
-  const [activeTab, setActiveTab] = useState<BookingTab>("upcoming");
+  const [activeTab, setActiveTab] = useState<BookingTab>(
+    () => (location.state as { initialTab?: BookingTab } | null)?.initialTab ?? "upcoming"
+  );
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [cancelPendingId, setCancelPendingId] = useState<string | null>(null);
   const [showCancelPopup, setShowCancelPopup] = useState(false);
@@ -280,7 +323,14 @@ export default function Dashboard() {
   const [rescheduleTarget, setRescheduleTarget] = useState<any>(null);
   const [showCompletionCelebration, setShowCompletionCelebration] = useState(false);
   const [lastFetchTime, setLastFetchTime] = useState<number | null>(null);
-  
+
+  // Review submission state (additive — customer-facing review flow)
+  const [myReviews, setMyReviews] = useState<Record<string, ReviewInfo>>({});
+  const [reviewTarget, setReviewTarget] = useState<any>(null);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
+
   // Cache validity: 60 seconds
   const CACHE_VALIDITY_MS = 60000;
 
@@ -335,6 +385,39 @@ export default function Dashboard() {
     return () => ctx.revert();
   }, [fetching, bookings.length, activeTab]);
 
+  // Fetch the customer's own reviews so completed bookings can show a read-only
+  // review instead of the "Leave a review" button. Purely additive — does not
+  // touch fetchBookings or the realtime subscription below.
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+
+    (async () => {
+      const { data, error } = await supabase
+        .from("salon_reviews")
+        .select("id, booking_id, rating, comment")
+        .eq("customer_id", user.id);
+
+      if (cancelled) return;
+      if (error) {
+        console.error("MY_REVIEWS_FETCH_ERROR", error);
+        return;
+      }
+
+      const map: Record<string, ReviewInfo> = {};
+      (data || []).forEach((row: any) => {
+        if (row.booking_id) {
+          map[row.booking_id] = { id: row.id, rating: row.rating, comment: row.comment };
+        }
+      });
+      setMyReviews(map);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, bookings.length]);
+
   const fetchBookings = async (skipCache = false) => {
     // Check cache validity
     if (!skipCache && lastFetchTime && Date.now() - lastFetchTime < CACHE_VALIDITY_MS) {
@@ -383,7 +466,7 @@ export default function Dashboard() {
         customer_last_name: b.customer_profiles?.last_name || null,
         customer_phone: b.customer_profiles?.phone || null,
         email: b.customer_profiles?.email || null,
-        barbers: b.stylists,
+        barbers: b.barbers,
       }));
 
       const bookingsWithOtp = await Promise.all(
@@ -695,6 +778,54 @@ export default function Dashboard() {
     }
   };
 
+  const handleOpenReview = (booking: any) => {
+    setReviewTarget(booking);
+    setReviewRating(0);
+    setReviewComment("");
+  };
+
+  const handleSubmitReview = async () => {
+    if (!reviewTarget || !user?.id) {
+      toast.error("Unable to submit review.");
+      return;
+    }
+    if (reviewRating < 1) {
+      toast.error("Please select a star rating.");
+      return;
+    }
+
+    setSubmittingReview(true);
+    try {
+      const { data, error } = await supabase
+        .from("salon_reviews")
+        .insert({
+          customer_id: user.id,
+          salon_id: reviewTarget.salon_id,
+          booking_id: reviewTarget.id,
+          rating: reviewRating,
+          comment: reviewComment.trim() || null,
+        } as any)
+        .select("id, booking_id, rating, comment")
+        .single();
+
+      if (error) throw error;
+
+      setMyReviews((prev) => ({
+        ...prev,
+        [reviewTarget.id]: { id: data.id, rating: data.rating, comment: data.comment },
+      }));
+      toast.success("Thanks for your review!");
+      setReviewTarget(null);
+      setReviewRating(0);
+      setReviewComment("");
+    } catch (error: any) {
+      console.error("REVIEW_SUBMIT_ERROR", error);
+      toast.error(error.message || "Failed to submit review.");
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
   useEffect(() => {
     let queueChannel: ReturnType<typeof supabase.channel> | null = null;
 
@@ -750,7 +881,7 @@ export default function Dashboard() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#f4f3f6]">
+    <div className="min-h-screen bg-muted/40">
       <Header
         onSignOut={signOut}
         userName={profile?.name || user?.email || "Customer"}
@@ -797,10 +928,56 @@ export default function Dashboard() {
         isLoading={rescheduleTarget && updatingId === rescheduleTarget.id}
       />
 
+      {/* Leave a Review Modal (additive — customer-facing review submission) */}
+      <Dialog open={!!reviewTarget} onOpenChange={(open) => { if (!open) setReviewTarget(null); }}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Leave a review</DialogTitle>
+          </DialogHeader>
+          {reviewTarget ? (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                {reviewTarget.salons?.name || "Salon"} · {reviewTarget.services?.name || "Service"}
+              </p>
+              <div className="flex items-center justify-center gap-2 py-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setReviewRating(star)}
+                    className="p-1"
+                    aria-label={`${star} star${star === 1 ? "" : "s"}`}
+                  >
+                    <Star
+                      className={`h-8 w-8 transition-colors ${star <= reviewRating ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"}`}
+                    />
+                  </button>
+                ))}
+              </div>
+              <Textarea
+                placeholder="Share details about your experience (optional)"
+                value={reviewComment}
+                onChange={(e) => setReviewComment(e.target.value)}
+                className="min-h-[100px]"
+              />
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReviewTarget(null)} disabled={submittingReview}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmitReview} disabled={submittingReview || reviewRating < 1}>
+              {submittingReview ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Submit review
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div data-bookings-shell className="mx-auto max-w-5xl px-4 pb-12 pt-10 sm:px-6">
         <button
           onClick={() => navigate(-1)}
-          className="mb-6 flex items-center gap-2 text-gray-600 transition-colors hover:text-gray-900"
+          className="mb-6 flex items-center gap-2 text-muted-foreground transition-colors hover:text-foreground"
         >
           <ChevronLeft className="h-5 w-5" />
           <span className="text-sm font-medium">Back</span>
@@ -808,12 +985,12 @@ export default function Dashboard() {
 
         <div className="mb-8">
           <div className="flex items-baseline justify-between flex-wrap gap-4">
-            <h1 className="font-display text-5xl font-extrabold tracking-tight text-[#121521]">My Bookings</h1>
-            <span className="text-sm font-semibold text-[#7a43e9] bg-purple-50 border border-purple-100 rounded-full px-4 py-1">
+            <h1 className="font-display text-5xl font-extrabold tracking-tight text-foreground">My Bookings</h1>
+            <span className="text-sm font-semibold text-primary bg-primary/10 border border-primary/20 rounded-full px-4 py-1">
               Total Bookings: {bookings.length}
             </span>
           </div>
-          <div className="mt-6 flex gap-6 border-b border-[#dfdce4] text-xl font-bold uppercase tracking-[0.08em]">
+          <div className="mt-6 flex gap-6 border-b border-border text-xl font-bold uppercase tracking-[0.08em]">
             {[
               { key: "upcoming", label: `Upcoming (${upcomingBookings.length})` },
               { key: "past", label: `Past (${pastBookings.length})` },
@@ -825,24 +1002,24 @@ export default function Dashboard() {
                 className={`pb-3 transition ${
                   activeTab === tab.key
                     ? "border-b-4 border-primary text-primary"
-                    : "text-[#6b6474] hover:text-[#373245]"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {tab.label}
               </button>
             ))}
           </div>
-          <div className="mt-4 text-sm text-[#6b6474] font-medium">
+          <div className="mt-4 text-sm text-muted-foreground font-medium">
             Showing {filteredBookings.length} of {bookings.length} bookings
           </div>
         </div>
 
         {fetching ? (
           <div className="flex justify-center py-16">
-            <Loader2 className="h-8 w-8 animate-spin text-[#7a43e9]" />
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : filteredBookings.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-[#d8d4df] bg-white p-12 text-center text-[#6b6474]">
+          <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center text-muted-foreground">
             No bookings in this section.
           </div>
         ) : (
@@ -856,6 +1033,8 @@ export default function Dashboard() {
                   onManage={() => handleManageClick(b)}
                   showActions={activeTab === "upcoming"}
                   updatingId={updatingId}
+                  existingReview={myReviews[b.id] || null}
+                  onLeaveReview={handleOpenReview}
                 />
               );
             })}

@@ -1,5 +1,5 @@
 import React from "react";
-import { Clock, MapPin, Star, Users } from "lucide-react";
+import { Clock, Heart, MapPin, Star, Users } from "lucide-react";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -70,9 +70,11 @@ interface SalonCardProps {
   salon: Tables<"salons"> & { queueCount: number; waitTime: number; distance?: number };
   index: number;
   onSelect: (salon: Tables<"salons">) => void;
+  isFavorited?: boolean;
+  onToggleFavorite?: (salon: Tables<"salons">) => void;
 }
 
-const SalonCard = ({ salon, index, onSelect }: SalonCardProps) => {
+const SalonCard = ({ salon, index, onSelect, isFavorited, onToggleFavorite }: SalonCardProps) => {
   // Logic: If manually closed, always show closed. Otherwise check operating hours.
   const isManuallyClosed = salon.is_manual_closed;
   const isWithinHours = isWithinOperatingHours(salon.open_time, salon.close_time);
@@ -110,7 +112,7 @@ const SalonCard = ({ salon, index, onSelect }: SalonCardProps) => {
           decoding="async"
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
         />
-        <div className="absolute top-4 right-4 flex gap-2">
+        <div className="absolute top-4 right-4 flex items-center gap-2">
           {isOpen ? (
             <span className="bg-[#6ffbbe] text-[#002113] px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm">
               Open
@@ -120,8 +122,26 @@ const SalonCard = ({ salon, index, onSelect }: SalonCardProps) => {
               Closed
             </span>
           )}
+          {onToggleFavorite ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleFavorite(salon);
+              }}
+              aria-label={isFavorited ? "Remove from favorites" : "Add to favorites"}
+              aria-pressed={!!isFavorited}
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-black/30 backdrop-blur-md transition-transform active:scale-90 hover:bg-black/40"
+            >
+              <Heart
+                className={`h-4 w-4 transition-colors ${
+                  isFavorited ? "fill-primary text-primary" : "text-white"
+                }`}
+              />
+            </button>
+          ) : null}
         </div>
-        
+
         {isOpen && (
           <div className="absolute bottom-4 left-4">
             <span className="bg-black/40 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1">
@@ -134,16 +154,16 @@ const SalonCard = ({ salon, index, onSelect }: SalonCardProps) => {
 
       <div className="p-6">
         <div className="flex justify-between items-start mb-2">
-          <h3 className="font-headline font-bold text-xl text-[#191c1d] line-clamp-1">
+          <h3 className="font-display font-bold text-xl text-foreground line-clamp-1">
             {salon?.name ?? "Unknown Salon"}
           </h3>
-          <div className="flex items-center gap-1 text-[#191c1d]">
-            <Star className="text-[#630ed4] w-[18px] h-[18px] fill-[#630ed4]" />
+          <div className="flex items-center gap-1 text-foreground">
+            <Star className="text-primary w-[18px] h-[18px] fill-primary" />
             <span className="font-bold text-sm">{salon.rating || "4.8"}</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 text-[#4a4455] text-sm mb-6 whitespace-nowrap overflow-hidden text-ellipsis">
+        <div className="flex items-center gap-3 text-muted-foreground text-sm mb-6 whitespace-nowrap overflow-hidden text-ellipsis">
           {salon.distance !== undefined && (
             <>
               <span className="flex items-center gap-1 shrink-0">
@@ -163,7 +183,7 @@ const SalonCard = ({ salon, index, onSelect }: SalonCardProps) => {
           }}
           disabled={!isOpen}
           className="w-full text-white py-3 rounded-full font-bold text-sm tracking-wide shadow-lg hover:brightness-110 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ background: isOpen ? 'linear-gradient(to right, #630ed4, #7c3aed)' : '#7b7487' }}
+          style={{ background: isOpen ? 'linear-gradient(to right, #7C3AED, #A855F7)' : '#7b7487' }}
         >
           {isOpen ? "Book a Snipp" : "Currently Closed"}
         </button>

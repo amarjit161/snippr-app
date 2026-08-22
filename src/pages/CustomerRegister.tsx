@@ -2,17 +2,28 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Eye, EyeOff, Mail, Lock, User, Phone } from 'lucide-react';
+import { Eye, EyeOff, Mail, CheckCircle, ChevronLeft } from 'lucide-react';
+import { V, VA, G, BG, DISP, BODY, MONO } from '@/components/landing/tokens';
 
 const calculateCompletion = (fields: { firstName?: string; lastName?: string; email?: string; phone?: string; gender?: string }): number => {
   const filled = Object.values(fields).filter(Boolean).length;
   return Math.round((filled / 5) * 100);
 };
 
+const fieldStyle: React.CSSProperties = {
+  padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)',
+  background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 14, outline: 'none',
+  fontFamily: BODY, boxSizing: 'border-box', width: '100%',
+};
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase',
+  color: 'rgba(255,255,255,0.4)', marginBottom: 6, display: 'block',
+};
+
 export default function CustomerRegister() {
   const navigate = useNavigate();
-  
-  // Form state
+
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -27,7 +38,6 @@ export default function CustomerRegister() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validation
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !password.trim()) {
       toast.error('First name, last name, email, and password are required');
       return;
@@ -46,7 +56,6 @@ export default function CustomerRegister() {
     setLoading(true);
 
     try {
-      // Check if phone already exists (if provided)
       if (phone) {
         const phoneDigits = phone.replace(/\D/g, '');
         const phoneFormatted = `+91${phoneDigits}`;
@@ -63,7 +72,6 @@ export default function CustomerRegister() {
         }
       }
 
-      // Sign up with Supabase Auth
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -81,7 +89,6 @@ export default function CustomerRegister() {
         return;
       }
 
-      // Insert customer profile
       const profileData = {
         id: data.user.id,
         email,
@@ -94,7 +101,7 @@ export default function CustomerRegister() {
 
       const { error: profileError } = await supabase
         .from('customer_profiles')
-        .insert([profileData]);
+        .upsert([profileData], { onConflict: 'id' });
 
       if (profileError) {
         toast.error(profileError.message || 'Failed to create profile');
@@ -104,8 +111,9 @@ export default function CustomerRegister() {
 
       toast.success('Account created! Please sign in.');
       navigate('/login');
-    } catch (err: any) {
-      toast.error(err.message || 'An error occurred');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'An error occurred';
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -114,181 +122,125 @@ export default function CustomerRegister() {
   const completion = calculateCompletion({ firstName, lastName, email, phone, gender });
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 sm:p-8" style={{ background: 'linear-gradient(135deg, #f3f4f5 0%, #eaddff 100%)' }}>
-      
-      {/* Brand Anchor Point */}
-      <div className="mb-8 text-center">
-        <span className="text-3xl font-black text-[#630ed4] tracking-[-0.04em] font-headline">Snippr</span>
-        <p className="text-[#4a4455] text-sm mt-1 font-medium tracking-wide">Elevated Grooming Experience</p>
-      </div>
+    <div style={{ minHeight: '100vh', background: BG, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: BODY, position: 'relative', overflow: 'hidden' }}>
+      <div aria-hidden="true" style={{ position: 'fixed', top: '10%', right: '5%', width: 400, height: 400, borderRadius: '50%',
+        background: `radial-gradient(circle, ${V}12, transparent 70%)`, filter: 'blur(60px)', pointerEvents: 'none' }} />
 
-      {/* Main Registration Card */}
-      <main className="w-full max-w-lg bg-white rounded-2xl shadow-[0_20px_40px_rgba(99,14,212,0.06)] p-8 md:p-10">
-        
-        {/* Progress Indicator */}
-        <header className="flex flex-col items-center mb-10">
-          <div className="flex items-center gap-2 mb-3">
-             <div className="h-2 w-8 bg-[#630ed4] rounded-full"></div>
-             <div className="h-2 w-2 bg-[#e7e8e9] rounded-full"></div>
-             <div className="h-2 w-2 bg-[#e7e8e9] rounded-full"></div>
+      <div style={{ width: '100%', maxWidth: 460, position: 'relative', zIndex: 10 }}>
+        <button onClick={() => navigate('/login')}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer',
+            color: 'rgba(255,255,255,0.3)', fontSize: 13, marginBottom: 24, padding: 0, fontFamily: BODY }}>
+          <ChevronLeft style={{ width: 14, height: 14 }} /> Back to login
+        </button>
+
+        {/* Completion indicator */}
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 11, color: 'rgba(255,255,255,0.35)', fontFamily: MONO }}>
+            <span>Profile completeness</span><span>{completion}%</span>
           </div>
-          <span className="text-xs font-bold text-[#630ed4] tracking-widest uppercase">Step 1 of 1</span>
-          <h1 className="text-2xl font-extrabold text-[#191c1d] mt-4 tracking-tight">Create your profile</h1>
-          <p className="text-[#4a4455] text-sm mt-1">Join the elite circle of groomed gentlemen.</p>
-        </header>
-
-        {/* Registration Form */}
-        <form onSubmit={handleRegister} className="space-y-6">
-          
-          {/* Two-column row: First & Last Name */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-[#4a4455] uppercase tracking-wider ml-1">First Name</label>
-              <input 
-                type="text" 
-                value={firstName} 
-                onChange={(e) => setFirstName(e.target.value)} 
-                placeholder="John" 
-                disabled={loading}
-                className="w-full bg-[#e7e8e9] border-none rounded-lg px-4 py-3.5 text-[#191c1d] focus:ring-2 focus:ring-[#630ed4] focus:bg-white transition-all placeholder:text-[#7b7487]" 
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-[#4a4455] uppercase tracking-wider ml-1">Last Name</label>
-              <input 
-                type="text" 
-                value={lastName} 
-                onChange={(e) => setLastName(e.target.value)} 
-                placeholder="Doe" 
-                disabled={loading}
-                className="w-full bg-[#e7e8e9] border-none rounded-lg px-4 py-3.5 text-[#191c1d] focus:ring-2 focus:ring-[#630ed4] focus:bg-white transition-all placeholder:text-[#7b7487]" 
-              />
-            </div>
+          <div style={{ height: 3, borderRadius: 99, background: 'rgba(255,255,255,0.07)' }}>
+            <div style={{ width: `${completion}%`, height: '100%', borderRadius: 99, background: `linear-gradient(90deg, ${V}, ${VA})`, transition: 'width 0.4s ease' }} />
           </div>
+        </div>
 
-          {/* Email Field */}
-          <div className="space-y-2">
-            <label className="block text-xs font-bold text-[#4a4455] uppercase tracking-wider ml-1">Email Address</label>
-            <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[#7b7487] w-5 h-5" />
-              <input 
-                type="email" 
-                value={email} 
-                onChange={(e) => setEmail(e.target.value)} 
-                placeholder="john.doe@luxury.com" 
-                disabled={loading}
-                className="w-full bg-[#e7e8e9] border-none rounded-lg pl-12 pr-4 py-3.5 text-[#191c1d] focus:ring-2 focus:ring-[#630ed4] focus:bg-white transition-all placeholder:text-[#7b7487]" 
-              />
-            </div>
-          </div>
-
-          {/* Phone Number Field with fixed +91 */}
-          <div className="space-y-2">
-            <label className="block text-xs font-bold text-[#4a4455] uppercase tracking-wider ml-1">Phone Number</label>
-            <div className="flex">
-              <span className="flex items-center justify-center bg-[#e1e3e4] text-[#4a4455] px-4 py-3.5 rounded-l-lg border-r border-[#ccc3d8]/20 font-semibold text-sm">
-                +91
-              </span>
-              <input 
-                type="tel" 
-                value={phone} 
-                onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} 
-                placeholder="98765 43210" 
-                disabled={loading}
-                className="w-full bg-[#e7e8e9] border-none rounded-r-lg px-4 py-3.5 text-[#191c1d] focus:ring-2 focus:ring-[#630ed4] focus:bg-white transition-all placeholder:text-[#7b7487]" 
-              />
-            </div>
-          </div>
-
-          {/* Gender Selection Pill Buttons */}
-          <div className="space-y-3">
-            <label className="block text-xs font-bold text-[#4a4455] uppercase tracking-wider ml-1">Gender Identification</label>
-            <div className="grid grid-cols-3 gap-3">
-              {['Male', 'Female', 'Other'].map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  onClick={() => setGender(g as any)}
-                  disabled={loading}
-                  className={`flex items-center justify-center py-2.5 px-4 rounded-full border text-sm font-medium transition-all active:scale-95 ${
-                    gender === g
-                      ? 'bg-[#d2bbff] text-[#25005a] border-transparent font-bold ring-1 ring-[#630ed4]/20 shadow-sm'
-                      : 'border-[#ccc3d8]/50 text-[#4a4455] hover:bg-[#630ed4]/5 hover:border-[#630ed4]'
-                  }`}
-                >
-                  {g}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Password and Confirm Password */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-[#4a4455] uppercase tracking-wider ml-1">Password</label>
-              <div className="relative">
-                 <input 
-                   type={showPassword ? 'text' : 'password'} 
-                   value={password} 
-                   onChange={(e) => setPassword(e.target.value)} 
-                   placeholder="••••••••" 
-                   disabled={loading}
-                   className="w-full bg-[#e7e8e9] border-none rounded-lg pl-4 pr-10 py-3.5 text-[#191c1d] focus:ring-2 focus:ring-[#630ed4] focus:bg-white transition-all placeholder:text-[#7b7487]" 
-                 />
-                 <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7b7487] hover:text-[#4a4455]"
-                  >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-[#4a4455] uppercase tracking-wider ml-1">Confirm</label>
-              <div className="relative">
-                 <input 
-                   type={showConfirmPassword ? 'text' : 'password'} 
-                   value={confirmPassword} 
-                   onChange={(e) => setConfirmPassword(e.target.value)} 
-                   placeholder="••••••••" 
-                   disabled={loading}
-                   className="w-full bg-[#e7e8e9] border-none rounded-lg pl-4 pr-10 py-3.5 text-[#191c1d] focus:ring-2 focus:ring-[#630ed4] focus:bg-white transition-all placeholder:text-[#7b7487]" 
-                 />
-                 <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7b7487] hover:text-[#4a4455]"
-                  >
-                    {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Primary CTA */}
-          <div className="pt-4">
-            <button 
-              type="submit" 
-              disabled={loading}
-              className="w-full text-white font-bold py-4 rounded-full shadow-lg hover:shadow-xl hover:opacity-95 transition-all transform active:scale-[0.98] tracking-tight disabled:bg-gray-400"
-              style={{ background: loading ? '#ccc3d8' : 'linear-gradient(45deg, #630ed4 0%, #7c3aed 100%)' }}
-            >
-              {loading ? 'Creating account...' : 'Create Account'}
-            </button>
-          </div>
-        </form>
-
-        {/* Footer Link */}
-        <footer className="mt-8 text-center">
-          <p className="text-[#4a4455] text-sm">
-            Already part of the community? 
-            <Link to="/login" className="text-[#630ed4] font-bold hover:underline ml-1">Sign In</Link>
+        <div style={{ borderRadius: 24, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', padding: 28, backdropFilter: 'blur(20px)' }}>
+          <h1 style={{ fontFamily: DISP, fontSize: 24, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', marginBottom: 6 }}>
+            Create your account
+          </h1>
+          <p style={{ color: 'rgba(255,255,255,0.38)', fontSize: 13, marginBottom: 22 }}>
+            Join 50,000+ customers skipping the wait
           </p>
-        </footer>
-      </main>
 
+          <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={labelStyle}>First Name</label>
+                <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="John" disabled={loading} style={fieldStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Last Name</label>
+                <input type="text" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Doe" disabled={loading} style={fieldStyle} />
+              </div>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Email Address</label>
+              <div style={{ position: 'relative' }}>
+                <Mail style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: 'rgba(255,255,255,0.35)' }} />
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="john.doe@example.com" disabled={loading}
+                  style={{ ...fieldStyle, paddingLeft: 40 }} />
+              </div>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Phone Number (optional)</label>
+              <div style={{ display: 'flex' }}>
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 14px',
+                  borderRadius: '12px 0 0 12px', border: '1px solid rgba(255,255,255,0.1)', borderRight: 'none',
+                  background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: 600 }}>
+                  +91
+                </span>
+                <input type="tel" value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="98765 43210" disabled={loading}
+                  style={{ ...fieldStyle, borderRadius: '0 12px 12px 0' }} />
+              </div>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Gender</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                {(['Male', 'Female', 'Other'] as const).map(g => (
+                  <button key={g} type="button" onClick={() => setGender(g)} disabled={loading}
+                    style={{ padding: '10px 0', borderRadius: 99, fontSize: 13, fontWeight: gender === g ? 700 : 500, cursor: 'pointer',
+                      border: `1px solid ${gender === g ? V : 'rgba(255,255,255,0.1)'}`,
+                      background: gender === g ? `${V}28` : 'rgba(255,255,255,0.03)',
+                      color: gender === g ? '#fff' : 'rgba(255,255,255,0.5)' }}>
+                    {g}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={labelStyle}>Password</label>
+                <div style={{ position: 'relative' }}>
+                  <input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
+                    placeholder="••••••••" disabled={loading} style={{ ...fieldStyle, paddingRight: 38 }} />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)}
+                    style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none',
+                      cursor: 'pointer', color: 'rgba(255,255,255,0.35)', padding: 0, display: 'flex' }}>
+                    {showPassword ? <EyeOff style={{ width: 15, height: 15 }} /> : <Eye style={{ width: 15, height: 15 }} />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label style={labelStyle}>Confirm</label>
+                <div style={{ position: 'relative' }}>
+                  <input type={showConfirmPassword ? 'text' : 'password'} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
+                    placeholder="••••••••" disabled={loading} style={{ ...fieldStyle, paddingRight: 38 }} />
+                  <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none',
+                      cursor: 'pointer', color: 'rgba(255,255,255,0.35)', padding: 0, display: 'flex' }}>
+                    {showConfirmPassword ? <EyeOff style={{ width: 15, height: 15 }} /> : <Eye style={{ width: 15, height: 15 }} />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <button type="submit" disabled={loading}
+              style={{ width: '100%', padding: '13px 0', borderRadius: 12, background: loading ? `${V}80` : V, color: '#fff',
+                fontWeight: 700, fontSize: 14, border: 'none', cursor: 'pointer', marginTop: 6, fontFamily: BODY }}>
+              {loading ? 'Creating account…' : 'Create Account'}
+            </button>
+          </form>
+
+          <p style={{ textAlign: 'center', marginTop: 18, fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>
+            Already part of the community?{' '}
+            <Link to="/login" style={{ color: VA, fontWeight: 600, textDecoration: 'none' }}>Sign In</Link>
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
-

@@ -24,7 +24,7 @@ const normalizeQueueEntry = (item: any): any => {
     barber_id: item.stylist_id || item.barber_id,
     time_slot: item.booking_time || item.time_slot,
     arrival_otp: item.otp || item.arrival_otp,
-    barbers: item.stylists || item.barbers || null,
+    barbers: item.barbers || null,
     profileName: item.customer_profiles
       ? `${item.customer_profiles.first_name || ''} ${item.customer_profiles.last_name || ''}`.trim() || 'Customer'
       : item.customer_first_name
@@ -85,7 +85,7 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
         *,
         services (*),
         salons (*),
-        stylists (*),
+        barbers (*),
         customer_profiles (first_name, last_name, phone)
       `)
       .eq("salon_id", selectedSalonId)
@@ -103,7 +103,7 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
         *,
         services (*),
         salons (*),
-        stylists (*),
+        barbers (*),
         customer_profiles (first_name, last_name, phone)
       `)
       .eq("salon_id", selectedSalonId)
@@ -124,7 +124,7 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
         *,
         services (*),
         salons (*),
-        stylists (*),
+        barbers (*),
         customer_profiles (first_name, last_name, phone)
       `)
       .eq("salon_id", selectedSalonId);
