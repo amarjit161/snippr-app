@@ -36,7 +36,13 @@ const TurnstileCaptcha = forwardRef<TurnstileCaptchaHandle, TurnstileCaptchaProp
 
   if (!siteKey) {
     console.error("VITE_TURNSTILE_SITE_KEY is not configured");
-    return null;
+    return (
+      <div className={className} style={{ width: "100%", maxWidth: "100%" }} role="alert">
+        <div className="rounded-lg border border-white/30 bg-white/10 px-4 py-3 text-center text-xs text-white/80">
+          Verification is temporarily unavailable, so booking is paused here for safety. Please try again shortly or contact support.
+        </div>
+      </div>
+    );
   }
 
   return (

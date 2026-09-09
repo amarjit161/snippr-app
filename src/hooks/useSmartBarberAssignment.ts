@@ -230,12 +230,12 @@ export function useSmartBarberAssignment() {
           const buffer = Math.min(15, Math.max(2, b.queueCount * 2));
           const estimatedWait = Math.max(5, baseWait + buffer);
 
-          // Calculate completion time
-          const now = new Date();
-          now.setHours(10, 0, 0, 0);
+          // Calculate completion time, anchored to the real current time in IST
+          // (same Asia/Kolkata shift trick already used in useSlotAvailability.ts)
+          const nowIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
           const completionMinutes = estimatedWait + totalDuration;
-          now.setMinutes(now.getMinutes() + completionMinutes);
-          const completionTime = now.toLocaleString("en-US", {
+          nowIST.setMinutes(nowIST.getMinutes() + completionMinutes);
+          const completionTime = nowIST.toLocaleString("en-IN", {
             hour: "numeric",
             minute: "2-digit",
             hour12: true,

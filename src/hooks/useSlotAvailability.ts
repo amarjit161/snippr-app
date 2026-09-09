@@ -21,6 +21,7 @@ interface UseSlotAvailabilityResult {
     type: string;
   } | null;
   lastUpdated: Date | null;
+  error: string | null;
   refresh: () => Promise<void>;
 }
 
@@ -44,37 +45,6 @@ const formatTime = (hours: number, minutes: number): string => {
   return `${String(displayHours).padStart(2, " ")}:${String(minutes).padStart(2, "0")} ${period}`;
 };
 
-// Convert HH:MM to minutes
-const timeToMinutes = (time: string): number => {
-  const [hours, minutes] = time.split(":").map(Number);
-  return hours * 60 + minutes;
-};
-
-// Generate time slots from startTime to endTime (HH:MM format)
-const generateTimeSlots = (startTime: string, endTime: string): string[] => {
-  const slots: string[] = [];
-  let current = timeToMinutes(startTime);
-  const end = timeToMinutes(endTime);
-
-  while (current < end) {
-    const hours = Math.floor(current / 60);
-    const minutes = current % 60;
-    const timeValue = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00`;
-    slots.push(timeValue);
-    current += SLOT_DURATION_MINUTES;
-  }
-
-  return slots;
-};
-
-// Convert 24h time to 12h display format
-const formatTimeDisplay = (timeValue: string): string => {
-  const [hours, minutes] = timeValue.split(":").map(Number);
-  const period = hours >= 12 ? "PM" : "AM";
-  const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
-  return `${String(displayHours).padStart(2, " ")}:${String(minutes).padStart(2, "0")} ${period}`;
-};
-
 export function useSlotAvailability(
   salonId: string,
   date: string, // YYYY-MM-DD format
@@ -88,6 +58,7 @@ export function useSlotAvailability(
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const requestSequenceRef = useRef(0);
 
   // Fetch available slots
@@ -104,6 +75,7 @@ export function useSlotAvailability(
     setLoading(true);
     setHolidayInfo(null);
     setSlots([]);
+    setError(null);
     try {
       // Step 1/2: read salon hours and always apply fallback values.
       // Step 1/2: read salon hours and always apply fallback values.
@@ -192,18 +164,10 @@ export function useSlotAvailability(
 
       if (bookingsError) {
         if (import.meta.env.DEV) console.error('SLOT_QUERY_ERROR:', bookingsError.code, bookingsError.message, bookingsError.details);
-        // Don't crash — just treat as 0 booked slots and show all as available
-        setSlots(
-          generateTimeSlots(FALLBACK_OPEN_TIME, FALLBACK_CLOSE_TIME).map(
-            (timeValue) => ({
-              time: formatTimeDisplay(timeValue),
-              timeValue,
-              available: true,
-              bookedCount: 0,
-              totalBarbers: 1,
-            })
-          )
-        );
+        // A failed availability check must never be presented as "everything is open" —
+        // surface it as an explicit error instead of fabricating available slots.
+        setSlots([]);
+        setError("Could not check slot availability. Please try again.");
         setLoading(false);
         return;
       }
@@ -293,12 +257,13 @@ export function useSlotAvailability(
               closeTime
             });
       setLastUpdated(new Date());
-    } catch (error) {
+    } catch (err) {
       if (requestId !== requestSequenceRef.current) {
         return;
       }
-      console.error("❌ SLOT_AVAILABILITY_ERROR:", error);
+      console.error("❌ SLOT_AVAILABILITY_ERROR:", err);
       setSlots([]);
+      setError("Could not check slot availability. Please try again.");
     } finally {
       if (requestId !== requestSequenceRef.current) {
         return;
@@ -352,6 +317,7 @@ export function useSlotAvailability(
     totalCount,
     holidayInfo,
     lastUpdated,
+    error,
     refresh: () => fetchSlots(date),
   };
 }

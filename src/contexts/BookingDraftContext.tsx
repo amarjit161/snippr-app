@@ -16,6 +16,19 @@ import type { TurnstileCaptchaHandle } from "@/components/TurnstileCaptcha";
 
 const CUSTOMER_PROFILE_STORAGE_KEY = "snippr_customer_profile";
 const BOOKING_SALON_ID_KEY = "snippr_booking_salon_id";
+const BOOKING_DRAFT_KEY = "snippr_booking_draft";
+const BOOKING_DRAFT_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours — short-lived, matches the checkout-flow lifespan
+
+interface PersistedBookingDraft {
+  salonId: string;
+  savedAt: number;
+  selectedServices: Tables<"services">[];
+  date: string;
+  time: string;
+  timeLabel: string;
+  customer: CustomerInfo;
+  bookingForSomeoneElse: boolean;
+}
 
 export type BarberRow = {
   id: string;
@@ -75,6 +88,8 @@ interface BookingDraftContextValue {
   setDate: (date: string) => void;
   time: string;
   setTime: (time: string) => void;
+  timeLabel: string;
+  setTimeLabel: (label: string) => void;
   nextQueuePosition: number | null;
   customer: CustomerInfo;
   setCustomer: React.Dispatch<React.SetStateAction<CustomerInfo>>;
@@ -123,6 +138,7 @@ export function BookingFlowProvider() {
   const [selectedServices, setSelectedServices] = useState<Tables<"services">[]>([]);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
+  const [timeLabel, setTimeLabel] = useState("");
   const [nextQueuePosition, setNextQueuePosition] = useState<number | null>(null);
   const [customer, setCustomer] = useState<CustomerInfo>({ firstName: "", lastName: "", phone: "", altPhone: "", notes: "" });
   const [savedProfile, setSavedProfile] = useState<CustomerInfo>({ firstName: "", lastName: "", phone: "", altPhone: "", notes: "" });
@@ -137,6 +153,7 @@ export function BookingFlowProvider() {
 
   const exitFlow = () => {
     sessionStorage.removeItem(BOOKING_SALON_ID_KEY);
+    sessionStorage.removeItem(BOOKING_DRAFT_KEY);
     navigate("/salons");
   };
 
@@ -147,6 +164,31 @@ export function BookingFlowProvider() {
       toast.error("Start a booking from a salon page first.");
       navigate("/salons");
       return;
+    }
+
+    // Best-effort restore of an in-progress draft (e.g. after a refresh). Only ever
+    // applied when it belongs to this exact salon/flow and isn't stale — any mismatch
+    // or malformed data is discarded rather than risking a crash or cross-salon leak.
+    try {
+      const rawDraft = sessionStorage.getItem(BOOKING_DRAFT_KEY);
+      if (rawDraft) {
+        const parsed = JSON.parse(rawDraft) as Partial<PersistedBookingDraft> | null;
+        const isFresh = typeof parsed?.savedAt === "number" && Date.now() - parsed.savedAt < BOOKING_DRAFT_TTL_MS;
+        if (parsed && parsed.salonId === salonId && isFresh) {
+          if (Array.isArray(parsed.selectedServices)) setSelectedServices(parsed.selectedServices);
+          if (typeof parsed.date === "string") setDate(parsed.date);
+          if (typeof parsed.time === "string") setTime(parsed.time);
+          if (typeof parsed.timeLabel === "string") setTimeLabel(parsed.timeLabel);
+          if (parsed.customer && typeof parsed.customer === "object") {
+            setCustomer((prev) => ({ ...prev, ...parsed.customer }));
+          }
+          if (typeof parsed.bookingForSomeoneElse === "boolean") setBookingForSomeoneElse(parsed.bookingForSomeoneElse);
+        } else {
+          sessionStorage.removeItem(BOOKING_DRAFT_KEY);
+        }
+      }
+    } catch {
+      sessionStorage.removeItem(BOOKING_DRAFT_KEY);
     }
 
     const fetchSalon = async () => {
@@ -265,13 +307,57 @@ export function BookingFlowProvider() {
   // Reset time when date changes (preserved verbatim)
   useEffect(() => {
     setTime("");
+    setTimeLabel("");
   }, [date, assignmentResult?.barberId]);
+
+  // Persist the in-progress draft so a refresh doesn't wipe it out. Namespaced to the
+  // current salon id so a stale draft from a different salon/flow is never picked up.
+  // Stops once a booking has succeeded so post-success state changes (e.g. clearing the
+  // "someone else" customer fields) can't resurrect a draft we just cleared.
+  useEffect(() => {
+    if (confirmedBookingState) return;
+    const salonId = sessionStorage.getItem(BOOKING_SALON_ID_KEY);
+    if (!salonId) return;
+    const draft: PersistedBookingDraft = {
+      salonId,
+      savedAt: Date.now(),
+      selectedServices,
+      date,
+      time,
+      timeLabel,
+      customer,
+      bookingForSomeoneElse,
+    };
+    try {
+      sessionStorage.setItem(BOOKING_DRAFT_KEY, JSON.stringify(draft));
+    } catch {
+      // Ignore storage quota/serialization errors — the draft is a convenience, not critical state.
+    }
+  }, [selectedServices, date, time, timeLabel, customer, bookingForSomeoneElse, confirmedBookingState]);
 
   const triggerAssignment = () => {
     if (!salon?.id || selectedServices.length === 0 || assignmentResult) return;
     const bookingDate = date || new Date().toISOString().split("T")[0];
     assignBestBarber(salon.id, selectedServices, bookingDate);
   };
+
+  // If a restored draft (e.g. after a refresh) already has services selected but the
+  // user isn't currently sitting on /booking/stylist, that page's own auto-trigger never
+  // runs. Recompute assignment here too so later steps (time/confirm) aren't left stuck.
+  //
+  // recoveryAttemptedRef caps this to a single attempt per provider lifetime. Without it,
+  // a failed assignment leaves assignmentResult null while isAssigning bounces true->false,
+  // which re-satisfies the effect's guard and re-triggers assignment — an unbounded retry
+  // loop hammering Supabase. One attempt is enough: on success assignmentResult itself then
+  // blocks re-entry; on failure the error stands as a stable, real failure state.
+  const recoveryAttemptedRef = useRef(false);
+  useEffect(() => {
+    if (recoveryAttemptedRef.current) return;
+    if (!salon?.id || selectedServices.length === 0 || assignmentResult || isAssigning) return;
+    recoveryAttemptedRef.current = true;
+    triggerAssignment();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [salon?.id, selectedServices.length, assignmentResult, isAssigning]);
 
   // NOTE: in the original SalonDetail.tsx, manual barber selection updated a local
   // `assignedBarber`/`selectedBarberId` pair that was never actually read by the booking
@@ -678,6 +764,7 @@ export function BookingFlowProvider() {
       });
       setBooking(false);
       sessionStorage.removeItem(BOOKING_SALON_ID_KEY);
+      sessionStorage.removeItem(BOOKING_DRAFT_KEY);
     } catch (err: any) {
       toast.error(err?.message || "Failed to join queue");
       setBooking(false);
@@ -703,6 +790,8 @@ export function BookingFlowProvider() {
       setDate,
       time,
       setTime,
+      timeLabel,
+      setTimeLabel,
       nextQueuePosition,
       customer,
       setCustomer,
@@ -726,7 +815,7 @@ export function BookingFlowProvider() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       loadingSalon, salon, services, barbers, selectedServices, assignmentResult, isAssigning,
-      assignmentError, allBarbers, date, time, nextQueuePosition, customer, hasSavedProfile,
+      assignmentError, allBarbers, date, time, timeLabel, nextQueuePosition, customer, hasSavedProfile,
       savedProfile, bookingForSomeoneElse, activeCustomer, bookedSlots, captchaToken, booking,
       verifyingCaptcha, confirmedBookingState,
     ]

@@ -21,8 +21,7 @@ export function BarberSelector({
 
   // Get badges for each barber
   const getBadges = (barber: BarberScore, allBarbers: BarberScore[]) => {
-    const badges: { label: string; icon: React.ReactNode; color: string }[] =
-      [];
+    const badges: { label: string; icon: React.ReactNode; className: string }[] = [];
 
     // Fastest
     const fastest = allBarbers.reduce((min, b) =>
@@ -31,8 +30,8 @@ export function BarberSelector({
     if (barber.barber.id === fastest.barber.id) {
       badges.push({
         label: "Fastest",
-        icon: <Zap size={14} />,
-        color: "bg-yellow-100 text-yellow-700",
+        icon: <Zap size={12} aria-hidden="true" />,
+        className: "bg-warning/10 text-warning",
       });
     }
 
@@ -42,9 +41,9 @@ export function BarberSelector({
     );
     if (barber.barber.id === mostAvailable.barber.id && barber.queueCount === 0) {
       badges.push({
-        label: "Available Now",
-        icon: <CheckCircle2 size={14} />,
-        color: "bg-green-100 text-green-700",
+        label: "Available now",
+        icon: <CheckCircle2 size={12} aria-hidden="true" />,
+        className: "bg-success/10 text-success",
       });
     }
 
@@ -52,8 +51,8 @@ export function BarberSelector({
     if (barber.barber.experience && barber.barber.experience >= 5) {
       badges.push({
         label: "Premium",
-        icon: <Star size={14} />,
-        color: "bg-purple-100 text-purple-700",
+        icon: <Star size={12} aria-hidden="true" />,
+        className: "bg-primary/10 text-primary",
       });
     }
 
@@ -61,8 +60,8 @@ export function BarberSelector({
     if (barber.isBest) {
       badges.push({
         label: "Recommended",
-        icon: <Flame size={14} />,
-        color: "bg-red-100 text-red-700",
+        icon: <Flame size={12} aria-hidden="true" />,
+        className: "bg-primary/15 text-primary",
       });
     }
 
@@ -75,19 +74,21 @@ export function BarberSelector({
       animate={{ opacity: 1, height: "auto" }}
       exit={{ opacity: 0, height: 0 }}
       transition={{ duration: 0.3 }}
-      className="mt-4 pt-4 border-t border-gray-200"
+      className="mt-4 border-t border-border pt-4"
     >
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-gray-800">Choose Your Stylist</h3>
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-foreground">Choose your stylist</h3>
         <button
+          type="button"
           onClick={onClose}
-          className="text-gray-400 hover:text-gray-600 transition"
+          aria-label="Close stylist list"
+          className="text-muted-foreground transition-colors hover:text-foreground"
         >
-          <X size={18} />
+          <X size={18} aria-hidden="true" />
         </button>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2.5">
         <AnimatePresence mode="wait">
           {barbers.map((barber, index) => {
             const badges = getBadges(barber, barbers);
@@ -96,53 +97,49 @@ export function BarberSelector({
             return (
               <motion.button
                 key={barber.barber.id}
-                initial={{ opacity: 0, x: -20 }}
+                type="button"
+                initial={{ opacity: 0, x: -12 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.05 }}
+                transition={{ delay: index * 0.05, duration: 0.2 }}
                 onClick={() => onSelectBarber(barber)}
-                className={`w-full text-left p-3 rounded-lg border-2 transition ${
+                aria-pressed={isSelected}
+                className={`w-full rounded-xl border p-4 text-left transition-colors ${
                   isSelected
-                    ? "border-purple-600 bg-purple-50"
-                    : "border-gray-200 bg-white hover:border-purple-300"
+                    ? "border-primary bg-primary/[0.08]"
+                    : "border-border bg-card hover:border-primary/40"
                 }`}
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-semibold text-gray-900">
-                        {barber.barber.name}
-                      </p>
-                      {isSelected && (
-                        <CheckCircle2 size={18} className="text-purple-600" />
-                      )}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex items-center gap-2">
+                      <p className="font-semibold text-foreground">{barber.barber.name}</p>
+                      {isSelected && <CheckCircle2 size={16} className="shrink-0 text-primary" aria-hidden="true" />}
                     </div>
 
                     {barber.barber.specialization && (
-                      <p className="text-xs text-gray-500 mb-2">
-                        {barber.barber.specialization}
-                      </p>
+                      <p className="mb-2 text-xs text-muted-foreground">{barber.barber.specialization}</p>
                     )}
 
-                    <div className="flex flex-wrap gap-2 mb-2">
-                      {badges.map((badge) => (
-                        <div
-                          key={badge.label}
-                          className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${badge.color}`}
-                        >
-                          {badge.icon}
-                          {badge.label}
-                        </div>
-                      ))}
-                    </div>
+                    {badges.length > 0 && (
+                      <div className="mb-2 flex flex-wrap gap-1.5">
+                        {badges.map((badge) => (
+                          <span
+                            key={badge.label}
+                            className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${badge.className}`}
+                          >
+                            {badge.icon}
+                            {badge.label}
+                          </span>
+                        ))}
+                      </div>
+                    )}
 
-                    <div className="flex items-center gap-4 text-sm">
-                      <span className="flex items-center gap-1 text-gray-600">
-                        <Clock size={14} className="text-purple-600" />
-                        <span>{barber.estimatedWait} min wait</span>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Clock size={13} aria-hidden="true" />
+                        {barber.estimatedWait} min wait
                       </span>
-                      <span className="text-gray-500">
-                        Ready by {barber.completionTime}
-                      </span>
+                      <span>Ready by {barber.completionTime}</span>
                     </div>
                   </div>
                 </div>
@@ -152,7 +149,7 @@ export function BarberSelector({
         </AnimatePresence>
       </div>
 
-      <p className="text-xs text-gray-500 text-center mt-3">
+      <p className="mt-3 text-center text-xs text-muted-foreground">
         Select your preferred stylist and proceed to booking
       </p>
     </motion.div>

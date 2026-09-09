@@ -1,8 +1,7 @@
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Check, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { Check, Clock, Scissors } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
+import { formatINR } from "@/lib/currency";
 
 interface ServiceSelectorProps {
   services: Tables<"services">[];
@@ -17,191 +16,104 @@ export function ServiceSelector({
   onServicesChange,
   isLoading = false,
 }: ServiceSelectorProps) {
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const selectedIds = new Set(selectedServices.map(s => s.id));
+  const shouldReduceMotion = useReducedMotion();
+  const selectedIds = new Set(selectedServices.map((s) => s.id));
 
   const handleToggleService = (service: Tables<"services">) => {
     if (selectedIds.has(service.id)) {
-      // Remove service
-      onServicesChange(selectedServices.filter(s => s.id !== service.id));
+      onServicesChange(selectedServices.filter((s) => s.id !== service.id));
     } else {
-      // Add service
       onServicesChange([...selectedServices, service]);
     }
-  };
-
-  const handleClearAll = () => {
-    onServicesChange([]);
   };
 
   const totalDuration = selectedServices.reduce((sum, s) => sum + (s.duration || 30), 0);
   const totalPrice = selectedServices.reduce((sum, s) => sum + (s.price || 0), 0);
 
+  if (services.length === 0) {
+    return (
+      <div className="rounded-2xl border border-border bg-card px-5 py-10 text-center">
+        <Scissors className="mx-auto mb-3 h-6 w-6 text-muted-foreground" aria-hidden="true" />
+        <p className="text-sm font-semibold text-foreground">No services available</p>
+        <p className="mt-1 text-sm text-muted-foreground">This salon hasn&apos;t added any bookable services yet.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">
-          Select Services
-        </h3>
-        {selectedServices.length > 0 && (
+      {selectedServices.length > 0 && (
+        <div className="flex justify-end">
           <button
-            onClick={handleClearAll}
-            className="text-sm text-red-600 hover:text-red-700 font-medium"
+            type="button"
+            onClick={() => onServicesChange([])}
+            className="text-xs font-semibold text-muted-foreground transition-colors hover:text-destructive"
           >
-            Clear All
+            Clear all
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Service Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <AnimatePresence>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" role="group" aria-label="Services">
+        <AnimatePresence initial={false}>
           {services.map((service) => {
             const isSelected = selectedIds.has(service.id);
             return (
               <motion.button
                 key={service.id}
+                type="button"
                 onClick={() => handleToggleService(service)}
-                onMouseEnter={() => setHoveredId(service.id)}
-                onMouseLeave={() => setHoveredId(null)}
-                layout
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                whileHover={{ y: -2 }}
+                aria-pressed={isSelected}
                 disabled={isLoading}
-                className={`relative p-4 rounded-lg border-2 transition-all duration-200 text-left
-                  ${
-                    isSelected
-                      ? "border-primary bg-primary/10 shadow-md"
-                      : "border-gray-200 bg-white hover:border-primary/40"
-                  }
-                  ${isLoading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
-                `}
+                layout={!shouldReduceMotion}
+                initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.97 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={shouldReduceMotion ? undefined : { opacity: 0, scale: 0.97 }}
+                transition={{ duration: shouldReduceMotion ? 0 : 0.15 }}
+                className={`relative min-h-[44px] rounded-2xl border p-4 text-left transition-colors sm:p-5 ${
+                  isSelected
+                    ? "border-primary bg-primary/[0.08] shadow-sm"
+                    : "border-border bg-card hover:border-primary/40"
+                } ${isLoading ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
               >
-                {/* Checkmark overlay */}
-                <AnimatePresence>
-                  {isSelected && (
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      exit={{ scale: 0 }}
-                      className="absolute top-2 right-2 bg-primary/100 rounded-full p-1.5"
-                    >
-                      <Check className="w-4 h-4 text-white" />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {/* Service Info */}
-                <div className="space-y-2">
-                  <div className="pr-8">
-                    <h4 className="font-semibold text-gray-900">
-                      {service.name}
-                    </h4>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-foreground">{service.name}</p>
+                    <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                      {service.duration || 30} min
+                    </p>
                   </div>
-
-                  {/* Duration and Price */}
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">
-                      ⏱️ {service.duration || 30} mins
-                    </span>
-                    <span className="font-semibold text-primary">
-                      ₹{service.price || 0}
-                    </span>
-                  </div>
+                  <span
+                    aria-hidden="true"
+                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                      isSelected ? "border-primary bg-primary" : "border-border bg-transparent"
+                    }`}
+                  >
+                    {isSelected && <Check className="h-3.5 w-3.5 text-primary-foreground" />}
+                  </span>
                 </div>
-
-                {/* Hover effect indicator */}
-                {hoveredId === service.id && !isSelected && (
-                  <motion.div
-                    layoutId="hoverBg"
-                    className="absolute inset-0 bg-primary/10 rounded-lg -z-10"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                  />
-                )}
+                <p className={`mt-3 font-mono text-base font-bold ${isSelected ? "text-primary" : "text-foreground"}`}>
+                  {formatINR(service.price || 0)}
+                </p>
               </motion.button>
             );
           })}
         </AnimatePresence>
       </div>
 
-      {/* Summary Panel */}
-      {selectedServices.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-primary/10 to-accent/10 rounded-lg border border-primary/20 p-4"
-        >
-          <div className="space-y-3">
-            {/* Selected Services List */}
-            <div>
-              <h4 className="text-sm font-semibold text-gray-700 mb-2">
-                Selected Services ({selectedServices.length})
-              </h4>
-              <div className="space-y-1">
-                {selectedServices.map((service) => (
-                  <motion.div
-                    key={service.id}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="flex items-center justify-between text-sm"
-                  >
-                    <span className="text-gray-700">✓ {service.name}</span>
-                    <span className="text-gray-600">
-                      {service.duration || 30}m / ₹{service.price || 0}
-                    </span>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-
-            {/* Totals */}
-            <div className="border-t border-primary/20 pt-3 mt-3">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-gray-600 uppercase tracking-wide">
-                    Total Duration
-                  </p>
-                  <p className="text-2xl font-bold text-primary">
-                    {totalDuration}
-                  </p>
-                  <p className="text-xs text-gray-500">minutes</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-gray-600 uppercase tracking-wide">
-                    Total Price
-                  </p>
-                  <p className="text-2xl font-bold text-primary">
-                    ₹{totalPrice.toLocaleString("en-IN")}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Info text */}
-            <p className="text-xs text-gray-600 italic">
-              💡 The fastest available barber who can handle all services will be
-              automatically assigned
+      {selectedServices.length > 0 ? (
+        <div className="flex items-center justify-between rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3.5">
+          <div>
+            <p className="text-sm font-semibold text-foreground">
+              {selectedServices.length} {selectedServices.length === 1 ? "service" : "services"} · {totalDuration} min
             </p>
+            <p className="text-xs text-muted-foreground">We&apos;ll assign the fastest available stylist</p>
           </div>
-        </motion.div>
-      )}
-
-      {/* Empty State */}
-      {services.length === 0 && (
-        <div className="text-center py-8">
-          <p className="text-gray-500">No services available</p>
+          <p className="font-mono text-lg font-bold text-primary">{formatINR(totalPrice)}</p>
         </div>
-      )}
-
-      {/* Helper Text */}
-      {selectedServices.length === 0 && services.length > 0 && (
-        <p className="text-sm text-gray-500 text-center py-4">
-          Select one or more services to continue
-        </p>
+      ) : (
+        <p className="py-2 text-center text-sm text-muted-foreground">Select one or more services to continue</p>
       )}
     </div>
   );

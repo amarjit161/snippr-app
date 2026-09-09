@@ -13,6 +13,7 @@ export function BookingSummaryCard({ showConfirmActions = false }: BookingSummar
     assignmentResult,
     date,
     time,
+    timeLabel,
     turnstileRef,
     captchaToken,
     setCaptchaToken,
@@ -64,7 +65,7 @@ export function BookingSummaryCard({ showConfirmActions = false }: BookingSummar
           {time && (
             <div className="flex items-center justify-between border-b border-white/10 py-3">
               <span className="text-xs font-medium text-white/60 sm:text-sm">Time</span>
-              <span className="text-right text-xs font-bold sm:text-sm">{time}</span>
+              <span className="text-right text-xs font-bold sm:text-sm">{timeLabel || time}</span>
             </div>
           )}
 

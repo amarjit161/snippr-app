@@ -1,9 +1,18 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { User, Phone, MessageSquare } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { BookingPageShell } from "@/components/booking/BookingPageShell";
 import BookingSuccess from "@/components/BookingSuccess";
 import { useBookingDraft } from "@/contexts/BookingDraftContext";
+
+const getSalonImageSrc = (imageUrl: string | null | undefined) => {
+  if (!imageUrl) return "/default-salon.jpg";
+  if (imageUrl.startsWith("http") || imageUrl.startsWith("/")) return imageUrl;
+  const { data } = supabase.storage.from("salon-images").getPublicUrl(imageUrl);
+  return data.publicUrl || "/default-salon.jpg";
+};
 
 export default function BookingConfirmPage() {
   const navigate = useNavigate();
@@ -19,6 +28,10 @@ export default function BookingConfirmPage() {
     confirmedBookingState,
     loadingSalon,
     exitFlow,
+    selectedServices,
+    date,
+    time,
+    salon,
   } = useBookingDraft();
 
   const [touched, setTouched] = useState({ firstName: false, lastName: false, phone: false });
@@ -35,23 +48,54 @@ export default function BookingConfirmPage() {
     );
   }
 
+  if (selectedServices.length === 0) {
+    navigate("/booking/service");
+    return null;
+  }
+
+  if (!date) {
+    navigate("/booking/date");
+    return null;
+  }
+
+  if (!time) {
+    navigate("/booking/time");
+    return null;
+  }
+
   const firstNameError = touched.firstName && !activeCustomer.firstName.trim() ? "First name is required" : "";
   const lastNameError = touched.lastName && !activeCustomer.lastName.trim() ? "Last name is required" : "";
   const phoneError = touched.phone && !activeCustomer.phone.trim() ? "Phone number is required" : "";
+  const fieldsLocked = !bookingForSomeoneElse && hasSavedProfile;
 
   return (
     <BookingPageShell
       stepNumber={5}
-      title="Your Information"
-      subtitle="Confirm your details to join the queue"
+      title="Confirm your details"
+      subtitle="Review your booking summary and confirm when you're ready"
       onBack={() => navigate("/booking/time")}
       showConfirmActions
     >
-      <div className="space-y-4">
+      {salon && (
+        <div className="mb-5 flex items-center gap-3">
+          <img
+            src={getSalonImageSrc(salon.image_url)}
+            alt=""
+            className="h-11 w-11 shrink-0 rounded-xl border border-border object-cover"
+          />
+          <p className="truncate text-sm font-semibold text-foreground">{salon.name}</p>
+        </div>
+      )}
+
+      <div className="space-y-5">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <label className="mb-2 block text-xs font-semibold text-primary sm:text-sm">Full Name</label>
+            <label htmlFor="booking-full-name" className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+              <User className="h-3.5 w-3.5" aria-hidden="true" />
+              Full name
+            </label>
             <Input
+              id="booking-full-name"
               value={`${activeCustomer.firstName} ${activeCustomer.lastName}`.trim()}
               onChange={(event) => {
                 const [first, ...last] = event.target.value.trim().split(" ");
@@ -59,46 +103,60 @@ export default function BookingConfirmPage() {
               }}
               onBlur={() => setTouched((prev) => ({ ...prev, firstName: true, lastName: true }))}
               placeholder="Johnathan Doe"
-              readOnly={!bookingForSomeoneElse && hasSavedProfile}
-              className="h-11 rounded-lg border-2 border-border bg-background px-4 text-sm placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-accent/20 sm:h-12 sm:text-base"
+              readOnly={fieldsLocked}
+              className={`h-11 rounded-xl border-2 px-4 text-sm placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-accent/20 sm:h-12 sm:text-base ${
+                fieldsLocked ? "border-border bg-muted text-foreground" : "border-border bg-background"
+              }`}
             />
             {(firstNameError || lastNameError) && <p className="mt-1 text-xs text-destructive sm:text-sm">{firstNameError || lastNameError}</p>}
+            {fieldsLocked && <p className="mt-1 text-xs text-muted-foreground">Auto-filled from your saved profile</p>}
           </div>
           <div>
-            <label className="mb-2 block text-xs font-semibold text-primary sm:text-sm">Phone Number</label>
+            <label htmlFor="booking-phone" className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+              <Phone className="h-3.5 w-3.5" aria-hidden="true" />
+              Phone number
+            </label>
             <Input
+              id="booking-phone"
               value={activeCustomer.phone}
               onChange={(event) => setCustomer((prev) => ({ ...prev, phone: event.target.value }))}
               onBlur={() => setTouched((prev) => ({ ...prev, phone: true }))}
               placeholder="+91 98765 43210"
               inputMode="tel"
-              readOnly={!bookingForSomeoneElse && hasSavedProfile}
-              className="h-11 rounded-lg border-2 border-border bg-background px-4 text-sm placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-accent/20 sm:h-12 sm:text-base"
+              readOnly={fieldsLocked}
+              className={`h-11 rounded-xl border-2 px-4 text-sm placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-accent/20 sm:h-12 sm:text-base ${
+                fieldsLocked ? "border-border bg-muted text-foreground" : "border-border bg-background"
+              }`}
             />
             {phoneError && <p className="mt-1 text-xs text-destructive sm:text-sm">{phoneError}</p>}
           </div>
           <div>
-            <label className="mb-2 block text-xs font-semibold text-muted-foreground sm:text-sm">
-              Alternative Number <span className="text-muted-foreground/60">(Optional)</span>
+            <label htmlFor="booking-alt-phone" className="mb-2 block text-xs font-semibold text-muted-foreground">
+              Alternative number <span className="text-muted-foreground/60">(optional)</span>
             </label>
             <Input
+              id="booking-alt-phone"
               value={activeCustomer.altPhone || ""}
               onChange={(event) => setCustomer((prev) => ({ ...prev, altPhone: event.target.value }))}
-              placeholder="For salon to call if needed"
+              placeholder="For the salon to call if needed"
               inputMode="tel"
-              className="h-11 rounded-lg border-2 border-border bg-background px-4 text-sm placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-accent/20 sm:h-12 sm:text-base"
+              className="h-11 rounded-xl border-2 border-border bg-background px-4 text-sm placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-accent/20 sm:h-12 sm:text-base"
             />
           </div>
         </div>
 
         <div>
-          <label className="mb-2 block text-xs font-semibold text-muted-foreground sm:text-sm">Notes (Optional)</label>
+          <label htmlFor="booking-notes" className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+            <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
+            Notes <span className="text-muted-foreground/60">(optional)</span>
+          </label>
           <textarea
+            id="booking-notes"
             value={customer.notes}
             onChange={(event) => setCustomer((prev) => ({ ...prev, notes: event.target.value }))}
             placeholder="Special requirements or hair history..."
             rows={3}
-            className="w-full rounded-lg border-2 border-border bg-background px-4 py-2.5 text-sm placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-accent/10"
+            className="w-full rounded-xl border-2 border-border bg-background px-4 py-2.5 text-sm placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-accent/10"
           />
         </div>
 
