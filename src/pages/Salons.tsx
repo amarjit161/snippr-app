@@ -177,7 +177,8 @@ const Salons = () => {
     queryKey: ["salons", userCoords],
     queryFn: async () => {
       console.log("FETCH_SALONS_OPTIMIZED_START");
-      const { data, error } = await supabase
+      // publicSupabase: salon discovery must work for anonymous visitors too (public SEO pages).
+      const { data, error } = await publicSupabase
         .from("salon_with_stats" as any)
         .select("*");
 
@@ -199,7 +200,7 @@ const Salons = () => {
         return 0;
       });
     },
-    enabled: !!user,
+    enabled: !authLoading,
     refetchInterval: 5 * 60 * 1000,
   });
 
@@ -250,10 +251,9 @@ const Salons = () => {
     }
   };
 
-  // Real-time Subscriptions for Salon updates (not all queue changes)
+  // Real-time Subscriptions for Salon updates (not all queue changes).
+  // Uses publicSupabase already, so this works for anonymous visitors too.
   useEffect(() => {
-    if (!user) return;
-    
     console.log("SALONS_SUBSCRIPTION_INIT");
     let channel: any = null;
     
@@ -393,7 +393,7 @@ const Salons = () => {
     }
   });
 
-  if (authLoading || (!user)) {
+  if (authLoading) {
     return null;
   }
 
@@ -401,8 +401,8 @@ const Salons = () => {
     <div className="min-h-screen bg-background">
       <Header
         onSignOut={signOut}
-        userName={user.email ?? user.phone ?? "User"}
-        userEmail={user.email || undefined}
+        userName={user ? (user.email ?? user.phone ?? "User") : undefined}
+        userEmail={user?.email || undefined}
         profileName={profile?.name || undefined}
         onAdminToggle={profile ? () => navigate("/owner-dashboard") : undefined}
         isAdmin={false}

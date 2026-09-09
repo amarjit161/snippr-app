@@ -140,12 +140,18 @@ const AppRoutes = () => {
       <Route path="/reviews" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><OwnerReviews /></OwnerProtectedRoute></Suspense>} />
       <Route path="/owner-notifications" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><OwnerNotifications /></OwnerProtectedRoute></Suspense>} />
 
+      {/* Public customer routes — salon discovery must work for logged-out visitors
+          and crawlers (SEO). No auth required; anonymous-safe reads are handled
+          inside Salons.tsx/SalonPage.tsx via publicSupabase. */}
+      <Route element={<CustomerAppShell />}>
+        <Route path="/salons" element={<Suspense fallback={<PageLoader />}><Salons /></Suspense>} />
+        <Route path="/salon/:id" element={<Suspense fallback={<PageLoader />}><SalonPage /></Suspense>} />
+      </Route>
+
       {/* Customer protected routes */}
       <Route element={<ProtectedRoute />}>
         <Route path="/admin" element={<Suspense fallback={<PageLoader />}><Admin /></Suspense>} />
         <Route element={<CustomerAppShell />}>
-          <Route path="/salons" element={<Suspense fallback={<PageLoader />}><Salons /></Suspense>} />
-          <Route path="/salon/:id" element={<Suspense fallback={<PageLoader />}><SalonPage /></Suspense>} />
           <Route path="/bookings" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
           <Route path="/booking/:id" element={<Suspense fallback={<PageLoader />}><BookingDetail /></Suspense>} />
           <Route path="/my-profile" element={<Suspense fallback={<PageLoader />}><MyProfile /></Suspense>} />

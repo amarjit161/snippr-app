@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --port 5174 --strictPort",
     "build": "vite build",
+    "postbuild": "node scripts/generate-sitemap.js",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",

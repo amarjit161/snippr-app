@@ -163,7 +163,7 @@ export default function SalonPage() {
 
   const headerProps = {
     onSignOut: signOut,
-    userName: user?.email || "User",
+    userName: user ? (user.email || "User") : undefined,
     userEmail: user?.email || undefined,
     profileName: profile?.name || undefined,
     isAdmin: false,
