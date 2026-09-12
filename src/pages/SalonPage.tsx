@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ChevronLeft, Clock, Heart, MapPin, Phone, Scissors, Users } from "lucide-react";
+import { ArrowRight, Check, ChevronLeft, ChevronRight, Clock, Heart, MapPin, Phone, Scissors, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { publicSupabase } from "@/integrations/supabase/publicClient";
 import Header from "@/components/Header";
@@ -74,6 +74,7 @@ export default function SalonPage() {
   const [isFavorited, setIsFavorited] = useState(false);
   const [favoriteBusy, setFavoriteBusy] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [selectedServiceIds, setSelectedServiceIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const fetchSalon = async () => {
@@ -161,6 +162,15 @@ export default function SalonPage() {
     setFavoriteBusy(false);
   };
 
+  const toggleService = (serviceId: string) => {
+    setSelectedServiceIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(serviceId)) next.delete(serviceId);
+      else next.add(serviceId);
+      return next;
+    });
+  };
+
   const headerProps = {
     onSignOut: signOut,
     userName: user ? (user.email || "User") : undefined,
@@ -209,6 +219,14 @@ export default function SalonPage() {
   const cheapestPrice = services.length
     ? Math.min(...services.map((s) => s.price ?? Infinity).filter((p) => Number.isFinite(p)))
     : null;
+  const selectedServices = services.filter((s) => selectedServiceIds.has(s.id));
+  const selectedCount = selectedServices.length;
+  const selectedTotal = selectedServices.reduce((sum, s) => sum + (s.price ?? 0), 0);
+  const showMobileCta = isOpen && selectedCount > 0;
+  const handleBookNow = () => {
+    if (!isOpen) return;
+    startBookingFlow(salon.id, navigate);
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -219,7 +237,7 @@ export default function SalonPage() {
         animate="visible"
         variants={pageFade}
         transition={{ duration: 0.24, ease: motionEase }}
-        className="mx-auto w-full max-w-3xl px-4 pb-32 pt-6 sm:px-6 sm:pb-16"
+        className="mx-auto w-full max-w-3xl px-4 pb-6 pt-6 sm:px-6 sm:pb-16"
       >
         {/* Back */}
         <button
@@ -357,52 +375,99 @@ export default function SalonPage() {
               <p className="mt-1 text-sm text-muted-foreground">This salon hasn&apos;t added any bookable services yet.</p>
             </div>
           ) : (
-            <div className="flex flex-col gap-2">
-              {services.map((service, i) => (
-                <motion.div
-                  key={service.id}
-                  custom={i}
-                  initial="hidden"
-                  animate="visible"
-                  variants={cardFloat}
-                  className="flex min-h-[44px] items-center justify-between rounded-2xl border border-border bg-card px-4 py-3.5"
-                >
-                  <div className="flex items-center gap-3">
-                    <Scissors className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">{service.name}</p>
-                      <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                        <Clock className="h-3 w-3" aria-hidden="true" />
-                        {service.duration ?? 30} min
-                      </p>
+            <div className="flex flex-col gap-2" role="group" aria-label="Services">
+              {services.map((service, i) => {
+                const isSelected = selectedServiceIds.has(service.id);
+                return (
+                  <motion.button
+                    key={service.id}
+                    type="button"
+                    custom={i}
+                    initial="hidden"
+                    animate="visible"
+                    variants={cardFloat}
+                    onClick={() => toggleService(service.id)}
+                    disabled={!isOpen}
+                    aria-pressed={isSelected}
+                    className={`flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3.5 text-left transition-colors motion-reduce:active:scale-100 ${
+                      isSelected ? "border-primary bg-primary/[0.08]" : "border-border bg-card"
+                    } ${isOpen ? "active:scale-[0.99]" : "cursor-not-allowed opacity-60"}`}
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Scissors className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-foreground">{service.name}</p>
+                        <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                          <Clock className="h-3 w-3" aria-hidden="true" />
+                          {service.duration ?? 30} min
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <p className="font-mono text-sm font-bold text-foreground">{formatINR(service.price ?? 0)}</p>
-                </motion.div>
-              ))}
+                    <div className="flex shrink-0 items-center gap-2.5">
+                      <p className={`font-mono text-sm font-bold ${isSelected ? "text-primary" : "text-foreground"}`}>
+                        {formatINR(service.price ?? 0)}
+                      </p>
+                      {isSelected ? (
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary">
+                          <Check className="h-3.5 w-3.5 text-primary-foreground" aria-hidden="true" />
+                        </span>
+                      ) : (
+                        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50" aria-hidden="true" />
+                      )}
+                    </div>
+                  </motion.button>
+                );
+              })}
             </div>
           )}
         </div>
 
-        {/* Booking CTA */}
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-4 backdrop-blur-md sm:static sm:mt-10 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
-          <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-4 sm:px-0" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-            {isOpen && cheapestPrice !== null && (
-              <span className="hidden text-sm text-muted-foreground sm:block">
-                Services from <span className="font-mono font-semibold text-foreground">{formatINR(cheapestPrice)}</span>
-              </span>
-            )}
-            <Button
-              size="lg"
-              disabled={!isOpen}
-              className="h-12 w-full rounded-xl text-base font-bold sm:w-auto sm:min-w-[220px]"
-              onClick={() => startBookingFlow(salon.id, navigate)}
-            >
-              {isOpen ? "Book a Snipp" : "Currently Closed"}
-            </Button>
-          </div>
+        {/* Desktop booking CTA */}
+        <div className="mt-10 hidden items-center justify-between gap-4 sm:flex">
+          {isOpen && cheapestPrice !== null && (
+            <span className="text-sm text-muted-foreground">
+              Services from <span className="font-mono font-semibold text-foreground">{formatINR(cheapestPrice)}</span>
+            </span>
+          )}
+          <Button
+            size="lg"
+            disabled={!isOpen}
+            className="h-12 min-w-[220px] rounded-xl text-base font-bold"
+            onClick={handleBookNow}
+          >
+            {isOpen ? "Book a Snipp" : "Currently Closed"}
+          </Button>
         </div>
+
+        {/* Mobile-only spacer so content clears the sticky CTA + bottom nav */}
+        <div
+          className="sm:hidden"
+          aria-hidden="true"
+          style={{ height: showMobileCta ? "calc(11.5rem + env(safe-area-inset-bottom))" : "calc(6rem + env(safe-area-inset-bottom))" }}
+        />
       </motion.div>
+
+      {/* Mobile-only sticky booking CTA, anchored above the bottom nav */}
+      {showMobileCta && (
+        <div
+          className="fixed inset-x-0 z-40 border-t border-border bg-background px-4 pt-3 sm:hidden"
+          style={{ bottom: "calc(5rem + env(safe-area-inset-bottom))", paddingBottom: "0.75rem" }}
+        >
+          <div className="mb-2 flex items-center justify-between text-xs font-medium text-muted-foreground">
+            <span>{selectedCount} {selectedCount === 1 ? "service" : "services"}</span>
+            <span className="font-mono text-sm font-bold text-foreground">{formatINR(selectedTotal)}</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleBookNow}
+            aria-label={`Book now, ${selectedCount} ${selectedCount === 1 ? "service" : "services"} selected, total ${formatINR(selectedTotal)}`}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-base font-bold text-primary-foreground transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-[0.99] motion-reduce:active:scale-100"
+          >
+            Book now
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
