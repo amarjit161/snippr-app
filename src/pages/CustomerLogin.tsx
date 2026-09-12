@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Eye, EyeOff, Mail, Lock, Chrome, Scissors, ChevronLeft } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, Chrome, Scissors, ChevronLeft, Smartphone } from 'lucide-react';
 import { V, VA, BG, DISP, BODY, MONO } from '@/components/landing/tokens';
+import MobileOtpAuth from '@/components/MobileOtpAuth';
 
 export default function CustomerLogin() {
   const navigate = useNavigate();
@@ -11,6 +12,8 @@ export default function CustomerLogin() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Mobile OTP is the third, optional auth method — never shown/active by default.
+  const [showMobileAuth, setShowMobileAuth] = useState(false);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,6 +130,10 @@ export default function CustomerLogin() {
 
         <div style={{ borderRadius: 24, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
           padding: 28, backdropFilter: 'blur(24px)' }}>
+          {showMobileAuth ? (
+            <MobileOtpAuth onBack={() => setShowMobileAuth(false)} />
+          ) : (
+          <>
           <h1 style={{ fontFamily: DISP, fontSize: 26, fontWeight: 800, color: '#fff', marginBottom: 6, letterSpacing: '-0.02em' }}>Welcome back.</h1>
           <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginBottom: 22 }}>Sign in to continue to Snippr</p>
 
@@ -179,10 +186,27 @@ export default function CustomerLogin() {
             </button>
           </form>
 
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0 14px', color: 'rgba(255,255,255,0.15)', fontSize: 12 }}>
+            <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.07)' }} />or
+            <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.07)' }} />
+          </div>
+
+          {/* Third, optional auth method. Clicking this only reveals the phone entry
+              screen — no OTP is requested until the user submits a number there. */}
+          <button
+            onClick={() => setShowMobileAuth(true)}
+            style={{ width: '100%', minHeight: 44, padding: '10px 16px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.08)',
+              background: 'transparent', color: 'rgba(255,255,255,0.55)', fontWeight: 600, fontSize: 13,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer', fontFamily: BODY }}>
+            <Smartphone style={{ width: 15, height: 15 }} /> Continue with Mobile
+          </button>
+
           <p style={{ textAlign: 'center', marginTop: 18, fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>
             New to Snippr?{' '}
             <Link to="/register" style={{ color: VA, fontWeight: 600, textDecoration: 'none' }}>Create account</Link>
           </p>
+          </>
+          )}
         </div>
 
         <p style={{ textAlign: 'center', marginTop: 20, fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>
