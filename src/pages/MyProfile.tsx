@@ -3,7 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { Scissors, ArrowLeft, Edit2, Check, X, Eye, EyeOff, Phone, Mail, User } from 'lucide-react';
+import { Scissors, ArrowLeft, Edit2, Check, X, Eye, EyeOff, Phone, Mail, User, ShieldCheck, Loader2 } from 'lucide-react';
+import {
+  getFriendlyOtpVerifyError,
+  getFriendlyPhoneOtpError,
+  isValidIndianMobile,
+  normalizePhone,
+  sanitizeIndianPhoneInput,
+  syncVerifiedPhoneToProfile,
+  toE164India,
+} from '@/lib/phone';
 
 interface UserProfile {
   id: string;
@@ -22,6 +31,157 @@ export const MyProfile = () => {
   const [editData, setEditData] = useState<UserProfile | null>(null);
 
   const { user } = useAuth();
+
+  // --- Change/Add phone number (third, optional flow — no SMS until "Send OTP") ---
+  const [phonePanelOpen, setPhonePanelOpen] = useState(false);
+  const [phoneStep, setPhoneStep] = useState<'entry' | 'verify'>('entry');
+  const [newPhoneDigits, setNewPhoneDigits] = useState('');
+  const [newPhoneError, setNewPhoneError] = useState<string | null>(null);
+  const [pendingPhone, setPendingPhone] = useState('');
+  const [sendingPhoneOtp, setSendingPhoneOtp] = useState(false);
+  const [resendingPhoneOtp, setResendingPhoneOtp] = useState(false);
+  const [phoneOtp, setPhoneOtp] = useState('');
+  const [phoneOtpError, setPhoneOtpError] = useState<string | null>(null);
+  const [verifyingPhoneOtp, setVerifyingPhoneOtp] = useState(false);
+  const [phoneCooldown, setPhoneCooldown] = useState(0);
+  // Optimistic override so "Verified" shows immediately after a successful change,
+  // without waiting on AuthContext's (debounced) session refresh to propagate.
+  const [justVerifiedPhone, setJustVerifiedPhone] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (phoneCooldown <= 0) return;
+    const timer = window.setInterval(() => setPhoneCooldown((c) => (c > 0 ? c - 1 : 0)), 1000);
+    return () => window.clearInterval(timer);
+  }, [phoneCooldown]);
+
+  // Supabase Auth is the source of truth for verification status — a phone string
+  // existing in customer_profiles is never enough on its own to show "Verified".
+  const authPhone = user?.phone && user.phone_confirmed_at ? normalizePhone(user.phone) : null;
+  const displayedPhone = profile?.phone ? normalizePhone(profile.phone) : null;
+  const isPhoneVerified = Boolean(
+    displayedPhone && ((authPhone && displayedPhone === authPhone) || displayedPhone === justVerifiedPhone)
+  );
+
+  const resetPhonePanel = () => {
+    setPhonePanelOpen(false);
+    setPhoneStep('entry');
+    setNewPhoneDigits('');
+    setNewPhoneError(null);
+    setPendingPhone('');
+    setPhoneOtp('');
+    setPhoneOtpError(null);
+    setPhoneCooldown(0);
+  };
+
+  const openPhonePanel = () => {
+    setPhonePanelOpen(true);
+    setPhoneStep('entry');
+    setNewPhoneError(null);
+  };
+
+  // Explicit, user-initiated only: fires on the "Send OTP" click. Never called on
+  // mount, in an effect, or automatically — see MobileOtpAuth.tsx for the same rule.
+  const handleSendPhoneChangeOtp = async () => {
+    if (sendingPhoneOtp) return;
+    setNewPhoneError(null);
+
+    if (!isValidIndianMobile(newPhoneDigits)) {
+      setNewPhoneError('Enter a valid 10-digit mobile number.');
+      return;
+    }
+
+    const candidatePhone = toE164India(newPhoneDigits);
+
+    if (authPhone && candidatePhone === authPhone) {
+      toast.info('This phone number is already verified.');
+      return;
+    }
+
+    setSendingPhoneOtp(true);
+    try {
+      // Authenticated-user phone CHANGE uses supabase.auth.updateUser({ phone }),
+      // not signInWithOtp — updateUser sets a pending phone + sends its OTP without
+      // touching the current session's verified phone until verifyOtp succeeds.
+      const { error } = await supabase.auth.updateUser({ phone: candidatePhone });
+
+      if (error) {
+        toast.error(getFriendlyPhoneOtpError(error));
+        return;
+      }
+
+      setPendingPhone(candidatePhone);
+      setPhoneOtp('');
+      setPhoneOtpError(null);
+      setPhoneStep('verify');
+      setPhoneCooldown(60);
+      toast.success('OTP sent to your new mobile number');
+    } catch {
+      toast.error('Could not send OTP. Please try again.');
+    } finally {
+      setSendingPhoneOtp(false);
+    }
+  };
+
+  // Explicit, user-initiated only: gated by the 60s cooldown + disabled state.
+  const handleResendPhoneChangeOtp = async () => {
+    if (resendingPhoneOtp || phoneCooldown > 0 || !pendingPhone) return;
+
+    setResendingPhoneOtp(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ phone: pendingPhone });
+
+      if (error) {
+        toast.error(getFriendlyPhoneOtpError(error));
+        return;
+      }
+
+      setPhoneCooldown(60);
+      toast.success('OTP resent');
+    } catch {
+      toast.error('Could not resend OTP. Please try again.');
+    } finally {
+      setResendingPhoneOtp(false);
+    }
+  };
+
+  const handleVerifyPhoneChangeOtp = async () => {
+    if (verifyingPhoneOtp) return;
+
+    if (phoneOtp.length !== 6) {
+      setPhoneOtpError('Please enter all 6 digits');
+      return;
+    }
+
+    setVerifyingPhoneOtp(true);
+    setPhoneOtpError(null);
+    try {
+      // Confirms the pending phone change — never verified locally, no fake/hardcoded OTP.
+      const { error } = await supabase.auth.verifyOtp({
+        phone: pendingPhone,
+        token: phoneOtp,
+        type: 'phone_change',
+      });
+
+      if (error) {
+        setPhoneOtpError(getFriendlyOtpVerifyError(error));
+        return;
+      }
+
+      if (!user) return;
+
+      await syncVerifiedPhoneToProfile(user.id);
+      setJustVerifiedPhone(pendingPhone);
+      setProfile((prev) => (prev ? { ...prev, phone: pendingPhone } : prev));
+      setEditData((prev) => (prev ? { ...prev, phone: pendingPhone } : prev));
+
+      toast.success('Phone number updated successfully.');
+      resetPhonePanel();
+    } catch {
+      setPhoneOtpError('Verification failed. Please try again.');
+    } finally {
+      setVerifyingPhoneOtp(false);
+    }
+  };
 
   // Load profile on mount
   useEffect(() => {
@@ -251,7 +411,8 @@ export const MyProfile = () => {
               />
             </div>
 
-            {/* Phone (Read-only) */}
+            {/* Phone — verification status comes from Supabase Auth, never just from
+                a string being present in customer_profiles.phone */}
             <div>
               <label className="block text-sm font-semibold text-foreground mb-2">
                 <Phone className="w-4 h-4 inline mr-2" />
@@ -264,11 +425,131 @@ export const MyProfile = () => {
                   readOnly
                   className="flex-1 bg-transparent outline-none text-foreground text-sm"
                 />
-                {profile.phone && <span className="text-xs font-medium text-success">Verified</span>}
+                {isPhoneVerified && (
+                  <span className="flex items-center gap-1 text-xs font-medium text-success">
+                    <ShieldCheck className="w-3.5 h-3.5" /> Verified
+                  </span>
+                )}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {profile.phone ? 'Phone verified' : 'Add phone to your profile'}
-              </p>
+              <div className="flex items-center justify-between mt-1.5">
+                <p className="text-xs text-muted-foreground">
+                  {isPhoneVerified
+                    ? 'Phone verified'
+                    : profile.phone
+                    ? 'Not verified yet'
+                    : 'Add phone to your profile'}
+                </p>
+                {!phonePanelOpen && (
+                  <button
+                    type="button"
+                    onClick={openPhonePanel}
+                    className="min-h-[44px] px-3 text-sm font-semibold text-primary hover:underline"
+                  >
+                    {profile.phone ? (isPhoneVerified ? 'Change number' : 'Verify number') : 'Add phone number'}
+                  </button>
+                )}
+              </div>
+
+              {phonePanelOpen && (
+                <div className="mt-3 rounded-xl border border-border bg-background p-4">
+                  {phoneStep === 'entry' ? (
+                    <div className="space-y-3">
+                      <p className="text-sm font-semibold text-foreground">
+                        {profile.phone ? 'Change mobile number' : 'Add mobile number'}
+                      </p>
+                      <div className="flex gap-2">
+                        <span className="flex h-11 w-14 flex-shrink-0 items-center justify-center rounded-xl border border-border bg-muted text-sm font-semibold text-muted-foreground">
+                          +91
+                        </span>
+                        <input
+                          type="tel"
+                          inputMode="numeric"
+                          autoComplete="tel-national"
+                          aria-label="New 10-digit mobile number"
+                          placeholder="10-digit mobile number"
+                          value={newPhoneDigits}
+                          onChange={(e) => {
+                            setNewPhoneError(null);
+                            setNewPhoneDigits(sanitizeIndianPhoneInput(e.target.value));
+                          }}
+                          onKeyDown={(e) => e.key === 'Enter' && handleSendPhoneChangeOtp()}
+                          disabled={sendingPhoneOtp}
+                          className="h-11 flex-1 rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/50"
+                        />
+                      </div>
+                      {newPhoneError && <p role="alert" className="text-xs text-destructive">{newPhoneError}</p>}
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={handleSendPhoneChangeOtp}
+                          disabled={sendingPhoneOtp || newPhoneDigits.length !== 10}
+                          className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground disabled:opacity-50"
+                        >
+                          {sendingPhoneOtp && <Loader2 className="h-4 w-4 animate-spin" />}
+                          {sendingPhoneOtp ? 'Sending…' : 'Send OTP'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={resetPhonePanel}
+                          disabled={sendingPhoneOtp}
+                          className="h-11 flex-1 rounded-xl border border-border text-sm font-semibold text-foreground hover:bg-muted"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-sm font-semibold text-foreground">Enter verification code</p>
+                      <p className="text-xs text-muted-foreground">
+                        We sent a 6-digit code to <span className="font-medium text-foreground">{pendingPhone}</span>
+                      </p>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        aria-label="6-digit verification code"
+                        placeholder="••••••"
+                        value={phoneOtp}
+                        onChange={(e) => {
+                          setPhoneOtpError(null);
+                          setPhoneOtp(e.target.value.replace(/\D/g, '').slice(0, 6));
+                        }}
+                        onKeyDown={(e) => e.key === 'Enter' && handleVerifyPhoneChangeOtp()}
+                        disabled={verifyingPhoneOtp}
+                        className="h-12 w-full rounded-xl border border-border bg-background px-3 text-center text-lg font-semibold tracking-[0.5em] text-foreground outline-none focus:ring-2 focus:ring-primary/50"
+                      />
+                      {phoneOtpError && <p role="alert" className="text-xs text-destructive">{phoneOtpError}</p>}
+                      <button
+                        type="button"
+                        onClick={handleVerifyPhoneChangeOtp}
+                        disabled={verifyingPhoneOtp || phoneOtp.length !== 6}
+                        className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground disabled:opacity-50"
+                      >
+                        {verifyingPhoneOtp && <Loader2 className="h-4 w-4 animate-spin" />}
+                        {verifyingPhoneOtp ? 'Verifying…' : 'Verify'}
+                      </button>
+                      <div className="flex items-center justify-between text-xs">
+                        <button
+                          type="button"
+                          onClick={() => setPhoneStep('entry')}
+                          className="min-h-[44px] font-medium text-muted-foreground hover:text-foreground"
+                        >
+                          Change number
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleResendPhoneChangeOtp}
+                          disabled={phoneCooldown > 0 || resendingPhoneOtp}
+                          className="min-h-[44px] font-semibold text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {resendingPhoneOtp ? 'Resending…' : phoneCooldown > 0 ? `Resend OTP in ${phoneCooldown}s` : 'Resend OTP'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Gender (Read-only) */}

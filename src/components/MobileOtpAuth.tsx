@@ -5,6 +5,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ChevronLeft, Loader2, ShieldCheck, Smartphone } from 'lucide-react';
 import { V, VA, BODY, MONO } from '@/components/landing/tokens';
+import {
+  getFriendlyOtpVerifyError,
+  getFriendlyPhoneOtpError,
+  isValidIndianMobile,
+  sanitizeIndianPhoneInput,
+  syncVerifiedPhoneToProfile,
+  toE164India,
+} from '@/lib/phone';
 
 const OTP_LENGTH = 6;
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -49,21 +57,9 @@ export default function MobileOtpAuth({ onBack }: MobileOtpAuthProps) {
 
   const otpValue = useMemo(() => otpDigits.join(''), [otpDigits]);
 
-  // Strips everything but digits and tolerates an accidentally-pasted "+91"/"091"
-  // prefix so the user can never end up with +91 applied twice.
-  const sanitizePhoneInput = (raw: string) => {
-    let digitsOnly = raw.replace(/\D/g, '');
-    if (digitsOnly.length > 10 && digitsOnly.startsWith('91')) {
-      digitsOnly = digitsOnly.slice(digitsOnly.length - 10);
-    }
-    return digitsOnly.slice(0, 10);
-  };
-
-  const isValidIndianMobile = (tenDigits: string) => /^[6-9]\d{9}$/.test(tenDigits);
-
   const handlePhoneChange = (raw: string) => {
     setPhoneError(null);
-    setPhoneDigits(sanitizePhoneInput(raw));
+    setPhoneDigits(sanitizeIndianPhoneInput(raw));
   };
 
   const routeAfterAuth = async () => {
@@ -104,13 +100,13 @@ export default function MobileOtpAuth({ onBack }: MobileOtpAuthProps) {
       return;
     }
 
-    const phone = `+91${phoneDigits}`;
+    const phone = toE164India(phoneDigits);
     setSending(true);
     try {
       const { error } = await supabase.auth.signInWithOtp({ phone });
 
       if (error) {
-        toast.error(error.message || 'Could not send OTP. Please try again.');
+        toast.error(getFriendlyPhoneOtpError(error));
         return;
       }
 
@@ -137,7 +133,7 @@ export default function MobileOtpAuth({ onBack }: MobileOtpAuthProps) {
       const { error } = await supabase.auth.signInWithOtp({ phone: normalizedPhone });
 
       if (error) {
-        toast.error(error.message || 'Could not resend OTP. Please try again.');
+        toast.error(getFriendlyPhoneOtpError(error));
         return;
       }
 
@@ -224,15 +220,22 @@ export default function MobileOtpAuth({ onBack }: MobileOtpAuthProps) {
     setVerifying(true);
     setOtpError(null);
     try {
-      const { error } = await supabase.auth.verifyOtp({
+      const { data, error } = await supabase.auth.verifyOtp({
         phone: normalizedPhone,
         token: otpValue,
         type: 'sms',
       });
 
       if (error) {
-        setOtpError(error.message || 'Invalid or expired code. Please try again.');
+        setOtpError(getFriendlyOtpVerifyError(error));
         return;
+      }
+
+      // Supabase Auth is the source of truth for the verified phone. Push it into
+      // customer_profiles now so "My Profile" reflects it without asking the user
+      // to verify the same number again.
+      if (data?.user?.id) {
+        await syncVerifiedPhoneToProfile(data.user.id);
       }
 
       toast.success('Phone verified!');

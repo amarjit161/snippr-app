@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Phone } from 'lucide-react';
+import { Phone, ShieldCheck } from 'lucide-react';
 import { V, VA, BG, DISP, BODY } from '@/components/landing/tokens';
+import { normalizePhone, syncVerifiedPhoneToProfile } from '@/lib/phone';
 
 const calculateCompletion = (fields: { firstName?: string; lastName?: string; phone?: string; gender?: string; email?: string }): number => {
   const filled = Object.values(fields).filter(Boolean).length;
@@ -30,6 +31,11 @@ export default function CompleteProfile() {
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState('');
+  // Populated only when Supabase Auth itself confirms the phone (phone_confirmed_at
+  // set) — e.g. the user just came from Mobile OTP login. When set, the phone is
+  // shown as a read-only "Verified" row instead of asking the user to enter/verify
+  // it again here.
+  const [verifiedAuthPhone, setVerifiedAuthPhone] = useState<string | null>(null);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -51,6 +57,16 @@ export default function CompleteProfile() {
           setLastName(nameParts.slice(1).join(' ') || '');
         }
 
+        const authVerifiedPhone = user.phone && user.phone_confirmed_at ? normalizePhone(user.phone) : null;
+        setVerifiedAuthPhone(authVerifiedPhone);
+
+        // Supabase Auth is the source of truth for a verified phone — sync it into
+        // customer_profiles now. This never sends another OTP; it only persists a
+        // number Auth has already verified via the Mobile OTP login just completed.
+        if (authVerifiedPhone) {
+          await syncVerifiedPhoneToProfile(user.id);
+        }
+
         // Load existing profile if available
         const { data: profile } = await supabase
           .from('customer_profiles')
@@ -61,8 +77,12 @@ export default function CompleteProfile() {
         if (profile) {
           setFirstName(profile.first_name || '');
           setLastName(profile.last_name || '');
-          setPhone(profile.phone?.replace(/\+91/, '') || '');
           setGender(profile.gender || '');
+          if (!authVerifiedPhone) {
+            // No verified Auth phone (e.g. Google/Email signup) — preserve the
+            // existing free-text phone entry behavior exactly as before.
+            setPhone(profile.phone?.replace(/\+91/, '') || '');
+          }
         }
       } catch (err) {
         toast.error('Failed to load profile');
@@ -89,14 +109,18 @@ export default function CompleteProfile() {
         return;
       }
 
+      // If Auth already verified a phone, that verified number always wins — the
+      // user never gets a chance to overwrite it with an unverified one here.
+      const resolvedPhone = verifiedAuthPhone || (phone ? `+91${phone.replace(/\D/g, '')}` : null);
+
       const profileData = {
         id: userId,
         first_name: firstName,
         last_name: lastName,
         email: userEmail,
-        phone: phone ? `+91${phone.replace(/\D/g, '')}` : null,
+        phone: resolvedPhone,
         gender: gender || null,
-        profile_complete_pct: calculateCompletion({ firstName, lastName, email: userEmail, phone, gender }),
+        profile_complete_pct: calculateCompletion({ firstName, lastName, email: userEmail, phone: resolvedPhone || '', gender }),
       };
 
       const { error } = await supabase
@@ -119,7 +143,7 @@ export default function CompleteProfile() {
     }
   };
 
-  const completion = calculateCompletion({ firstName, lastName, email: userEmail, phone, gender });
+  const completion = calculateCompletion({ firstName, lastName, email: userEmail, phone: verifiedAuthPhone || phone, gender });
 
   return (
     <div style={{ minHeight: '100vh', background: BG, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: BODY, position: 'relative', overflow: 'hidden' }}>
@@ -179,24 +203,39 @@ export default function CompleteProfile() {
 
             {/* Phone */}
             <div>
-              <label style={labelStyle}>Phone (optional)</label>
-              <div style={{ display: 'flex' }}>
-                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 14px',
-                  borderRadius: '12px 0 0 12px', border: '1px solid rgba(255,255,255,0.1)', borderRight: 'none',
-                  background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: 600 }}>
-                  <Phone style={{ width: 14, height: 14, marginRight: 6 }} />
-                  +91
-                </span>
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                  placeholder="98765 43210"
-                  maxLength={10}
-                  disabled={loading}
-                  style={{ ...fieldStyle, borderRadius: '0 12px 12px 0' }}
-                />
-              </div>
+              <label style={labelStyle}>{verifiedAuthPhone ? 'Phone Number' : 'Phone (optional)'}</label>
+              {verifiedAuthPhone ? (
+                // Already verified via Mobile OTP login — show it, don't ask again.
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                  padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'rgba(255,255,255,0.03)' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#fff', fontSize: 14 }}>
+                    <Phone style={{ width: 14, height: 14, color: 'rgba(255,255,255,0.5)' }} />
+                    {verifiedAuthPhone}
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#34D399', fontSize: 12, fontWeight: 600 }}>
+                    <ShieldCheck style={{ width: 13, height: 13 }} /> Verified
+                  </span>
+                </div>
+              ) : (
+                <div style={{ display: 'flex' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 14px',
+                    borderRadius: '12px 0 0 12px', border: '1px solid rgba(255,255,255,0.1)', borderRight: 'none',
+                    background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: 600 }}>
+                    <Phone style={{ width: 14, height: 14, marginRight: 6 }} />
+                    +91
+                  </span>
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    placeholder="98765 43210"
+                    maxLength={10}
+                    disabled={loading}
+                    style={{ ...fieldStyle, borderRadius: '0 12px 12px 0' }}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Gender Pills */}
