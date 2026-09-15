@@ -134,6 +134,14 @@ export default function OwnerDashboard() {
   const [owner, setOwner] = useState<OwnerRecord | null>(null);
   const [salon, setSalon] = useState<SalonRow | null>(null);
   const [queueItems, setQueueItems] = useState<QueueRow[]>([]);
+  // Mirrors queueItems for the realtime effect's fallback-sync check below, so that
+  // effect doesn't need queueItems in its dependency array (which previously caused
+  // the whole channel to unsubscribe/resubscribe on every single queue update — a
+  // window where a same-moment realtime event could be missed).
+  const queueItemsRef = useRef<QueueRow[]>([]);
+  useEffect(() => {
+    queueItemsRef.current = queueItems;
+  }, [queueItems]);
   const [barbers, setBarbers] = useState<{ id: string; name: string; chair_number: number | null; specialization: string | null }[]>([]);
   const [profileMap, setProfileMap] = useState<Record<string, string>>({});
   const [queueDatePreset, setQueueDatePreset] = useState<QueueDatePreset>("today");
@@ -418,8 +426,8 @@ export default function OwnerDashboard() {
 
           if (data && data.length > 0) {
             const latestId = data[0].id;
-            const currentLatestId = queueItems?.[0]?.id;
-            
+            const currentLatestId = queueItemsRef.current?.[0]?.id;
+
             // Only full refresh if we're missing the latest item
             if (latestId !== currentLatestId) {
               console.log("DASHBOARD_FALLBACK_DETECTED_MISSING_ITEMS, refreshing");
@@ -444,7 +452,7 @@ export default function OwnerDashboard() {
       }
       clearInterval(interval);
     };
-  }, [salon?.id, mergeQueueUpdate, fetchDashboardData, queueItems]);
+  }, [salon?.id, mergeQueueUpdate, fetchDashboardData]);
 
   const summaryCards = useMemo(() => {
     const today = todayISO();
@@ -856,7 +864,11 @@ export default function OwnerDashboard() {
                           customerName={customerName}
                           currentStatus={item.status}
                           onVerified={() => {
-                            // Refresh the queue when OTP is verified
+                            // Reflect the (already-committed) status change instantly so the
+                            // OTP box/Undo countdown don't linger on stale local state, then
+                            // reconcile against the server as a backstop.
+                            const startedAt = new Date().toISOString();
+                            setQueueItems((prev) => prev.map((row) => (row.id === item.id ? { ...row, status: "in_progress", started_at: startedAt } : row)));
                             if (salon?.id) fetchDashboardData(salon.id);
                           }}
                         />

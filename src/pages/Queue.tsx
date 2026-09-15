@@ -37,7 +37,7 @@ export default function Queue() {
   const [queueDatePreset, setQueueDatePreset] = useState<QueueDatePreset>("today");
   const [customQueueDate, setCustomQueueDate] = useState(todayISO());
   const [now, setNow] = useState(Date.now());
-  const { loading, actionLoading, owner, salon, services, barbers, grouped, pendingAccepts, startAccept, undoAccept, addWalkIn, updateStatus, updateBarber, fetchQueue } = useQueue(navigate);
+  const { loading, actionLoading, owner, salon, services, barbers, grouped, pendingAccepts, startAccept, undoAccept, addWalkIn, updateStatus, updateBarber, fetchQueue, markLocalStatus } = useQueue(navigate);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 250);
@@ -274,6 +274,10 @@ export default function Queue() {
                                 customerName={customerLabel}
                                 currentStatus={item.status}
                                 onVerified={() => {
+                                  // Reflect the (already-committed) status change instantly so
+                                  // the OTP box/Undo countdown don't linger on stale local state,
+                                  // then reconcile against the server as a backstop.
+                                  markLocalStatus(item.id, "in_progress", new Date().toISOString());
                                   if (salon?.id) fetchQueue(salon.id);
                                 }}
                               />

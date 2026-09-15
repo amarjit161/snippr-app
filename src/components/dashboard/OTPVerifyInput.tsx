@@ -44,16 +44,23 @@ export const OTPVerifyInput = ({ bookingId, customerName, currentStatus, onVerif
         return;
       }
       
-      // OTP correct — confirm arrival
-      const { error: updateError } = await supabase
+      // OTP correct — confirm arrival. `.select().maybeSingle()` is required here:
+      // without it, an update matched by RLS to zero rows (wrong policy, stale id,
+      // etc.) still returns `{ error: null }`, and we'd report success without the
+      // database ever actually changing — exactly the "stuck on Accepted" failure
+      // mode this guards against.
+      const { data: updated, error: updateError } = await supabase
         .from('bookings')
-        .update({ 
+        .update({
           status: 'in_progress',
           started_at: new Date().toISOString()
         })
-        .eq('id', bookingId);
-      
-      if (updateError) {
+        .eq('id', bookingId)
+        .select('id, status')
+        .maybeSingle();
+
+      if (updateError || !updated) {
+        console.error('OTP_VERIFY_UPDATE_FAILED:', updateError || 'No row updated (blocked or id mismatch)');
         toast.error('Failed to confirm. Try again.');
       } else {
         setVerified(true);

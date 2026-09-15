@@ -80,6 +80,14 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
   const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
   const [pendingAccepts, setPendingAccepts] = useState<Record<string, number>>({});
   const acceptTimersRef = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
+  // Mirrors queueItems for the realtime effect's fallback-sync check below, so that
+  // effect doesn't need queueItems in its dependency array (which previously caused
+  // the whole channel to unsubscribe/resubscribe on every single queue update — a
+  // window where a same-moment realtime event could be missed).
+  const queueItemsRef = useRef<QueueItem[]>([]);
+  useEffect(() => {
+    queueItemsRef.current = queueItems;
+  }, [queueItems]);
 
   const sortedQueue = useMemo(() => {
     return [...queueItems].sort((a, b) => {
@@ -302,7 +310,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
 
           if (data && data.length > 0) {
             const latestId = data[0].id;
-            const currentLatestId = queueItems?.[0]?.id;
+            const currentLatestId = queueItemsRef.current?.[0]?.id;
 
             if (latestId !== currentLatestId) {
               console.log("QUEUE_FALLBACK_DETECTED_MISSING, refreshing");
@@ -327,7 +335,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
       }
       clearInterval(interval);
     };
-  }, [fetchQueue, salon?.id, mergeQueueItemUpdate, queueItems, supabaseAny]);
+  }, [fetchQueue, salon?.id, mergeQueueItemUpdate, supabaseAny]);
 
   const updateBarber = useCallback(async (queueId: string, barberId: string | null) => {
     const previous = queueItems;
@@ -392,6 +400,13 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
       }
     }, 300);
   }, [queueItems, supabaseAny, salon?.id, fetchQueue]);
+
+  // Reflects a status change already written to the database elsewhere (arrival OTP
+  // verification) into local state immediately, so the UI doesn't sit on stale data
+  // waiting for the next fetchQueue()/realtime round-trip. Performs no DB write itself.
+  const markLocalStatus = useCallback((queueId: string, status: "in_progress", startedAt: string) => {
+    setQueueItems((prev) => prev.map((item) => (item.id === queueId ? { ...item, status, started_at: startedAt } : item)));
+  }, []);
 
   const startAccept = useCallback(async (queueId: string) => {
     await updateStatus(queueId, "accepted");
@@ -569,6 +584,7 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
     addWalkIn,
     updateStatus,
     updateBarber,
+    markLocalStatus,
   };
 }
 
