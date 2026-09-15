@@ -397,15 +397,17 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
     await updateStatus(queueId, "accepted");
     clearAcceptTimer(queueId);
 
+    // This timer only closes the "Undo" window — it must NOT promote the booking
+    // to in_progress itself. Arrival is only confirmed by OTPVerifyInput verifying
+    // the customer's actual arrival code; that's the sole path into in_progress.
     const expiresAt = Date.now() + ACCEPT_WINDOW_MS;
-    const timer = setTimeout(async () => {
+    const timer = setTimeout(() => {
       delete acceptTimersRef.current[queueId];
       setPendingAccepts((prev) => {
         const next = { ...prev };
         delete next[queueId];
         return next;
       });
-      await updateStatus(queueId, "in_progress");
     }, ACCEPT_WINDOW_MS);
 
     acceptTimersRef.current[queueId] = timer;

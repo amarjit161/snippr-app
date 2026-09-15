@@ -117,7 +117,7 @@ export const OTPVerifyInput = ({ bookingId, customerName, currentStatus, onVerif
         <button
           onClick={handleVerify}
           disabled={loading || otp.length !== 4}
-          className="flex-1 bg-purple-600 text-white rounded-xl text-sm font-semibold 
+          className="h-11 flex-1 bg-purple-600 text-white rounded-xl text-sm font-semibold
                      hover:bg-purple-700 disabled:opacity-50 transition-all"
         >
           {loading ? '...' : 'Confirm'}

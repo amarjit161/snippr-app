@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { useGeolocation, estimateTravelMinutes } from "@/hooks/useGeolocation";
+import { sendBookingEmail } from "@/services/emailService";
 import type { Tables } from "@/integrations/supabase/types";
 
 const QueueTracker = () => {
@@ -70,8 +71,12 @@ const QueueTracker = () => {
         position,
         status,
         created_at,
+        booking_date,
+        booking_time,
+        customer_first_name,
+        customer_last_name,
         services (id, name, price, duration),
-        salons (id, name, latitude, longitude)
+        salons (id, name, latitude, longitude, address, location, owner_id)
       `)
       .eq("customer_id", user.id)
       .in("status", ["pending", "waiting", "in_progress"])
@@ -181,6 +186,7 @@ const QueueTracker = () => {
     const { error } = await supabase
       .from("bookings")
       .update({ status: "cancelled" } as any)
+      .eq("id", entry.id)
       .eq("customer_id", user?.id)
       .in("status", ["pending", "waiting"]);
 
@@ -190,6 +196,45 @@ const QueueTracker = () => {
     }
 
     toast.info("Queue entry cancelled");
+
+    // Cancellation email — only fired after the update above succeeds, reusing the
+    // same emailService the confirmed/cancelled flows elsewhere already rely on.
+    const customerEmail = user?.email;
+    if (customerEmail) {
+      try {
+        const entryAny = entry as any;
+        const { data: ownerData } = await supabase
+          .from("owners")
+          .select("email")
+          .eq("id", entryAny.salons?.owner_id || "")
+          .maybeSingle();
+
+        let displayTime = "";
+        if (entryAny.booking_time) {
+          const [h, m] = String(entryAny.booking_time).split(":").map(Number);
+          const period = h >= 12 ? "PM" : "AM";
+          const hour = h > 12 ? h - 12 : h === 0 ? 12 : h;
+          displayTime = `${hour}:${String(m).padStart(2, "0")} ${period}`;
+        }
+
+        await sendBookingEmail("booking_cancelled", {
+          bookingId: entry.id,
+          salonId: entryAny.salons?.id || entry.salon_id || "",
+          salonName: entryAny.salons?.name || "Salon",
+          salonAddress: entryAny.salons?.address || entryAny.salons?.location || "",
+          customerName: `${entryAny.customer_first_name || ""} ${entryAny.customer_last_name || ""}`.trim() || "Customer",
+          customerEmail,
+          ownerEmail: ownerData?.email || "",
+          serviceName: entryAny.services?.name || "Service",
+          bookingDate: entryAny.booking_date || "",
+          timeSlot: displayTime,
+          amount: entryAny.services?.price || 0,
+        });
+      } catch (emailErr) {
+        console.warn("QUEUE_CANCEL_EMAIL_FAILED:", emailErr);
+      }
+    }
+
     setShowCancelConfirm(false);
     clearTrackerState();
   };

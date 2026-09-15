@@ -7,6 +7,7 @@ import Header from '@/components/Header';
 import { ChevronLeft, MapPin, Calendar, Clock, Scissors, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ErrorState } from '@/components/design/ErrorState';
+import { sendBookingEmail } from '@/services/emailService';
 
 interface BookingDetail {
   id: string;
@@ -26,6 +27,7 @@ interface BookingDetail {
     location?: string;
     image_url?: string;
     city?: string;
+    owner_id?: string;
   };
   services?: {
     id: string;
@@ -37,6 +39,7 @@ interface BookingDetail {
     id: string;
     name: string;
   };
+  customerEmail?: string;
 }
 
 const statusSteps = ['Booked', 'Confirmed', 'Arrived', 'In Chair', 'Done'];
@@ -120,6 +123,7 @@ export default function BookingDetail() {
           customer_first_name: data.customer_profiles?.first_name || undefined,
           customer_last_name: data.customer_profiles?.last_name || undefined,
           customer_phone: data.customer_profiles?.phone || undefined,
+          customerEmail: data.customer_profiles?.email || undefined,
         });
       } catch (err) {
         console.error('BOOKING_DETAIL_FETCH_ERROR:', err);
@@ -135,7 +139,7 @@ export default function BookingDetail() {
 
   const handleCancel = async () => {
     if (!booking) return;
-    
+
     setCancelling(true);
     try {
       const { error } = await supabase
@@ -145,10 +149,43 @@ export default function BookingDetail() {
 
       if (error) {
         toast.error('Failed to cancel booking');
-      } else {
-        toast.success('Booking cancelled successfully');
-        navigate('/bookings');
+        return;
       }
+
+      toast.success('Booking cancelled successfully');
+
+      // Cancellation email — only fired after the DB update above succeeds, mirroring
+      // the (already-working) cancel flow in Dashboard.tsx. Never blocks navigation.
+      const customerEmail = booking.customerEmail || user?.email;
+      if (customerEmail) {
+        try {
+          const { data: ownerData } = await supabase
+            .from('owners')
+            .select('email')
+            .eq('id', booking.salons?.owner_id || '')
+            .maybeSingle();
+
+          await sendBookingEmail('booking_cancelled', {
+            bookingId: booking.id,
+            salonId: booking.salons?.id || '',
+            salonName,
+            salonAddress,
+            customerName: `${booking.customer_first_name || ''} ${booking.customer_last_name || ''}`.trim() || 'Customer',
+            customerEmail,
+            customerPhone: booking.customer_phone,
+            ownerEmail: ownerData?.email || '',
+            serviceName,
+            barberName: barberName === 'Not assigned' ? '' : barberName,
+            bookingDate: booking.booking_date || '',
+            timeSlot: formatTimeSlot(booking.time_slot),
+            amount: booking.services?.price || 0,
+          });
+        } catch (emailErr) {
+          console.warn('CANCEL_EMAIL_FAILED:', emailErr);
+        }
+      }
+
+      navigate('/bookings');
     } catch (err) {
       console.error('CANCEL_ERROR:', err);
       toast.error('Error cancelling booking');

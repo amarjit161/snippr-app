@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { QueueItemSkeleton } from "@/components/design/Skeleton";
 import { AddWalkInModal } from "@/components/queue/AddWalkInModal";
+import { OTPVerifyInput } from "@/components/dashboard/OTPVerifyInput";
 import { useQueue } from "@/hooks/useQueue";
 
 const formatStatus = (value: string) => value.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
@@ -36,7 +37,7 @@ export default function Queue() {
   const [queueDatePreset, setQueueDatePreset] = useState<QueueDatePreset>("today");
   const [customQueueDate, setCustomQueueDate] = useState(todayISO());
   const [now, setNow] = useState(Date.now());
-  const { loading, actionLoading, owner, salon, services, barbers, grouped, pendingAccepts, startAccept, undoAccept, addWalkIn, updateStatus, updateBarber } = useQueue(navigate);
+  const { loading, actionLoading, owner, salon, services, barbers, grouped, pendingAccepts, startAccept, undoAccept, addWalkIn, updateStatus, updateBarber, fetchQueue } = useQueue(navigate);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 250);
@@ -238,7 +239,7 @@ export default function Queue() {
                                   </Button>
                                 ) : null}
 
-                                {(item.status === "in_progress" || item.status === "accepted") && !isPendingAccept ? (
+                                {item.status === "in_progress" && !isPendingAccept ? (
                                   <Button
                                     size="sm"
                                     className="bg-gradient-to-r from-success to-success/80"
@@ -265,6 +266,17 @@ export default function Queue() {
                                 </div>
                                 <p className="font-mono text-[11px] text-warning">Accepting in {remainingSeconds}s. Undo if this was a mistake.</p>
                               </div>
+                            ) : null}
+
+                            {(item.status === "waiting" || item.status === "pending" || item.status === "accepted") && canOperateThisItem ? (
+                              <OTPVerifyInput
+                                bookingId={item.id}
+                                customerName={customerLabel}
+                                currentStatus={item.status}
+                                onVerified={() => {
+                                  if (salon?.id) fetchQueue(salon.id);
+                                }}
+                              />
                             ) : null}
                           </div>
                         );

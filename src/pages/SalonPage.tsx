@@ -12,6 +12,7 @@ import { ErrorState } from "@/components/design/ErrorState";
 import { formatINR } from "@/lib/currency";
 import { startBookingFlow } from "@/contexts/BookingDraftContext";
 import { pageFade, cardFloat, motionEase } from "@/lib/motion";
+import type { Tables } from "@/integrations/supabase/types";
 
 const getSalonImageSrc = (imageUrl: string | null) => {
   if (!imageUrl) return "/default-salon.jpg";
@@ -225,7 +226,14 @@ export default function SalonPage() {
   const showMobileCta = isOpen && selectedCount > 0;
   const handleBookNow = () => {
     if (!isOpen) return;
-    startBookingFlow(salon.id, navigate);
+    const preselectedServices: Tables<"services">[] = selectedServices.map((s) => ({
+      id: s.id,
+      name: s.name,
+      price: s.price,
+      duration: s.duration,
+      salon_id: salon.id,
+    }));
+    startBookingFlow(salon.id, navigate, preselectedServices);
   };
 
   return (

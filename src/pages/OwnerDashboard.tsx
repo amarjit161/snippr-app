@@ -510,15 +510,17 @@ export default function OwnerDashboard() {
       const { error } = await supabaseAny.from("bookings").update({ status: "accepted", started_at: null }).eq("id", item.id);
       if (error) throw error;
 
+      // This timer only closes the "Undo" window — it must NOT promote the booking
+      // to in_progress itself. Arrival is only confirmed by OTPVerifyInput verifying
+      // the customer's actual arrival code; that's the sole path into in_progress.
       const expiresAt = Date.now() + ACCEPT_WINDOW_MS;
-      const timer = setTimeout(async () => {
+      const timer = setTimeout(() => {
         delete acceptTimersRef.current[item.id];
         setPendingAccepts((prev) => {
           const next = { ...prev };
           delete next[item.id];
           return next;
         });
-        await supabaseAny.from("bookings").update({ status: "in_progress", started_at: new Date().toISOString() }).eq("id", item.id);
       }, ACCEPT_WINDOW_MS);
 
       acceptTimersRef.current[item.id] = timer;
@@ -847,8 +849,8 @@ export default function OwnerDashboard() {
                         </div>
                       ) : null}
                       
-                      {/* OTP Verification Input - shown for waiting/confirmed status */}
-                      {(item.status === "waiting" || item.status === "confirmed" || item.status === "pending") && (
+                      {/* OTP Verification Input - shown until arrival is confirmed (waiting/confirmed/pending/accepted) */}
+                      {(item.status === "waiting" || item.status === "confirmed" || item.status === "pending" || item.status === "accepted") && (
                         <OTPVerifyInput
                           bookingId={item.id}
                           customerName={customerName}

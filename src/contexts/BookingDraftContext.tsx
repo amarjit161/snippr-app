@@ -119,8 +119,31 @@ export const useBookingDraft = () => {
   return ctx;
 };
 
-export function startBookingFlow(salonId: string, navigate: (path: string) => void) {
+export function startBookingFlow(
+  salonId: string,
+  navigate: (path: string) => void,
+  preselectedServices?: Tables<"services">[]
+) {
   sessionStorage.setItem(BOOKING_SALON_ID_KEY, salonId);
+
+  // Pre-seed the same sessionStorage draft the provider already restores on mount
+  // (see the restore effect below) so a service chosen on the salon page doesn't
+  // have to be re-selected on /booking/service. Only written when there's actually
+  // something to carry over — an empty/absent draft here just means "start fresh",
+  // which is the existing direct-entry behavior.
+  if (preselectedServices && preselectedServices.length > 0) {
+    try {
+      const draft: Pick<PersistedBookingDraft, "salonId" | "savedAt" | "selectedServices"> = {
+        salonId,
+        savedAt: Date.now(),
+        selectedServices: preselectedServices,
+      };
+      sessionStorage.setItem(BOOKING_DRAFT_KEY, JSON.stringify(draft));
+    } catch {
+      // Ignore storage errors — worst case the user re-selects the service.
+    }
+  }
+
   navigate("/booking/service");
 }
 
