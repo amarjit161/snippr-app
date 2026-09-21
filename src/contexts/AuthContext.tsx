@@ -3,6 +3,17 @@ import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { debug } from "@/lib/debug";
 import type { Tables } from "@/integrations/supabase/types";
+import {
+  clearAllSessionRecords,
+  clearOtherSessionRecords,
+  registerCurrentSession,
+  removeCurrentSessionRecord,
+  touchCurrentSession,
+} from "@/lib/sessionRegistry";
+
+// Heartbeat cadence for the active-session registry — frequent enough that
+// "last active" stays meaningful, infrequent enough to not spam the DB.
+const SESSION_HEARTBEAT_MS = 5 * 60 * 1000;
 
 interface AuthContextType {
   session: Session | null;
@@ -11,6 +22,15 @@ interface AuthContextType {
   loading: boolean;
   profileLoading: boolean;
   signOut: () => Promise<void>;
+  /**
+   * Ends every OTHER session for this account (other browsers/devices) while
+   * leaving the current session signed in. Supabase does not fire a
+   * SIGNED_OUT event for this scope, and does not expose which/how many
+   * other sessions existed — see signOutOtherDevices' own comment.
+   */
+  signOutOtherDevices: () => Promise<{ error: string | null }>;
+  /** Ends every session for this account, including this one, and redirects to login. */
+  signOutEverywhere: () => Promise<{ error: string | null }>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -20,6 +40,8 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   profileLoading: false,
   signOut: async () => {},
+  signOutOtherDevices: async () => ({ error: "Not initialized" }),
+  signOutEverywhere: async () => ({ error: "Not initialized" }),
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -332,7 +354,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signOut = async () => {
     console.log("LOGOUT_INITIATED");
+    const userId = session?.user?.id;
     try {
+      // scope: 'local' — sign out of THIS browser only. Supabase's signOut()
+      // defaults to scope: 'global', which would silently end every other
+      // session for this account too; a plain "Sign Out" click should not do
+      // that. Use signOutEverywhere() below for the explicit global action.
+      const { error } = await supabase.auth.signOut({ scope: "local" });
+
+      // Only remove this device's own registry row once Supabase has
+      // actually confirmed (or effectively confirmed — see the error-class
+      // note on signOutOtherDevices below) the sign-out. If the call itself
+      // failed for an unrelated reason (e.g. a network error), leave the row
+      // in place rather than have the list understate what's still live.
+      if (userId && !error) {
+        try {
+          await removeCurrentSessionRecord(userId);
+        } catch (err) {
+          console.warn("SESSION_REGISTRY_CLEANUP_FAILED", err);
+        }
+      }
+
+      logoutChannel.current?.postMessage("SIGNED_OUT");
+    } catch (err) {
+      console.error("LOGOUT_ERROR", err);
+    } finally {
+      // Local app state is always cleared and the user always lands on
+      // /login, regardless of whether the network call above succeeded —
+      // this preserves the existing "Sign Out always feels instant" UX and
+      // matches how this app already treated sign-out before the session
+      // registry existed. The one thing that's now conditional is the
+      // registry row itself (above), not this local state reset.
       setSession(null);
       setProfile(null);
       cachedProfileRef.current = null;
@@ -341,13 +393,158 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.removeItem("snippr_role");
       localStorage.removeItem("owner");
       localStorage.removeItem("snippet_customer_profile");
-
-      await supabase.auth.signOut();
-      logoutChannel.current?.postMessage("SIGNED_OUT");
-    } catch (err) {
-      console.error("LOGOUT_ERROR", err);
-    } finally {
       window.location.href = "/login";
+    }
+  };
+
+  // Supabase's client-side Auth API has no endpoint to revoke one arbitrary
+  // OTHER session by id — only by scope ('others' | 'global'), or by that
+  // session's own access-token JWT (which we correctly never store). So
+  // "other devices" / "everywhere" below map directly onto Supabase's real
+  // scoped sign-out, and the snippr_user_sessions registry (see
+  // src/lib/sessionRegistry.ts) is cleared to match. Per Supabase's docs,
+  // revoking a refresh token does not invalidate an already-issued access
+  // token instantly — that other browser loses access once its token is
+  // next refreshed/revalidated, not the moment this call returns. The UI
+  // must not claim otherwise.
+  const signOutOtherDevices = async (): Promise<{ error: string | null }> => {
+    console.log("LOGOUT_OTHER_DEVICES_INITIATED");
+    try {
+      // scope: 'others' revokes every refresh token for this account except
+      // the current one. Per Supabase's docs, no SIGNED_OUT event fires for
+      // this scope, so the current session's local state is left untouched.
+      //
+      // Call this FIRST, before touching the registry. The current session
+      // stays valid throughout this call either way, so there's no ordering
+      // constraint forcing registry cleanup first (unlike signOutEverywhere
+      // below) — and doing the real revocation first means the registry is
+      // never emptied unless Supabase actually confirmed the revoke. If we
+      // cleared the registry before this call and the call then failed, the
+      // session list would falsely show only "this device" while every
+      // other device was, in reality, still fully live.
+      const { error } = await supabase.auth.signOut({ scope: "others" });
+      if (error) {
+        console.error("LOGOUT_OTHER_DEVICES_ERROR", error);
+        return { error: error.message };
+      }
+
+      // supabase-js's own signOut({scope:'others'}) silently swallows
+      // 401/403/404/session-missing errors from the underlying
+      // POST /auth/v1/logout call and returns {error: null} regardless (see
+      // auth-js GoTrueClient._signOut()). That happens precisely when THIS
+      // session is itself already dead server-side — e.g. previously
+      // revoked, but still holding a locally-cached, not-yet-expired access
+      // token — because GoTrue can't act on an "others" request from a
+      // session it no longer recognizes. A null `error` above is therefore
+      // NOT proof the revoke happened. getUser() makes a real,
+      // server-validating request (unlike getSession()), so use it to
+      // confirm our own session is actually still alive before trusting
+      // this as a success.
+      const { error: userError } = await supabase.auth.getUser();
+
+      if (userError) {
+        console.error("LOGOUT_OTHER_DEVICES_OWN_SESSION_INVALID", userError);
+        // Our own session is no longer valid server-side, so we have no way
+        // to know whether "other devices" were actually revoked — do not
+        // claim they were. The honest move is to finish signing this
+        // already-dead session out locally (via the existing local sign-out
+        // flow) rather than leave the UI implying it's still authenticated.
+        await signOut();
+        return { error: "Your session is no longer valid. You've been signed out." };
+      }
+
+      const userId = session?.user?.id;
+      if (userId) {
+        try {
+          await clearOtherSessionRecords(userId);
+        } catch (err) {
+          console.warn("SESSION_REGISTRY_CLEANUP_FAILED", err);
+        }
+      }
+
+      return { error: null };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to sign out other devices";
+      console.error("LOGOUT_OTHER_DEVICES_ERROR", err);
+      return { error: message };
+    }
+  };
+
+  const signOutEverywhere = async (): Promise<{ error: string | null }> => {
+    console.log("LOGOUT_EVERYWHERE_INITIATED");
+    try {
+      const userId = session?.user?.id;
+      // Unlike signOutOtherDevices, this registry cleanup CANNOT be deferred
+      // until after signOut({scope:'global'}) succeeds: 'global' scope also
+      // revokes THIS session, so once that call returns (successfully or
+      // not — see below), this device's own JWT may no longer be accepted
+      // for the RLS-protected delete on snippr_user_sessions. There is no
+      // ordering that lets us "confirm success, then clean up" the way the
+      // 'others' path does — clearing first is the only way this delete can
+      // happen at all. We do not weaken RLS to work around this.
+      //
+      // Known consequence: if signOut({scope:'global'}) itself then fails
+      // (e.g. a network error) after this cleanup already ran, the registry
+      // will read empty even though sessions may still be live server-side.
+      // That's an accepted, narrow edge case — surfaced as an error to the
+      // caller below, not hidden — rather than a routine occurrence.
+      if (userId) {
+        try {
+          await clearAllSessionRecords(userId);
+        } catch (err) {
+          console.warn("SESSION_REGISTRY_CLEANUP_FAILED", err);
+        }
+      }
+
+      // scope: 'global' (the Supabase default) — ends this session AND every
+      // other session for this account.
+      const { data: signOutData, error } = await supabase.auth.signOut({ scope: "global" });
+
+      if (import.meta.env.DEV) {
+        console.log("SIGN_OUT_GLOBAL_RESULT", {
+          data: signOutData,
+          error: error ? { name: error.name, status: error.status, code: error.code, message: error.message } : null,
+        });
+      }
+
+      if (error) {
+        console.error("LOGOUT_EVERYWHERE_ERROR", error);
+        return { error: error.message };
+      }
+
+      // Do NOT trust an error-free response alone as proof this session is
+      // actually gone, and do NOT clear local state or redirect until we've
+      // confirmed it against the SDK's own session state. This is the fix
+      // for the bug where the app redirected to /login unconditionally even
+      // when the underlying session was never actually cleared, leaving the
+      // browser that clicked "Log out everywhere" still authenticated.
+      const { data: postSignOutSession } = await supabase.auth.getSession();
+
+      if (import.meta.env.DEV) {
+        console.log("POST_SIGNOUT_SESSION_CHECK", { stillHasSession: !!postSignOutSession.session });
+      }
+
+      if (postSignOutSession.session) {
+        console.error("LOGOUT_EVERYWHERE_SESSION_STILL_PRESENT: signOut() returned no error but the session is still active.");
+        return { error: "Sign-out did not complete — your session is still active. Please try again." };
+      }
+
+      // Confirmed gone — safe to clear local app state and redirect now.
+      setSession(null);
+      setProfile(null);
+      cachedProfileRef.current = null;
+      lastProfileFetchSessionIdRef.current = null;
+      profileFetchInFlightRef.current = null;
+      localStorage.removeItem("snippr_role");
+      localStorage.removeItem("owner");
+      localStorage.removeItem("snippet_customer_profile");
+      logoutChannel.current?.postMessage("SIGNED_OUT");
+      window.location.href = "/login";
+      return { error: null };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to sign out everywhere";
+      console.error("LOGOUT_EVERYWHERE_ERROR", err);
+      return { error: message };
     }
   };
 
@@ -379,8 +576,55 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [session?.user, profile]);
 
+  // Active-session registry: register this device once per session, then
+  // heartbeat periodically while the tab is visible. Cleanly stopped on
+  // sign-out (session becomes null) and on unmount — never left running.
+  const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const registeredSessionUserRef = useRef<string | null>(null);
+  useEffect(() => {
+    const userId = session?.user?.id ?? null;
+
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current);
+      heartbeatIntervalRef.current = null;
+    }
+
+    if (!userId) {
+      registeredSessionUserRef.current = null;
+      return;
+    }
+
+    if (registeredSessionUserRef.current !== userId) {
+      registeredSessionUserRef.current = userId;
+      registerCurrentSession(userId);
+    }
+
+    heartbeatIntervalRef.current = setInterval(() => {
+      if (document.hidden) return;
+      touchCurrentSession(userId);
+    }, SESSION_HEARTBEAT_MS);
+
+    return () => {
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+        heartbeatIntervalRef.current = null;
+      }
+    };
+  }, [session?.user?.id]);
+
   return (
-    <AuthContext.Provider value={{ session, user: session?.user ?? null, profile, loading, profileLoading, signOut }}>
+    <AuthContext.Provider
+      value={{
+        session,
+        user: session?.user ?? null,
+        profile,
+        loading,
+        profileLoading,
+        signOut,
+        signOutOtherDevices,
+        signOutEverywhere,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

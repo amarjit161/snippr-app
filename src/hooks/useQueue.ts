@@ -242,8 +242,11 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
             });
           }
         });
-        // Add placeholder immediately
-        return [{ ...newRow, services: null, barbers: null } as QueueItem, ...prev];
+        // Add placeholder immediately. Routed through normalizeQueueItem — the raw
+        // realtime payload only has the bookings table's own columns (e.g.
+        // customer_id), not the derived fields (user_id, arrival_otp, etc.) other
+        // code in this hook/its consumers read unconditionally.
+        return [normalizeQueueItem({ ...newRow, services: null, barbers: null }), ...prev];
       }
 
       if (eventType === "UPDATE" && newRow) {
@@ -255,8 +258,10 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
             );
           }
         });
-        // Update optimistically first
-        return prev.map((item) => (item.id === newRow.id ? { ...item, ...newRow } as QueueItem : item));
+        // Update optimistically first. Normalized for the same reason as the INSERT
+        // branch above — spreading the raw payload directly overwrote already-
+        // normalized fields (e.g. user_id) with the raw row's undefined equivalents.
+        return prev.map((item) => (item.id === newRow.id ? normalizeQueueItem({ ...item, ...newRow }) : item));
       }
 
       return prev;

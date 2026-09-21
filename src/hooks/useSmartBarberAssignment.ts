@@ -271,12 +271,17 @@ export function useSmartBarberAssignment() {
         // Store all barbers for selector UI
         setAllBarbers(allBarbersWithWait);
 
+        // allBarbersWithWait is mapped 1:1 from barberScoresInternal (which
+        // bestMatch is drawn from), so bestIndex is always found in practice —
+        // but fall back to bestMatch's own fields rather than indexing with -1
+        // if that ever isn't true, instead of throwing during booking confirm.
+        const bestWithWait = bestIndex >= 0 ? allBarbersWithWait[bestIndex] : null;
         const assignmentResult: BarberAssignmentResult = {
           barberId: bestMatch.barber.id,
           barberName: bestMatch.barber.name,
           workloadScore: bestMatch.score,
-          estimatedWait: allBarbersWithWait[bestIndex].estimatedWait,
-          completionTime: allBarbersWithWait[bestIndex].completionTime,
+          estimatedWait: bestWithWait?.estimatedWait ?? 15,
+          completionTime: bestWithWait?.completionTime ?? "",
           reason: bestMatch.isOnline
             ? bestMatch.reason
             : `${bestMatch.reason} (currently offline)`,

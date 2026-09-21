@@ -698,6 +698,32 @@ export default function Dashboard() {
 
     setUpdatingId(rescheduleTarget.id);
     try {
+      // Same barber/slot conflict check the new-booking flow already uses
+      // (see bookingValidation.ts / BookingDraftContext), just excluding this
+      // booking's own row — otherwise reschedule could silently double-book
+      // the barber into a slot another active booking already holds.
+      const stylistId = rescheduleTarget.stylist_id || rescheduleTarget.barber_id;
+      if (stylistId) {
+        const { data: conflict, error: conflictError } = await supabase
+          .from("bookings")
+          .select("id")
+          .eq("salon_id", rescheduleTarget.salon_id)
+          .eq("stylist_id", stylistId)
+          .eq("booking_date", newDate)
+          .eq("booking_time", newTime)
+          .neq("id", rescheduleTarget.id)
+          .in("status", ["pending", "waiting", "accepted", "in_progress"])
+          .limit(1)
+          .maybeSingle();
+
+        if (conflictError) {
+          console.error("RESCHEDULE_CONFLICT_CHECK_ERROR", conflictError);
+        } else if (conflict) {
+          toast.error("That slot is no longer available. Please choose another time.");
+          return;
+        }
+      }
+
       const { data, error } = await supabase
         .from("bookings")
         .update({
@@ -712,7 +738,16 @@ export default function Dashboard() {
 
       if (error) {
         console.error("RESCHEDULE_ERROR", error);
-        toast.error("Unable to reschedule booking.");
+        // 23505 = unique_violation (a race with another booking into the same
+        // slot); 42501 = insufficient_privilege (RLS rejected the update).
+        // Anything else is shown as a generic, still-actionable message.
+        if (error.code === "23505") {
+          toast.error("That slot was just taken by another booking. Please choose another time.");
+        } else if (error.code === "42501") {
+          toast.error("You don't have permission to modify this booking.");
+        } else {
+          toast.error("Unable to reschedule booking. Please try again.");
+        }
         return;
       }
 
@@ -768,7 +803,7 @@ export default function Dashboard() {
       setBookings((prev) =>
         prev.map((b) =>
           b.id === rescheduleTarget.id
-            ? { ...b, booking_date: newDate, time_slot: newTime }
+            ? { ...b, booking_date: newDate, booking_time: newTime, time_slot: newTime }
             : b
         )
       );
@@ -776,6 +811,9 @@ export default function Dashboard() {
       toast.success("Booking rescheduled successfully!");
       setRescheduleModalOpen(false);
       setRescheduleTarget(null);
+    } catch (err) {
+      console.error("RESCHEDULE_UNEXPECTED_ERROR", err);
+      toast.error("Unable to reschedule booking. Please try again.");
     } finally {
       setUpdatingId(null);
     }
@@ -927,7 +965,16 @@ export default function Dashboard() {
           setRescheduleTarget(null);
         }}
         onConfirm={handleRescheduleConfirm}
-        booking={rescheduleTarget}
+        booking={
+          rescheduleTarget
+            ? {
+                salon_name: rescheduleTarget.salons?.name || rescheduleTarget.salon_name,
+                service_name: rescheduleTarget.services?.name || rescheduleTarget.service_name,
+                current_date: rescheduleTarget.booking_date || rescheduleTarget.current_date,
+                current_time: rescheduleTarget.time_slot || rescheduleTarget.booking_time || rescheduleTarget.current_time,
+              }
+            : null
+        }
         isLoading={rescheduleTarget && updatingId === rescheduleTarget.id}
       />
 

@@ -159,8 +159,11 @@ const AppRoutes = () => {
           <Route path="/notifications" element={<Suspense fallback={<PageLoader />}><Notifications /></Suspense>} />
         </Route>
 
-        {/* Booking flow (no bottom tab bar — focused checkout experience) */}
-        <Route element={<BookingFlowProvider />}>
+        {/* Booking flow (no bottom tab bar — focused checkout experience).
+            Wrapped in its own ErrorBoundary so a render error inside the
+            checkout wizard recovers back to browsing salons instead of
+            blanking the whole app under the top-level boundary. */}
+        <Route element={<ErrorBoundary><BookingFlowProvider /></ErrorBoundary>}>
           <Route path="/booking" element={<Navigate to="/booking/service" replace />} />
           <Route path="/booking/service" element={<Suspense fallback={<PageLoader />}><BookingServicePage /></Suspense>} />
           <Route path="/booking/stylist" element={<Suspense fallback={<PageLoader />}><BookingStylistPage /></Suspense>} />

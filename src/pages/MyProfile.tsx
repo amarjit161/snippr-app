@@ -13,6 +13,7 @@ import {
   syncVerifiedPhoneToProfile,
   toE164India,
 } from '@/lib/phone';
+import { ActiveSessionsPanel } from '@/components/ActiveSessionsPanel';
 
 interface UserProfile {
   id: string;
@@ -584,6 +585,9 @@ export const MyProfile = () => {
             </div>
           )}
         </div>
+
+        {/* Security — active sessions */}
+        {user && <ActiveSessionsPanel userId={user.id} />}
 
       </div>
     </div>

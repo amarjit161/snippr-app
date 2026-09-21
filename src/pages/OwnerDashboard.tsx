@@ -357,10 +357,13 @@ export default function OwnerDashboard() {
             });
           }
         });
-        // Add placeholder immediately for instant feedback
-        return [{ ...newRow, services: null, barbers: null } as QueueRow, ...prev];
+        // Add placeholder immediately for instant feedback. Routed through
+        // normalizeQueueRow — the raw realtime payload only has the bookings
+        // table's own columns (e.g. customer_id), not the derived fields
+        // (user_id, etc.) the rest of this file reads unconditionally.
+        return [normalizeQueueRow({ ...newRow, services: null, barbers: null }), ...prev];
       }
-      
+
       if (eventType === "UPDATE" && newRow) {
         // For updates, also fetch full details
         fetchQueueItemFull(newRow.id).then((fullItem) => {
@@ -370,8 +373,13 @@ export default function OwnerDashboard() {
             );
           }
         });
-        // Update with new data immediately
-        return prev.map((item) => (item.id === newRow.id ? { ...item, ...newRow } as QueueRow : item));
+        // Update with new data immediately. Normalized for the same reason as the
+        // INSERT branch above — spreading the raw payload directly (previously
+        // `{ ...item, ...newRow }` without normalization) overwrote the already-
+        // normalized user_id with the raw row's undefined user_id, since real
+        // bookings only ever populate customer_id. That produced a QueueRow with
+        // user_id: undefined, which crashed the queue card render (item.user_id.slice(...)).
+        return prev.map((item) => (item.id === newRow.id ? normalizeQueueRow({ ...item, ...newRow }) : item));
       }
       
       return prev;
