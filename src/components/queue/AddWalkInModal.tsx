@@ -23,12 +23,27 @@ type BarberRow = {
   chair_number: number | null;
 };
 
+type AccountType = "guest" | "existing";
+
+const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 type AddWalkInModalProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   services: ServiceRow[];
   barbers: BarberRow[];
-  onSubmit: (payload: { customerFirstName: string; customerLastName: string; phoneNumber: string; serviceId: string; barberId: string }) => Promise<void>;
+  // Returns whether a booking was actually created — false for a failed
+  // "existing customer" lookup (no match), so the modal can stay open
+  // instead of silently closing over a booking that was never made.
+  onSubmit: (payload: {
+    customerFirstName: string;
+    customerLastName: string;
+    phoneNumber: string;
+    serviceId: string;
+    barberId: string;
+    customerMode: AccountType;
+    email?: string;
+  }) => Promise<boolean>;
 };
 
 export function AddWalkInModal({ open, onOpenChange, services, barbers, onSubmit }: AddWalkInModalProps) {
@@ -38,6 +53,8 @@ export function AddWalkInModal({ open, onOpenChange, services, barbers, onSubmit
   const [phoneNumber, setPhoneNumber] = useState("");
   const [serviceId, setServiceId] = useState("");
   const [barberId, setBarberId] = useState("");
+  const [accountType, setAccountType] = useState<AccountType>("guest");
+  const [email, setEmail] = useState("");
 
   useEffect(() => {
     if (!open) {
@@ -46,6 +63,8 @@ export function AddWalkInModal({ open, onOpenChange, services, barbers, onSubmit
       setPhoneNumber("");
       setServiceId("");
       setBarberId("");
+      setAccountType("guest");
+      setEmail("");
       setSubmitting(false);
       return;
     }
@@ -54,22 +73,31 @@ export function AddWalkInModal({ open, onOpenChange, services, barbers, onSubmit
     if (barbers.length > 0 && !barberId) setBarberId(barbers[0].id);
   }, [open, services, barbers]);
 
+  const isEmailValid = EMAIL_FORMAT.test(email.trim());
+
   const isValid = useMemo(() => {
-    return customerFirstName.trim().length > 1 && customerLastName.trim().length > 1 && phoneNumber.trim().length >= 8 && !!serviceId && !!barberId;
-  }, [customerFirstName, customerLastName, phoneNumber, serviceId, barberId]);
+    const baseValid = customerFirstName.trim().length > 1 && customerLastName.trim().length > 1 && phoneNumber.trim().length >= 8 && !!serviceId && !!barberId;
+    if (!baseValid) return false;
+    return accountType === "guest" || isEmailValid;
+  }, [customerFirstName, customerLastName, phoneNumber, serviceId, barberId, accountType, isEmailValid]);
 
   const handleSubmit = async () => {
     if (!isValid || submitting) return;
     setSubmitting(true);
-    await onSubmit({
+    const created = await onSubmit({
       customerFirstName: customerFirstName.trim(),
       customerLastName: customerLastName.trim(),
       phoneNumber: phoneNumber.trim(),
       serviceId,
       barberId,
+      customerMode: accountType,
+      email: accountType === "existing" ? email.trim() : undefined,
     });
     setSubmitting(false);
-    onOpenChange(false);
+    // Only close on an actual booking — e.g. an "existing customer" lookup
+    // that found no match creates nothing, so the owner stays here to fix
+    // the email or switch to Guest / walk-in.
+    if (created) onOpenChange(false);
   };
 
   return (
@@ -84,6 +112,47 @@ export function AddWalkInModal({ open, onOpenChange, services, barbers, onSubmit
           <Input placeholder="First Name" value={customerFirstName} onChange={(event) => setCustomerFirstName(event.target.value)} />
           <Input placeholder="Last Name" value={customerLastName} onChange={(event) => setCustomerLastName(event.target.value)} />
           <Input placeholder="Phone Number" value={phoneNumber} onChange={(event) => setPhoneNumber(event.target.value)} />
+
+          <fieldset className="grid gap-2">
+            <legend className="text-sm font-medium text-foreground">Customer account</legend>
+            <label className="flex min-h-[44px] items-center gap-2 rounded-xl border border-input px-3 text-sm">
+              <input
+                type="radio"
+                name="walk-in-account-type"
+                checked={accountType === "existing"}
+                onChange={() => setAccountType("existing")}
+              />
+              Existing Snippr customer
+            </label>
+            <label className="flex min-h-[44px] items-center gap-2 rounded-xl border border-input px-3 text-sm">
+              <input
+                type="radio"
+                name="walk-in-account-type"
+                checked={accountType === "guest"}
+                onChange={() => setAccountType("guest")}
+              />
+              Guest / walk-in
+            </label>
+          </fieldset>
+
+          {accountType === "existing" ? (
+            <div>
+              <Input
+                type="email"
+                placeholder="Customer's email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                aria-invalid={email.length > 0 && !isEmailValid}
+              />
+              {email.length > 0 && !isEmailValid ? (
+                <p className="mt-1 text-xs text-destructive">Enter a valid email address.</p>
+              ) : (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  We'll check if this email has a Snippr account and link the booking to it. If no account is found, the booking will not be created — switch to Guest / walk-in instead.
+                </p>
+              )}
+            </div>
+          ) : null}
 
           <select
             value={serviceId}

@@ -19,6 +19,8 @@ const BOOKING_SALON_ID_KEY = "snippr_booking_salon_id";
 const BOOKING_DRAFT_KEY = "snippr_booking_draft";
 const BOOKING_DRAFT_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours — short-lived, matches the checkout-flow lifespan
 
+export type BookingSource = "app" | "qr";
+
 interface PersistedBookingDraft {
   salonId: string;
   savedAt: number;
@@ -28,6 +30,9 @@ interface PersistedBookingDraft {
   timeLabel: string;
   customer: CustomerInfo;
   bookingForSomeoneElse: boolean;
+  // Optional so an old draft written before this field existed still parses
+  // fine — absence is treated as 'app' wherever it's read.
+  source?: BookingSource;
 }
 
 export type BarberRow = {
@@ -122,26 +127,32 @@ export const useBookingDraft = () => {
 export function startBookingFlow(
   salonId: string,
   navigate: (path: string) => void,
-  preselectedServices?: Tables<"services">[]
+  preselectedServices?: Tables<"services">[],
+  source: BookingSource = "app"
 ) {
   sessionStorage.setItem(BOOKING_SALON_ID_KEY, salonId);
 
   // Pre-seed the same sessionStorage draft the provider already restores on mount
   // (see the restore effect below) so a service chosen on the salon page doesn't
-  // have to be re-selected on /booking/service. Only written when there's actually
-  // something to carry over — an empty/absent draft here just means "start fresh",
-  // which is the existing direct-entry behavior.
-  if (preselectedServices && preselectedServices.length > 0) {
-    try {
-      const draft: Pick<PersistedBookingDraft, "salonId" | "savedAt" | "selectedServices"> = {
-        salonId,
-        savedAt: Date.now(),
-        selectedServices: preselectedServices,
-      };
-      sessionStorage.setItem(BOOKING_DRAFT_KEY, JSON.stringify(draft));
-    } catch {
-      // Ignore storage errors — worst case the user re-selects the service.
+  // have to be re-selected on /booking/service, and so the explicit booking
+  // source (never inferred from the route inside the provider) survives into
+  // BookingFlowProvider. Written unconditionally (not just when a service was
+  // preselected) so a QR entry with no preselected service still carries
+  // source='qr' from the very first navigation.
+  try {
+    const draft: Pick<PersistedBookingDraft, "salonId" | "savedAt" | "source"> &
+      Partial<Pick<PersistedBookingDraft, "selectedServices">> = {
+      salonId,
+      savedAt: Date.now(),
+      source,
+    };
+    if (preselectedServices && preselectedServices.length > 0) {
+      draft.selectedServices = preselectedServices;
     }
+    sessionStorage.setItem(BOOKING_DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    // Ignore storage errors — worst case the user re-selects the service and
+    // the flow defaults to source 'app'.
   }
 
   navigate("/booking/service");
@@ -172,6 +183,9 @@ export function BookingFlowProvider() {
   const [verifyingCaptcha, setVerifyingCaptcha] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [confirmedBookingState, setConfirmedBookingState] = useState<ConfirmedBookingState | null>(null);
+  // Explicit only — set by startBookingFlow()'s caller and restored from the
+  // persisted draft; never inferred from location/pathname/history here.
+  const [source, setSource] = useState<BookingSource>("app");
   const turnstileRef = useRef<TurnstileCaptchaHandle | null>(null);
 
   const exitFlow = () => {
@@ -206,6 +220,7 @@ export function BookingFlowProvider() {
             setCustomer((prev) => ({ ...prev, ...parsed.customer }));
           }
           if (typeof parsed.bookingForSomeoneElse === "boolean") setBookingForSomeoneElse(parsed.bookingForSomeoneElse);
+          setSource(parsed.source === "qr" ? "qr" : "app");
         } else {
           sessionStorage.removeItem(BOOKING_DRAFT_KEY);
         }
@@ -350,13 +365,14 @@ export function BookingFlowProvider() {
       timeLabel,
       customer,
       bookingForSomeoneElse,
+      source,
     };
     try {
       sessionStorage.setItem(BOOKING_DRAFT_KEY, JSON.stringify(draft));
     } catch {
       // Ignore storage quota/serialization errors — the draft is a convenience, not critical state.
     }
-  }, [selectedServices, date, time, timeLabel, customer, bookingForSomeoneElse, confirmedBookingState]);
+  }, [selectedServices, date, time, timeLabel, customer, bookingForSomeoneElse, confirmedBookingState, source]);
 
   const triggerAssignment = () => {
     if (!salon?.id || selectedServices.length === 0 || assignmentResult) return;
@@ -704,6 +720,7 @@ export function BookingFlowProvider() {
         booking_time: bookingPayload.booking_time,
         otp: bookingPayload.arrival_otp,
         queue_position: bookingPayload.position,
+        source,
       };
       Object.keys(bookingsPayload).forEach((k) => {
         if (bookingsPayload[k] === undefined) bookingsPayload[k] = null;

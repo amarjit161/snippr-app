@@ -43,6 +43,7 @@ type QueueItem = {
   booking_date?: string | null;
   time_slot?: string | null;
   notes?: string | null;
+  source?: string | null;
   services?: ServiceRow | null;
   barbers?: BarberRow | null;
 };
@@ -53,6 +54,11 @@ type WalkInPayload = {
   phoneNumber: string;
   serviceId: string;
   barberId: string;
+  // Explicit, not inferred from whether email is present — "existing" always
+  // requires and looks up email server-side; "guest" never does, even if an
+  // email string happens to be set.
+  customerMode: "existing" | "guest";
+  email?: string;
 };
 
 const normalizeQueueItem = (item: any): QueueItem => {
@@ -439,131 +445,77 @@ export function useQueue(navigate: (path: string, options?: { replace?: boolean 
     await updateStatus(queueId, "waiting");
   }, [clearAcceptTimer, updateStatus]);
 
-  const addWalkIn = useCallback(async (payload: WalkInPayload) => {
+  const addWalkIn = useCallback(async (payload: WalkInPayload): Promise<boolean> => {
     if (!salon) {
       toast.error("Salon not found");
-      return;
+      return false;
     }
 
     if (!payload.customerFirstName.trim() || !payload.customerLastName.trim() || !payload.phoneNumber.trim() || !payload.serviceId || !payload.barberId) {
       toast.error("Please fill all fields");
-      return;
+      return false;
+    }
+
+    if (payload.customerMode === "existing" && !payload.email?.trim()) {
+      toast.error("Email is required for an existing Snippr customer");
+      return false;
     }
 
     try {
       if (import.meta.env.DEV) console.log("ADD_WALK_IN_START", salon.id);
 
-      const { data: { user: freshUser } } = await supabase.auth.getUser();
-      if (!freshUser) throw new Error("Owner session expired. Please re-login.");
+      // The old direct .from("bookings").insert(...) here wrote columns that
+      // don't exist on the live bookings table (user_id, barber_id,
+      // customer_first_name/last_name/phone, time_slot — those only exist on
+      // the separate, unused "queue" table) and stamped customer_id with the
+      // OWNER's own auth id. create_owner_walk_in_booking() is the single,
+      // atomic, security-definer replacement: it verifies salon ownership,
+      // validates the service/barber belong to this salon, resolves an
+      // existing Snippr account by email in "existing" mode (server-side
+      // only — auth.users is never queried from the client), and performs
+      // the insert using only real bookings columns. p_customer_mode is
+      // explicit so "guest" never triggers a lookup even if an email is
+      // somehow present, and "existing" never silently falls back to a
+      // guest booking on a no-match.
+      const { data, error } = await supabaseAny.rpc("create_owner_walk_in_booking", {
+        p_salon_id: salon.id,
+        p_service_id: payload.serviceId,
+        p_barber_id: payload.barberId,
+        p_customer_first_name: payload.customerFirstName.trim(),
+        p_customer_last_name: payload.customerLastName.trim(),
+        p_customer_phone: payload.phoneNumber.trim(),
+        p_customer_mode: payload.customerMode,
+        p_customer_email: payload.customerMode === "existing" ? payload.email?.trim() : null,
+      }).maybeSingle();
 
-      // VALIDATION: Check if barber is available at current time
-      const createdAt = new Date().toISOString();
-      const todayBookingDate = createdAt.slice(0, 10);
-      const bookingTimeSlot = createdAt.slice(11, 16);
-      
-      // Check if this barber already has a booking for this exact time slot today
-      const { data: conflictBookings, error: conflictError } = await supabaseAny
-        .from("bookings")
-        .select("id, stylist_id, booking_date, booking_time")
-        .eq("salon_id", salon.id)
-        .eq("stylist_id", payload.barberId)
-        .eq("booking_date", todayBookingDate)
-        .eq("booking_time", bookingTimeSlot);
-
-      if (conflictError) {
-        console.error("AVAILABILITY_CHECK_ERROR", conflictError);
-        toast.error("Could not check barber availability");
-        return;
+      if (error || !data) {
+        console.error("WALK_IN_RPC_ERROR", error);
+        toast.error(error?.message || "Failed to add walk-in customer");
+        return false;
       }
 
-      // Allow overlap detection - warn user but don't block
-      if (conflictBookings && conflictBookings.length > 0) {
-        const barberName = barbers.find((b) => b.id === payload.barberId)?.name || "Barber";
-        toast.warning(`⚠️ ${barberName} already has a booking at this time`);
-        // Don't return - let database constraints handle it
+      if (data.customer_match === "not_found") {
+        // No booking was created — the RPC intentionally stops short of
+        // inserting anything so the owner can't mistake this for a linked
+        // booking. Modal stays open (see AddWalkInModal's handleSubmit).
+        toast.error("No Snippr account found with this email. Use Guest / walk-in if this customer does not have an account.");
+        return false;
       }
 
-      const { data: positionRows } = await (supabase
-        .from("bookings") as any)
-        .select("position")
-        .eq("salon_id", salon.id)
-        .order("position", { ascending: false })
-        .limit(1);
-
-      const nextPosition = ((positionRows?.[0]?.position as number | undefined) || 0) + 1;
-      const tempId = `temp-${Date.now()}`;
-
-      const selectedService = services.find((service) => service.id === payload.serviceId) || null;
-      const selectedBarber = barbers.find((barber) => barber.id === payload.barberId) || null;
-
-      // Optimistic update
-      const optimisticItem: QueueItem = {
-        id: tempId,
-        created_at: createdAt,
-        status: "waiting",
-        user_id: freshUser.id,
-        service_id: payload.serviceId,
-        barber_id: payload.barberId,
-        position: nextPosition,
-        started_at: null,
-        completed_at: null,
-        customer_first_name: payload.customerFirstName.trim(),
-        customer_last_name: payload.customerLastName.trim(),
-        customer_phone: payload.phoneNumber.trim(),
-        booking_date: todayBookingDate,
-        time_slot: bookingTimeSlot,
-        services: selectedService,
-        barbers: selectedBarber,
-      };
-
-      setQueueItems((prev) => [...prev, optimisticItem]);
-
-      const { data: insertedData, error: insertError } = await (supabase.from("bookings") as any)
-        .insert({
-          salon_id: salon.id,
-          customer_id: freshUser.id,
-          user_id: freshUser.id,
-          service_id: payload.serviceId,
-          stylist_id: payload.barberId,
-          barber_id: payload.barberId,
-          status: "waiting",
-          position: nextPosition,
-          created_at: createdAt,
-          customer_first_name: payload.customerFirstName.trim(),
-          customer_last_name: payload.customerLastName.trim(),
-          customer_phone: payload.phoneNumber.trim(),
-          booking_date: todayBookingDate,
-          booking_time: bookingTimeSlot,
-          time_slot: bookingTimeSlot,
-        })
-        .select("*")
-        .single();
-
-      if (insertError || !insertedData) {
-        setQueueItems((prev) => prev.filter((item) => item.id !== tempId));
-        
-        // Provide better error message for specific constraint violations
-        if (insertError?.message?.includes("duplicate key") || insertError?.message?.includes("Unique violation")) {
-          const barberName = selectedBarber?.name || "Barber";
-          toast.error(`❌ ${barberName} is fully booked at ${bookingTimeSlot}. Choose another time or barber.`);
-        } else {
-          toast.error(insertError?.message || "Failed to add walk-in customer");
-        }
-        return;
+      if (data.customer_match === "existing") {
+        toast.success("Walk-in added — linked to the customer's existing Snippr account");
+      } else {
+        toast.success("Walk-in added to queue");
       }
 
-      const normalizedInserted = normalizeQueueItem(insertedData);
-      setQueueItems((prev) =>
-        prev.map((item) => (item.id === tempId ? { ...item, ...normalizedInserted, services: selectedService, barbers: selectedBarber } : item))
-      );
-
-      toast.success("Walk-in added to queue");
       await fetchQueue(salon.id);
+      return true;
     } catch (err: any) {
       console.error("WALK_IN_ERROR", err);
       toast.error(err.message || "Failed to add walk-in");
+      return false;
     }
-  }, [barbers, fetchQueue, salon, services, supabaseAny]);
+  }, [fetchQueue, salon, supabaseAny]);
 
   const grouped = useMemo(() => {
     const waiting = sortedQueue.filter((item) => item.status === "waiting" || item.status === "pending");

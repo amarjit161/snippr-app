@@ -192,6 +192,7 @@ export type Database = {
           queue_position: number | null
           salon_id: string | null
           service_id: string | null
+          source: string
           started_at: string | null
           status: string | null
           stylist_id: string | null
@@ -211,6 +212,7 @@ export type Database = {
           queue_position?: number | null
           salon_id?: string | null
           service_id?: string | null
+          source?: string
           started_at?: string | null
           status?: string | null
           stylist_id?: string | null
@@ -230,6 +232,7 @@ export type Database = {
           queue_position?: number | null
           salon_id?: string | null
           service_id?: string | null
+          source?: string
           started_at?: string | null
           status?: string | null
           stylist_id?: string | null
@@ -793,6 +796,7 @@ export type Database = {
           owner_id: string | null
           phone: string | null
           pincode: string | null
+          quick_booking_code: string
         }
         Insert: {
           address?: string | null
@@ -812,6 +816,7 @@ export type Database = {
           owner_id?: string | null
           phone?: string | null
           pincode?: string | null
+          quick_booking_code?: string
         }
         Update: {
           address?: string | null
@@ -831,6 +836,7 @@ export type Database = {
           owner_id?: string | null
           phone?: string | null
           pincode?: string | null
+          quick_booking_code?: string
         }
         Relationships: []
       }
@@ -1107,6 +1113,19 @@ export type Database = {
       }
     }
     Functions: {
+      create_owner_walk_in_booking: {
+        Args: {
+          p_barber_id: string
+          p_customer_email?: string
+          p_customer_first_name: string
+          p_customer_last_name: string
+          p_customer_mode: string
+          p_customer_phone: string
+          p_salon_id: string
+          p_service_id: string
+        }
+        Returns: { booking_id: string | null; customer_match: string }[]
+      }
       is_admin: { Args: never; Returns: boolean }
       join_queue: {
         Args: {

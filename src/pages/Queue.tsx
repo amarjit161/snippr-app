@@ -269,18 +269,37 @@ export default function Queue() {
                             ) : null}
 
                             {(item.status === "waiting" || item.status === "pending" || item.status === "accepted") && canOperateThisItem ? (
-                              <OTPVerifyInput
-                                bookingId={item.id}
-                                customerName={customerLabel}
-                                currentStatus={item.status}
-                                onVerified={() => {
-                                  // Reflect the (already-committed) status change instantly so
-                                  // the OTP box/Undo countdown don't linger on stale local state,
-                                  // then reconcile against the server as a backstop.
-                                  markLocalStatus(item.id, "in_progress", new Date().toISOString());
-                                  if (salon?.id) fetchQueue(salon.id);
-                                }}
-                              />
+                              item.source === "owner_walk_in" ? (
+                                // Owner-created walk-ins never got a real arrival OTP (there's no
+                                // customer app open to show one), so per the Step 4A/4B design they
+                                // skip OTPVerifyInput entirely — the owner explicitly starts service
+                                // instead, using the same updateStatus() path Accept/Complete already
+                                // use. Normal customer/QR bookings (source !== "owner_walk_in") are
+                                // completely unaffected and still go through OTPVerifyInput below.
+                                <div className="mt-3 border-t border-gray-100 pt-3">
+                                  <Button
+                                    size="sm"
+                                    className="min-h-[44px] w-full"
+                                    disabled={actionLoading === item.id}
+                                    onClick={() => updateStatus(item.id, "in_progress")}
+                                  >
+                                    {actionLoading === item.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Start Service (Walk-in, no OTP)"}
+                                  </Button>
+                                </div>
+                              ) : (
+                                <OTPVerifyInput
+                                  bookingId={item.id}
+                                  customerName={customerLabel}
+                                  currentStatus={item.status}
+                                  onVerified={() => {
+                                    // Reflect the (already-committed) status change instantly so
+                                    // the OTP box/Undo countdown don't linger on stale local state,
+                                    // then reconcile against the server as a backstop.
+                                    markLocalStatus(item.id, "in_progress", new Date().toISOString());
+                                    if (salon?.id) fetchQueue(salon.id);
+                                  }}
+                                />
+                              )
                             ) : null}
                           </div>
                         );

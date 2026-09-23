@@ -55,6 +55,7 @@ const OwnerCustomers = lazy(() => import("./pages/OwnerCustomers.tsx"));
 const OwnerAnalytics = lazy(() => import("./pages/OwnerAnalytics.tsx"));
 const OwnerReviews = lazy(() => import("./pages/OwnerReviews.tsx"));
 const OwnerNotifications = lazy(() => import("./pages/OwnerNotifications.tsx"));
+const QuickBooking = lazy(() => import("./pages/QuickBooking.tsx"));
 
 import { ProtectedRoute } from "./components/ProtectedRoute.tsx";
 import { CustomerAppShell } from "./components/customer/CustomerAppShell.tsx";
@@ -123,6 +124,14 @@ const AppRoutes = () => {
       <Route path="/how-it-works" element={<Suspense fallback={<PageLoader />}><HowItWorks /></Suspense>} />
       <Route path="/support" element={<Suspense fallback={<PageLoader />}><Support /></Suspense>} />
       <Route path="/privacy" element={<Suspense fallback={<PageLoader />}><Privacy /></Suspense>} />
+
+      {/* Permanent salon QR landing — public, anonymous-safe (resolves the
+          salon via publicSupabase using only the quick_booking_code route
+          param), and deliberately outside CustomerAppShell/ProtectedRoute so
+          it stays a focused entry point with no bottom tab bar and no forced
+          login. Continuing into booking still goes through the existing
+          ProtectedRoute on /booking/service, which handles auth as usual. */}
+      <Route path="/q/:quickBookingCode" element={<Suspense fallback={<PageLoader />}><QuickBooking /></Suspense>} />
 
       {/* Owner protected routes */}
       <Route path="/register-salon" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><RegisterSalon /></OwnerProtectedRoute></Suspense>} />

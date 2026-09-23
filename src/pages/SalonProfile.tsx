@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent } from "@/components/ui/card";
 import { OwnerShell } from "@/components/dashboard/OwnerShell";
+import { QuickBookingQrCard } from "@/components/dashboard/QuickBookingQrCard";
 import { toast } from "sonner";
 
 type OwnerRecord = {
@@ -28,6 +29,7 @@ type SalonRow = {
   location: string | null;
   is_manual_closed: boolean;
   image_url: string | null;
+  quick_booking_code: string;
 };
 
 export default function SalonProfile() {
@@ -173,6 +175,8 @@ export default function SalonProfile() {
           <h1 className="font-display text-3xl font-extrabold tracking-tight text-foreground">Salon Profile</h1>
           <p className="mt-1 text-sm text-muted-foreground">Update your salon identity and operating details.</p>
         </section>
+
+        <QuickBookingQrCard salonName={name || salon.name} quickBookingCode={salon.quick_booking_code} />
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <Card>
