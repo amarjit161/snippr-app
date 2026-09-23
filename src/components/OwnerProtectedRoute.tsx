@@ -21,15 +21,6 @@ const OwnerProtectedRoute: React.FC<OwnerProtectedRouteProps> = ({ children }) =
 
   const hasProfile = profile || localStorageProfile;
 
-  console.log('OWNER_PROTECTED_ROUTE', {
-    loading,
-    profileLoading,
-    user: user?.email,
-    profile: !!profile,
-    localStorageProfile: !!localStorageProfile,
-    hasProfile: !!hasProfile,
-  });
-
   // Wait for BOTH session loading AND profile fetching to complete
   if (loading || profileLoading) {
     return (
@@ -43,16 +34,13 @@ const OwnerProtectedRoute: React.FC<OwnerProtectedRouteProps> = ({ children }) =
   }
 
   if (!user) {
-    console.log('OWNER_PROTECTED_ROUTE: No user, redirecting to login');
     return <Navigate to="/owner-login" replace />;
   }
 
   if (!hasProfile) {
-    console.log('OWNER_PROTECTED_ROUTE: No owner profile found, redirecting to registration');
     return <Navigate to="/owner-register" replace />;
   }
 
-  console.log('OWNER_PROTECTED_ROUTE: Access granted for', user.email);
   return <>{children}</>;
 };
 

@@ -195,10 +195,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // Track visibility changes to prevent profile refetch on tab switch
     const handleVisibilityChange = () => {
-      if (document.hidden) {
-        console.log("PAGE_HIDDEN: Recording timestamp");
-      } else {
-        console.log("PAGE_VISIBLE: Recording timestamp");
+      if (!document.hidden) {
         visibilityChangeTimeRef.current = Date.now();
       }
     };
@@ -221,12 +218,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         // Prevent duplicate processing of same auth state change within 500ms
         if (lastAuthStateChangeRef.current === stateKey) {
-          console.log("AUTH_STATE_CHANGED: IGNORED_DUPLICATE", event);
           return;
         }
-        
+
         lastAuthStateChangeRef.current = stateKey;
-        console.log("AUTH_STATE_CHANGED:", event, currentSession?.user?.email || "No session");
 
         // Debounce rapid auth state changes (e.g., token refresh spam)
         if (authStateDebounceRef.current) {

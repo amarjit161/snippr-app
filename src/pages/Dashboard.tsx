@@ -14,7 +14,6 @@ import { RescheduleModal } from "@/components/RescheduleModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { sendBookingEmail } from "@/services/emailService";
-import { generateOTP } from "@/lib/otpUtils";
 
 type BookingTab = "upcoming" | "past" | "cancelled";
 const RESCHEDULE_LOCKED_STATUSES = new Set(["accepted", "confirmed", "in_progress", "done", "completed"]);
@@ -105,14 +104,6 @@ type BookingCardProps = {
 const BookingCard = ({ booking: b, onCancel, onManage, showActions, updatingId, existingReview, onLeaveReview }: BookingCardProps) => {
   const cardRef = useRef<HTMLElement | null>(null);
   const isTouchPointer = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
-
-  // Debug logging
-  console.log("📍 BookingCard rendered:", {
-    id: b.id,
-    status: b.status,
-    arrival_otp: b.arrival_otp,
-    hasOTP: !!b.arrival_otp,
-  });
 
   const handleMove = (event: React.MouseEvent<HTMLElement>) => {
     if (isTouchPointer) return;
@@ -472,40 +463,20 @@ export default function Dashboard() {
         barbers: b.barbers,
       }));
 
-      const bookingsWithOtp = await Promise.all(
-        normalizedData.map(async (booking: any) => {
-          if (!isOTPActive(booking.status) || booking.arrival_otp) {
-            return booking;
-          }
-
-          const arrivalOtp = generateOTP();
-          const { error: otpError } = await supabase
-            .from("bookings")
-            .update({ otp: arrivalOtp } as any)
-            .eq("id", booking.id)
-            .eq("customer_id", user.id);
-
-          if (otpError) {
-            console.warn("BOOKING_OTP_BACKFILL_FAILED:", otpError);
-            return booking;
-          }
-
-          return { ...booking, arrival_otp: arrivalOtp, otp: arrivalOtp };
-        })
-      );
-
-      setBookings(bookingsWithOtp);
+      // Every booking created through the normal booking flow already gets a
+      // real arrival OTP at insert time (see BookingDraftContext.submitBooking).
+      // A booking can only legitimately have no OTP when it's an owner-created
+      // walk-in (source = 'owner_walk_in'), which intentionally skips arrival
+      // OTP entirely. There used to be a client-side "backfill" here that
+      // generated a new OTP and wrote it back via .update(...).eq("customer_id",
+      // user.id) — but bookings_update_access's WITH CHECK only allows a
+      // customer's own UPDATE when it sets status = 'cancelled', so this write
+      // was rejected by RLS (42501) on every single active booking it ran
+      // against. Removed rather than loosening that policy: it never succeeded,
+      // and a walk-in correctly having no OTP is the intended behavior, not a
+      // gap to patch over.
+      setBookings(normalizedData);
       setLastFetchTime(Date.now());
-      console.log("✅ BOOKINGS: Fetched", data?.length || 0, "bookings from database");
-      // Debug: Log arrival_otp for each booking
-      bookingsWithOtp.forEach((booking: any, idx: number) => {
-        console.log(`📌 Booking ${idx + 1}:`, {
-          id: booking.id,
-          status: booking.status,
-          arrival_otp: booking.arrival_otp,
-          booking_date: booking.booking_date,
-        });
-      });
     }
     setFetching(false);
   };

@@ -32,7 +32,9 @@ type QueueRow = {
   started_at?: string | null;
   completed_at?: string | null;
   status: string;
-  user_id: string;
+  // Null for a guest walk-in booking (customer_id is intentionally NULL there) —
+  // never assume this is always a real id.
+  user_id: string | null;
   time_slot?: string | null;
   booking_date?: string | null;
   barber_id?: string | null;
@@ -143,7 +145,6 @@ export default function OwnerDashboard() {
     queueItemsRef.current = queueItems;
   }, [queueItems]);
   const [barbers, setBarbers] = useState<{ id: string; name: string; chair_number: number | null; specialization: string | null }[]>([]);
-  const [profileMap, setProfileMap] = useState<Record<string, string>>({});
   const [queueDatePreset, setQueueDatePreset] = useState<QueueDatePreset>("today");
   const [customQueueDate, setCustomQueueDate] = useState(todayISO());
   const [pendingAccepts, setPendingAccepts] = useState<Record<string, number>>({});
@@ -214,7 +215,6 @@ export default function OwnerDashboard() {
 
         if (ownerData) {
           setOwner(ownerData as OwnerRecord);
-          console.log("OWNER_PROFILE_LOADED:", ownerData.name);
         }
 
         // 1. Resolve Salon
@@ -243,8 +243,6 @@ export default function OwnerDashboard() {
         setLoadingSalon(false);
 
         // 2. Fetch Dependent Data (Queue, Barbers, Services)
-        console.log("FETCHING_DEPENDENT_DATA", salonData.id);
-        
         const [queueRes, barbersRes, servicesRes] = await Promise.all([
           supabase
             .from("bookings")
@@ -257,39 +255,18 @@ export default function OwnerDashboard() {
         ]);
 
         if (queueRes.data) {
-          const rows = (queueRes.data as any[]).map(normalizeQueueRow);
-          setQueueItems(rows);
-
-          // Build Profile Map for registered customers (walk-ins use customer_first_name, customer_last_name fields)
-          // Try to fetch full user profiles for registered customers
-          const userIds = Array.from(new Set(rows
-            .filter((row) => row.user_id && !row.customer_first_name) // Only registered users without walk-in data
-            .map((row) => row.user_id)
-            .filter(Boolean)
-          ));
-          
-          if (userIds.length > 0) {
-            // Try to fetch user names from profiles table if it exists
-            const { data: profileRows } = await (supabase as any)
-              .from("profiles")
-              .select("id, full_name")
-              .in("id", userIds)
-              .catch(() => ({ data: [] })); // Fallback if profiles table doesn't exist
-            
-            const lookup = ((profileRows || []) as any[]).reduce<Record<string, string>>((acc, row) => {
-              acc[row.id] = row.full_name || "Guest";
-              return acc;
-            }, {});
-            setProfileMap(lookup);
-          }
+          // customer_first_name/last_name/phone are already populated from the
+          // real customer_profiles join in the query above (see
+          // normalizeQueueRow) for any booking with a linked customer — there
+          // is no separate "profiles" table in the live schema to look names
+          // up from, and none is needed.
+          setQueueItems((queueRes.data as any[]).map(normalizeQueueRow));
         }
 
         if (barbersRes.data) setBarbers(barbersRes.data as any[]);
 
         // Services aren't currently in standalone state apart from the queue join,
         // but we keep the logic ready if needed for other UI parts.
-
-        console.log("FETCH_DASHBOARD_SUCCESS");
       } catch (err: any) {
         console.error("DASHBOARD_CRITICAL_ERROR:", err);
       } finally {
@@ -390,7 +367,6 @@ export default function OwnerDashboard() {
   useEffect(() => {
     if (!salon?.id) return;
 
-    console.log("DASHBOARD_REALTIME_SUBSCRIPTION_START", salon.id);
     let lastEventTime = Date.now();
     let channel: any = null;
 
@@ -407,14 +383,11 @@ export default function OwnerDashboard() {
           },
           (payload) => {
             lastEventTime = Date.now();
-            console.log("DASHBOARD_QUEUE_REALTIME_EVENT", payload.eventType, payload.new?.id);
             // Merge the update intelligently without full refetch (no flicker!)
             mergeQueueUpdate(payload);
           }
         )
-        .subscribe((status) => {
-          console.log("DASHBOARD_REALTIME_STATUS", status);
-        });
+        .subscribe();
     } catch (err) {
       console.error("DASHBOARD_REALTIME_SUBSCRIPTION_ERROR", err);
     }
@@ -449,11 +422,9 @@ export default function OwnerDashboard() {
     }, 30000); // Check every 30 seconds
 
     return () => {
-      console.log("DASHBOARD_REALTIME_SUBSCRIPTION_CLEANUP");
       if (channel) {
         try {
           supabase.removeChannel(channel);
-          console.log("DASHBOARD_REALTIME_CHANNEL_CLEANUP_SUCCESS");
         } catch (err) {
           console.error("DASHBOARD_REALTIME_CHANNEL_CLEANUP_ERROR", err);
         }
@@ -595,12 +566,6 @@ export default function OwnerDashboard() {
       setUpdatingQueueId(null);
     }
   };
-
-  console.log("OWNER_DASHBOARD_RENDER", {
-    salon,
-    loadingSalon,
-    loadingData
-  });
 
   if (loadingSalon) {
     return (
@@ -781,7 +746,7 @@ export default function OwnerDashboard() {
                       : (item as any).customer_phone
                         ? `${(item as any).customer_phone}`
                         : null;
-                    const customerName = walkinName || profileMap[item.user_id] || `User ${item.user_id.slice(0, 6)}`;
+                    const customerName = walkinName || (item.user_id ? `User ${item.user_id.slice(0, 6)}` : "Walk-in Guest");
                     const initials = customerName.split(" ").slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join("");
                     const serviceName = item.services?.name || "Service";
                     const barberName = (item as any).barbers?.name || "Not assigned";
@@ -970,7 +935,7 @@ export default function OwnerDashboard() {
                     const walkinName = (item as any).customer_first_name && (item as any).customer_last_name 
                       ? `${(item as any).customer_first_name} ${(item as any).customer_last_name}`
                       : (item as any).customer_phone ? `${(item as any).customer_phone}` : null;
-                    const customerName = walkinName || profileMap[item.user_id] || `User ${item.user_id.slice(0, 6)}`;
+                    const customerName = walkinName || (item.user_id ? `User ${item.user_id.slice(0, 6)}` : "Walk-in Guest");
                     const initials = customerName.split(" ").slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join("");
                     const serviceName = item.services?.name || "Service";
                     const status = item.status || "waiting";
