@@ -61,6 +61,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute.tsx";
 import { CustomerAppShell } from "./components/customer/CustomerAppShell.tsx";
 import { BookingFlowProvider } from "./contexts/BookingDraftContext.tsx";
 import { OwnerProtectedRoute } from "./components/OwnerProtectedRoute.tsx";
+import { RouteRecovery } from "./components/RouteRecovery.tsx";
 import { useAuth } from "@/contexts/AuthContext";
 import { ErrorBoundary } from "./components/errors/ErrorBoundary";
 import { OfflineBanner } from "./components/errors/OfflineBanner";
@@ -95,92 +96,106 @@ const PageLoader = () => (
   </div>
 );
 
+// Route tree is hoisted so Smart URL Recovery can derive valid patterns from the
+// exact same definitions the router uses (no duplicated route list). Exported for tests.
+// eslint-disable-next-line react-refresh/only-export-components
+export const appRouteTree = (
+  <>
+    {/* Critical pages - No suspension */}
+    <Route path="/" element={<Index />} />
+    <Route path="/login" element={<CustomerLogin />} />
+    <Route path="/auth" element={<Auth />} />
+    <Route path="/register" element={<CustomerRegister />} />
+    <Route path="/complete-profile" element={<CompleteProfile />} />
+    <Route path="/forgot-password" element={<ForgotPassword />} />
+    <Route path="/reset-password" element={<ResetPassword />} />
+    <Route path="/auth/callback" element={<AuthCallback />} />
+    {/* Unmatched URLs: high-confidence typo recovery, else the existing 404 */}
+    <Route path="*" element={<RouteRecovery routes={getAppRouteTree} fallback={<NotFound />} />} />
+
+    {/* Lazy-loaded pages with Suspense */}
+    <Route path="/profile-completion" element={<Suspense fallback={<PageLoader />}><ProfileCompletion /></Suspense>} />
+    <Route path="/verify" element={<Suspense fallback={<PageLoader />}><Verify /></Suspense>} />
+    <Route path="/owner-login" element={<Suspense fallback={<PageLoader />}><OwnerLogin /></Suspense>} />
+    <Route path="/owner-signup" element={<Suspense fallback={<PageLoader />}><OwnerSignUp /></Suspense>} />
+    <Route path="/owner-reset-password" element={<Suspense fallback={<PageLoader />}><OwnerResetPassword /></Suspense>} />
+    <Route path="/verify-email" element={<Suspense fallback={<PageLoader />}><VerifyEmail /></Suspense>} />
+    <Route path="/onboarding" element={<Suspense fallback={<PageLoader />}><Onboarding /></Suspense>} />
+    <Route path="/owner-register" element={<Suspense fallback={<PageLoader />}><OwnerRegistration /></Suspense>} />
+    <Route path="/careers" element={<Suspense fallback={<PageLoader />}><Careers /></Suspense>} />
+    <Route path="/how-it-works" element={<Suspense fallback={<PageLoader />}><HowItWorks /></Suspense>} />
+    <Route path="/support" element={<Suspense fallback={<PageLoader />}><Support /></Suspense>} />
+    <Route path="/privacy" element={<Suspense fallback={<PageLoader />}><Privacy /></Suspense>} />
+
+    {/* Permanent salon QR landing — public, anonymous-safe (resolves the
+        salon via publicSupabase using only the quick_booking_code route
+        param), and deliberately outside CustomerAppShell/ProtectedRoute so
+        it stays a focused entry point with no bottom tab bar and no forced
+        login. Continuing into booking still goes through the existing
+        ProtectedRoute on /booking/service, which handles auth as usual. */}
+    <Route path="/q/:quickBookingCode" element={<Suspense fallback={<PageLoader />}><QuickBooking /></Suspense>} />
+
+    {/* Owner protected routes */}
+    <Route path="/register-salon" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><RegisterSalon /></OwnerProtectedRoute></Suspense>} />
+    <Route path="/owner-dashboard" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><OwnerDashboard /></OwnerProtectedRoute></Suspense>} />
+    <Route path="/dashboard" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><OwnerDashboard /></OwnerProtectedRoute></Suspense>} />
+    <Route path="/queue" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><Queue /></OwnerProtectedRoute></Suspense>} />
+    <Route path="/services" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><Services /></OwnerProtectedRoute></Suspense>} />
+    <Route path="/team" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><Team /></OwnerProtectedRoute></Suspense>} />
+    <Route path="/salon-profile" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><SalonProfile /></OwnerProtectedRoute></Suspense>} />
+    <Route path="/settings" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><Settings /></OwnerProtectedRoute></Suspense>} />
+    <Route path="/edit-salon" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><SalonProfile /></OwnerProtectedRoute></Suspense>} />
+    <Route path="/calendar" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><OwnerCalendar /></OwnerProtectedRoute></Suspense>} />
+    <Route path="/customers" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><OwnerCustomers /></OwnerProtectedRoute></Suspense>} />
+    <Route path="/analytics" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><OwnerAnalytics /></OwnerProtectedRoute></Suspense>} />
+    <Route path="/reviews" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><OwnerReviews /></OwnerProtectedRoute></Suspense>} />
+    <Route path="/owner-notifications" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><OwnerNotifications /></OwnerProtectedRoute></Suspense>} />
+
+    {/* Public customer routes — salon discovery must work for logged-out visitors
+        and crawlers (SEO). No auth required; anonymous-safe reads are handled
+        inside Salons.tsx/SalonPage.tsx via publicSupabase. */}
+    <Route element={<CustomerAppShell />}>
+      <Route path="/salons" element={<Suspense fallback={<PageLoader />}><Salons /></Suspense>} />
+      <Route path="/salon/:id" element={<Suspense fallback={<PageLoader />}><SalonPage /></Suspense>} />
+    </Route>
+
+    {/* Customer protected routes */}
+    <Route element={<ProtectedRoute />}>
+      <Route path="/admin" element={<Suspense fallback={<PageLoader />}><Admin /></Suspense>} />
+      <Route element={<CustomerAppShell />}>
+        <Route path="/bookings" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
+        <Route path="/booking/:id" element={<Suspense fallback={<PageLoader />}><BookingDetail /></Suspense>} />
+        <Route path="/my-profile" element={<Suspense fallback={<PageLoader />}><MyProfile /></Suspense>} />
+        <Route path="/favorites" element={<Suspense fallback={<PageLoader />}><Favorites /></Suspense>} />
+        <Route path="/notifications" element={<Suspense fallback={<PageLoader />}><Notifications /></Suspense>} />
+      </Route>
+
+      {/* Booking flow (no bottom tab bar — focused checkout experience).
+          Wrapped in its own ErrorBoundary so a render error inside the
+          checkout wizard recovers back to browsing salons instead of
+          blanking the whole app under the top-level boundary. */}
+      <Route element={<ErrorBoundary><BookingFlowProvider /></ErrorBoundary>}>
+        <Route path="/booking" element={<Navigate to="/booking/service" replace />} />
+        <Route path="/booking/service" element={<Suspense fallback={<PageLoader />}><BookingServicePage /></Suspense>} />
+        <Route path="/booking/stylist" element={<Suspense fallback={<PageLoader />}><BookingStylistPage /></Suspense>} />
+        <Route path="/booking/date" element={<Suspense fallback={<PageLoader />}><BookingDatePage /></Suspense>} />
+        <Route path="/booking/time" element={<Suspense fallback={<PageLoader />}><BookingTimePage /></Suspense>} />
+        <Route path="/booking/confirm" element={<Suspense fallback={<PageLoader />}><BookingConfirmPage /></Suspense>} />
+      </Route>
+    </Route>
+  </>
+);
+// Function declaration (hoisted) because the "*" route above references it.
+function getAppRouteTree() {
+  return appRouteTree;
+}
+
 const AppRoutes = () => {
   useTawkTo();
 
   return (
     <Routes>
-      {/* Critical pages - No suspension */}
-      <Route path="/" element={<Index />} />
-      <Route path="/login" element={<CustomerLogin />} />
-      <Route path="/auth" element={<Auth />} />
-      <Route path="/register" element={<CustomerRegister />} />
-      <Route path="/complete-profile" element={<CompleteProfile />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/auth/callback" element={<AuthCallback />} />
-      <Route path="*" element={<NotFound />} />
-
-      {/* Lazy-loaded pages with Suspense */}
-      <Route path="/profile-completion" element={<Suspense fallback={<PageLoader />}><ProfileCompletion /></Suspense>} />
-      <Route path="/verify" element={<Suspense fallback={<PageLoader />}><Verify /></Suspense>} />
-      <Route path="/owner-login" element={<Suspense fallback={<PageLoader />}><OwnerLogin /></Suspense>} />
-      <Route path="/owner-signup" element={<Suspense fallback={<PageLoader />}><OwnerSignUp /></Suspense>} />
-      <Route path="/owner-reset-password" element={<Suspense fallback={<PageLoader />}><OwnerResetPassword /></Suspense>} />
-      <Route path="/verify-email" element={<Suspense fallback={<PageLoader />}><VerifyEmail /></Suspense>} />
-      <Route path="/onboarding" element={<Suspense fallback={<PageLoader />}><Onboarding /></Suspense>} />
-      <Route path="/owner-register" element={<Suspense fallback={<PageLoader />}><OwnerRegistration /></Suspense>} />
-      <Route path="/careers" element={<Suspense fallback={<PageLoader />}><Careers /></Suspense>} />
-      <Route path="/how-it-works" element={<Suspense fallback={<PageLoader />}><HowItWorks /></Suspense>} />
-      <Route path="/support" element={<Suspense fallback={<PageLoader />}><Support /></Suspense>} />
-      <Route path="/privacy" element={<Suspense fallback={<PageLoader />}><Privacy /></Suspense>} />
-
-      {/* Permanent salon QR landing — public, anonymous-safe (resolves the
-          salon via publicSupabase using only the quick_booking_code route
-          param), and deliberately outside CustomerAppShell/ProtectedRoute so
-          it stays a focused entry point with no bottom tab bar and no forced
-          login. Continuing into booking still goes through the existing
-          ProtectedRoute on /booking/service, which handles auth as usual. */}
-      <Route path="/q/:quickBookingCode" element={<Suspense fallback={<PageLoader />}><QuickBooking /></Suspense>} />
-
-      {/* Owner protected routes */}
-      <Route path="/register-salon" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><RegisterSalon /></OwnerProtectedRoute></Suspense>} />
-      <Route path="/owner-dashboard" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><OwnerDashboard /></OwnerProtectedRoute></Suspense>} />
-      <Route path="/dashboard" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><OwnerDashboard /></OwnerProtectedRoute></Suspense>} />
-      <Route path="/queue" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><Queue /></OwnerProtectedRoute></Suspense>} />
-      <Route path="/services" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><Services /></OwnerProtectedRoute></Suspense>} />
-      <Route path="/team" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><Team /></OwnerProtectedRoute></Suspense>} />
-      <Route path="/salon-profile" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><SalonProfile /></OwnerProtectedRoute></Suspense>} />
-      <Route path="/settings" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><Settings /></OwnerProtectedRoute></Suspense>} />
-      <Route path="/edit-salon" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><SalonProfile /></OwnerProtectedRoute></Suspense>} />
-      <Route path="/calendar" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><OwnerCalendar /></OwnerProtectedRoute></Suspense>} />
-      <Route path="/customers" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><OwnerCustomers /></OwnerProtectedRoute></Suspense>} />
-      <Route path="/analytics" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><OwnerAnalytics /></OwnerProtectedRoute></Suspense>} />
-      <Route path="/reviews" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><OwnerReviews /></OwnerProtectedRoute></Suspense>} />
-      <Route path="/owner-notifications" element={<Suspense fallback={<PageLoader />}><OwnerProtectedRoute><OwnerNotifications /></OwnerProtectedRoute></Suspense>} />
-
-      {/* Public customer routes — salon discovery must work for logged-out visitors
-          and crawlers (SEO). No auth required; anonymous-safe reads are handled
-          inside Salons.tsx/SalonPage.tsx via publicSupabase. */}
-      <Route element={<CustomerAppShell />}>
-        <Route path="/salons" element={<Suspense fallback={<PageLoader />}><Salons /></Suspense>} />
-        <Route path="/salon/:id" element={<Suspense fallback={<PageLoader />}><SalonPage /></Suspense>} />
-      </Route>
-
-      {/* Customer protected routes */}
-      <Route element={<ProtectedRoute />}>
-        <Route path="/admin" element={<Suspense fallback={<PageLoader />}><Admin /></Suspense>} />
-        <Route element={<CustomerAppShell />}>
-          <Route path="/bookings" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
-          <Route path="/booking/:id" element={<Suspense fallback={<PageLoader />}><BookingDetail /></Suspense>} />
-          <Route path="/my-profile" element={<Suspense fallback={<PageLoader />}><MyProfile /></Suspense>} />
-          <Route path="/favorites" element={<Suspense fallback={<PageLoader />}><Favorites /></Suspense>} />
-          <Route path="/notifications" element={<Suspense fallback={<PageLoader />}><Notifications /></Suspense>} />
-        </Route>
-
-        {/* Booking flow (no bottom tab bar — focused checkout experience).
-            Wrapped in its own ErrorBoundary so a render error inside the
-            checkout wizard recovers back to browsing salons instead of
-            blanking the whole app under the top-level boundary. */}
-        <Route element={<ErrorBoundary><BookingFlowProvider /></ErrorBoundary>}>
-          <Route path="/booking" element={<Navigate to="/booking/service" replace />} />
-          <Route path="/booking/service" element={<Suspense fallback={<PageLoader />}><BookingServicePage /></Suspense>} />
-          <Route path="/booking/stylist" element={<Suspense fallback={<PageLoader />}><BookingStylistPage /></Suspense>} />
-          <Route path="/booking/date" element={<Suspense fallback={<PageLoader />}><BookingDatePage /></Suspense>} />
-          <Route path="/booking/time" element={<Suspense fallback={<PageLoader />}><BookingTimePage /></Suspense>} />
-          <Route path="/booking/confirm" element={<Suspense fallback={<PageLoader />}><BookingConfirmPage /></Suspense>} />
-        </Route>
-      </Route>
+      {appRouteTree}
     </Routes>
   );
 };
