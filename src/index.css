@@ -115,6 +115,20 @@
   .banner-slide {
     animation: bannerSlide 0.3s ease;
   }
+
+  /* Reschedule sheet: bounded by the visible viewport (dvh, with a vh
+     fallback) and the top safe area, so header and actions never clip. */
+  .reschedule-sheet {
+    max-height: 92vh;
+    max-height: calc(100dvh - 1.5rem - env(safe-area-inset-top, 0px));
+  }
+
+  @media (min-width: 640px) {
+    .reschedule-sheet {
+      max-height: min(85vh, 760px);
+      max-height: min(calc(100dvh - 3rem), 760px);
+    }
+  }
 }
 
 html {

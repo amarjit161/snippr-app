@@ -14,6 +14,7 @@ import { RescheduleModal } from "@/components/RescheduleModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { sendBookingEmail } from "@/services/emailService";
+import { canRescheduleStatus, rescheduleBooking, type RescheduleResult } from "@/lib/reschedule";
 
 type BookingTab = "upcoming" | "past" | "cancelled";
 const RESCHEDULE_LOCKED_STATUSES = new Set(["accepted", "confirmed", "in_progress", "done", "completed"]);
@@ -633,158 +634,109 @@ export default function Dashboard() {
     }
   };
 
+  // The popup appears after the booking is already cancelled, so there's no
+  // live booking left to move (and a cancelled row is terminal). Send the
+  // customer to the salon to book a fresh slot instead of "rescheduling" a
+  // cancelled booking — that used to update the cancelled row's date and
+  // report success while the booking stayed cancelled.
   const handleRescheduleFromCancel = () => {
     setShowCancelPopup(false);
-    if (cancelledBooking?.id) {
-      if (isRescheduleLocked(cancelledBooking.previous_status)) {
-        toast.error("Reschedule is not allowed after barber acceptance.");
-        setCancelledBooking(null);
-        return;
-      }
-      const target = bookings.find((b) => b.id === cancelledBooking.id);
-      setRescheduleTarget(target || cancelledBooking);
-      setRescheduleModalOpen(true);
+    const salonId = bookings.find((b) => b.id === cancelledBooking?.id)?.salon_id;
+    setCancelledBooking(null);
+    if (!salonId) {
+      toast.success("Booking cancelled successfully.");
+      return;
     }
+    toast.info("Your booking was cancelled. Pick a new slot to book again.");
+    navigate(`/salon/${salonId}`);
   };
 
   const handleManageClick = (booking: any) => {
-    if (isRescheduleLocked(booking?.status)) {
-      toast.error("Reschedule is not allowed after barber acceptance.");
+    if (!canRescheduleStatus(booking?.status)) {
+      toast.error(
+        isRescheduleLocked(booking?.status)
+          ? "Reschedule is not allowed after barber acceptance."
+          : "This booking can no longer be rescheduled."
+      );
       return;
     }
     setRescheduleTarget(booking);
     setRescheduleModalOpen(true);
   };
 
-  const handleRescheduleConfirm = async (newDate: string, newTime: string) => {
-    if (!rescheduleTarget || !user?.id) {
-      toast.error("Unable to reschedule.");
-      return;
+  const handleRescheduleConfirm = async (newDate: string, newTime: string): Promise<RescheduleResult> => {
+    const target = rescheduleTarget;
+    if (!target || !user?.id) {
+      return { ok: false, reason: "not_authenticated", message: "Unable to reschedule. Please log in again." };
     }
 
-    if (isRescheduleLocked(rescheduleTarget.status)) {
-      toast.error("Reschedule is not allowed after barber acceptance.");
-      return;
+    if (!canRescheduleStatus(target.status)) {
+      return { ok: false, reason: "not_reschedulable", message: "This booking can no longer be rescheduled." };
     }
 
-    setUpdatingId(rescheduleTarget.id);
+    setUpdatingId(target.id);
     try {
-      // Same barber/slot conflict check the new-booking flow already uses
-      // (see bookingValidation.ts / BookingDraftContext), just excluding this
-      // booking's own row — otherwise reschedule could silently double-book
-      // the barber into a slot another active booking already holds.
-      const stylistId = rescheduleTarget.stylist_id || rescheduleTarget.barber_id;
-      if (stylistId) {
-        const { data: conflict, error: conflictError } = await supabase
-          .from("bookings")
-          .select("id")
-          .eq("salon_id", rescheduleTarget.salon_id)
-          .eq("stylist_id", stylistId)
-          .eq("booking_date", newDate)
-          .eq("booking_time", newTime)
-          .neq("id", rescheduleTarget.id)
-          .in("status", ["pending", "waiting", "accepted", "in_progress"])
-          .limit(1)
-          .maybeSingle();
+      // reschedule_customer_booking() is the single write path: it checks
+      // ownership, status, the date window, salon hours/holidays and
+      // stylist conflicts (excluding this booking) server-side, then updates
+      // exactly this booking id. A direct UPDATE is rejected by the
+      // bookings_update_access policy (see migration 20260928000000).
+      const result = await rescheduleBooking(supabase, { bookingId: target.id, date: newDate, time: newTime });
 
-        if (conflictError) {
-          console.error("RESCHEDULE_CONFLICT_CHECK_ERROR", conflictError);
-        } else if (conflict) {
-          toast.error("That slot is no longer available. Please choose another time.");
-          return;
+      if (result.ok === false) {
+        console.error("RESCHEDULE_ERROR", { bookingId: target.id, reason: result.reason });
+        if (result.reason === "not_reschedulable" || result.reason === "not_found") {
+          fetchBookings(true);
         }
+        return result;
       }
 
-      const { data, error } = await supabase
-        .from("bookings")
-        .update({
-          booking_date: newDate,
-          booking_time: newTime,
-        } as any)
-        .eq("id", rescheduleTarget.id)
-        .eq("customer_id", user.id)
-        .not("status", "in", '("accepted","confirmed","in_progress","done","completed")')
-        .select("id")
-        .maybeSingle();
-
-      if (error) {
-        console.error("RESCHEDULE_ERROR", error);
-        // 23505 = unique_violation (a race with another booking into the same
-        // slot); 42501 = insufficient_privilege (RLS rejected the update).
-        // Anything else is shown as a generic, still-actionable message.
-        if (error.code === "23505") {
-          toast.error("That slot was just taken by another booking. Please choose another time.");
-        } else if (error.code === "42501") {
-          toast.error("You don't have permission to modify this booking.");
-        } else {
-          toast.error("Unable to reschedule booking. Please try again.");
-        }
-        return;
-      }
-
-      if (!data) {
-        toast.error("Reschedule blocked. This booking is already accepted by barber.");
-        return;
-      }
-
-      // Send reschedule email
-      if (user?.email && rescheduleTarget) {
+      // Only now — after the database confirmed the move — notify anyone.
+      if (user?.email) {
         try {
           const { data: ownerData } = await supabase
             .from("owners")
             .select("email")
-            .eq("id", rescheduleTarget.salons?.owner_id)
+            .eq("id", target.salons?.owner_id)
             .maybeSingle();
 
-          const [oldH, oldM] = (rescheduleTarget.time_slot || "").split(":").map(Number);
-          const oldPeriod = oldH >= 12 ? "PM" : "AM";
-          const oldHour = oldH > 12 ? oldH - 12 : oldH === 0 ? 12 : oldH;
-          const oldDisplayTime = `${oldHour}:${String(oldM).padStart(2, "0")} ${oldPeriod}`;
-
-          const [h, m] = (newTime || "").split(":").map(Number);
-          const period = h >= 12 ? "PM" : "AM";
-          const hour = h > 12 ? h - 12 : h === 0 ? 12 : h;
-          const displayTime = `${hour}:${String(m).padStart(2, "0")} ${period}`;
-
           await sendBookingEmail('booking_rescheduled', {
-            bookingId: rescheduleTarget.id,
-            salonId: rescheduleTarget.salon_id,
-            salonName: rescheduleTarget.salons?.name || "Salon",
-            salonAddress: rescheduleTarget.salons?.address || rescheduleTarget.salons?.location || '',
-            customerName: `${rescheduleTarget.customer_first_name || ''} ${rescheduleTarget.customer_last_name || ''}`.trim() || 'Customer',
+            bookingId: target.id,
+            salonId: target.salon_id,
+            salonName: target.salons?.name || "Salon",
+            salonAddress: target.salons?.address || target.salons?.location || '',
+            customerName: `${target.customer_first_name || ''} ${target.customer_last_name || ''}`.trim() || 'Customer',
             customerEmail: user.email,
-            customerPhone: rescheduleTarget.customer_phone,
+            customerPhone: target.customer_phone,
             ownerEmail: ownerData?.email || '',
-            serviceName: rescheduleTarget.services?.name || "Service",
-            barberName: '',
-            bookingDate: newDate,
-            timeSlot: displayTime,
-            amount: rescheduleTarget.services?.price || 0,
-            oldDate: rescheduleTarget.booking_date,
-            oldTime: oldDisplayTime,
+            serviceName: target.services?.name || "Service",
+            barberName: target.barbers?.name || '',
+            bookingDate: result.bookingDate,
+            timeSlot: formatTimeSlot(result.bookingTime),
+            amount: target.services?.price || 0,
+            oldDate: target.booking_date,
+            oldTime: formatTimeSlot(target.time_slot),
           });
-
-          console.log("RESCHEDULE_EMAIL_SENT", { bookingId: rescheduleTarget.id });
         } catch (emailErr) {
           console.warn("❌ RESCHEDULE_EMAIL_FAILED", emailErr);
         }
       }
 
-      // Update local state
       setBookings((prev) =>
         prev.map((b) =>
-          b.id === rescheduleTarget.id
-            ? { ...b, booking_date: newDate, booking_time: newTime, time_slot: newTime }
+          b.id === result.bookingId
+            ? { ...b, booking_date: result.bookingDate, booking_time: result.bookingTime, time_slot: result.bookingTime }
             : b
         )
       );
+      // Re-read from the database so the list reflects the committed row even
+      // if the realtime event is delayed or missed.
+      fetchBookings(true);
 
       toast.success("Booking rescheduled successfully!");
       setRescheduleModalOpen(false);
       setRescheduleTarget(null);
-    } catch (err) {
-      console.error("RESCHEDULE_UNEXPECTED_ERROR", err);
-      toast.error("Unable to reschedule booking. Please try again.");
+      return result;
     } finally {
       setUpdatingId(null);
     }
@@ -939,14 +891,19 @@ export default function Dashboard() {
         booking={
           rescheduleTarget
             ? {
-                salon_name: rescheduleTarget.salons?.name || rescheduleTarget.salon_name,
-                service_name: rescheduleTarget.services?.name || rescheduleTarget.service_name,
-                current_date: rescheduleTarget.booking_date || rescheduleTarget.current_date,
-                current_time: rescheduleTarget.time_slot || rescheduleTarget.booking_time || rescheduleTarget.current_time,
+                id: rescheduleTarget.id,
+                salon_id: rescheduleTarget.salon_id,
+                stylist_id: rescheduleTarget.stylist_id || null,
+                salon_name: rescheduleTarget.salons?.name,
+                service_name: rescheduleTarget.services?.name,
+                stylist_name: rescheduleTarget.barbers?.name || null,
+                service_duration: rescheduleTarget.services?.duration ?? null,
+                current_date: rescheduleTarget.booking_date,
+                current_time: rescheduleTarget.booking_time,
               }
             : null
         }
-        isLoading={rescheduleTarget && updatingId === rescheduleTarget.id}
+        isLoading={Boolean(rescheduleTarget) && updatingId === rescheduleTarget?.id}
       />
 
       {/* Leave a Review Modal (additive — customer-facing review submission) */}
