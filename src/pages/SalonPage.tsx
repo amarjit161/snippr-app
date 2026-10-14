@@ -13,6 +13,8 @@ import { formatINR } from "@/lib/currency";
 import { startBookingFlow } from "@/contexts/BookingDraftContext";
 import { pageFade, cardFloat, motionEase } from "@/lib/motion";
 import type { Tables } from "@/integrations/supabase/types";
+import { usePageMeta } from "@/hooks/usePageMeta";
+import { appCanonicalOrigin } from "@/lib/domains";
 
 const getSalonImageSrc = (imageUrl: string | null) => {
   if (!imageUrl) return "/default-salon.jpg";
@@ -73,6 +75,14 @@ export default function SalonPage() {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isFavorited, setIsFavorited] = useState(false);
+
+  usePageMeta({
+    title: salon?.name ? `${salon.name} — Book on Snippr` : "Salon — Snippr",
+    description: salon?.name
+      ? `See services and the live queue at ${salon.name}${salon.location ? `, ${salon.location}` : ""}, and book your appointment on Snippr.`
+      : "See services and the live queue, and book your appointment on Snippr.",
+    canonical: id ? `${appCanonicalOrigin()}/salon/${encodeURIComponent(id)}` : undefined,
+  });
   const [favoriteBusy, setFavoriteBusy] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [selectedServiceIds, setSelectedServiceIds] = useState<Set<string>>(new Set());

@@ -62,6 +62,7 @@ import { CustomerAppShell } from "./components/customer/CustomerAppShell.tsx";
 import { BookingFlowProvider } from "./contexts/BookingDraftContext.tsx";
 import { OwnerProtectedRoute } from "./components/OwnerProtectedRoute.tsx";
 import { RouteRecovery } from "./components/RouteRecovery.tsx";
+import { HomeRoute, MarketingHostGate } from "./components/HostRouting.tsx";
 import { useAuth } from "@/contexts/AuthContext";
 import { ErrorBoundary } from "./components/errors/ErrorBoundary";
 import { OfflineBanner } from "./components/errors/OfflineBanner";
@@ -102,7 +103,7 @@ const PageLoader = () => (
 export const appRouteTree = (
   <>
     {/* Critical pages - No suspension */}
-    <Route path="/" element={<Index />} />
+    <Route path="/" element={<HomeRoute marketing={<Index />} />} />
     <Route path="/login" element={<CustomerLogin />} />
     <Route path="/auth" element={<Auth />} />
     <Route path="/register" element={<CustomerRegister />} />
@@ -194,9 +195,11 @@ const AppRoutes = () => {
   useTawkTo();
 
   return (
-    <Routes>
-      {appRouteTree}
-    </Routes>
+    <MarketingHostGate>
+      <Routes>
+        {appRouteTree}
+      </Routes>
+    </MarketingHostGate>
   );
 };
 

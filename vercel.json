@@ -5,6 +5,24 @@
       "destination": "/api/verify-turnstile"
     },
     {
+      "source": "/robots.txt",
+      "has": [{ "type": "host", "value": "app.snippr.in" }],
+      "destination": "/robots-app.txt"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "/robots-www.txt"
+    },
+    {
+      "source": "/sitemap.xml",
+      "has": [{ "type": "host", "value": "app.snippr.in" }],
+      "destination": "/sitemap-app.xml"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/sitemap-www.xml"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

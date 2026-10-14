@@ -15,6 +15,8 @@ import { calculateDistance } from "@/lib/location";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { usePageMeta } from "@/hooks/usePageMeta";
+import { appCanonicalOrigin } from "@/lib/domains";
 
 export type SalonWithQueueAndDistance = Tables<"salons"> & { queueCount: number; waitTime: number; distance?: number };
 
@@ -159,6 +161,12 @@ const Salons = () => {
   const routerLocation = useLocation();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const { location: userCoords } = useGeolocation();
+
+  usePageMeta({
+    title: "Find a Salon — Snippr",
+    description: "Browse salons on Snippr, compare live queues and wait times, and book your appointment.",
+    canonical: `${appCanonicalOrigin()}/salons`,
+  });
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"distance" | "waitTime">("distance");
   const [showSuggestions, setShowSuggestions] = useState(false);
