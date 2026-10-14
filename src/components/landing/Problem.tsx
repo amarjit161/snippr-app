@@ -3,10 +3,8 @@ import { motion } from "framer-motion";
 import { V, DISP } from "./tokens";
 import { Reveal, Label } from "@/components/design/Reveal";
 
-const QUEUE_NAMES = [
-  "Alex M.", "Priya N.", "Sam K.", "Jordan P.", "Chris R.",
-  "Morgan T.", "Riley S.", "Casey B.", "Drew L.", "Jamie K.", "Parker W.", "Quinn A.",
-];
+// Illustrative queue only — generic labels, not real or invented people.
+const QUEUE_NAMES = Array.from({ length: 12 }, (_, i) => `Customer ${i + 1}`);
 
 export function Problem() {
   const queueRef  = useRef<HTMLDivElement>(null);
