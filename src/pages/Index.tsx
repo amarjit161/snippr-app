@@ -161,19 +161,19 @@ export default function Index() {
 
       <nav className="fixed bottom-0 left-0 z-50 flex w-full items-center justify-around px-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-3 md:hidden"
         style={{ background: "rgba(5,5,7,0.9)", backdropFilter: "blur(20px)", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-        <button className="flex flex-col items-center justify-center rounded-2xl px-4 py-2 min-[380px]:px-6 text-white" style={{ background: "#7C3AED" }} onClick={() => goApp("/salons")}>
+        <button className="flex flex-col items-center justify-center min-w-0 max-w-[7rem] flex-1 rounded-2xl px-2 py-2 text-white" style={{ background: "#7C3AED" }} onClick={() => goApp("/salons")}>
           <Search className="h-5 w-5" />
           <span className="mt-1 text-[10px] font-bold uppercase tracking-widest">Explore</span>
         </button>
-        <button className="flex flex-col items-center justify-center rounded-2xl px-4 py-2 min-[380px]:px-6" style={{ color: "rgba(255,255,255,0.4)" }} onClick={() => goApp("/bookings")}>
+        <button className="flex flex-col items-center justify-center min-w-0 max-w-[7rem] flex-1 rounded-2xl px-2 py-2" style={{ color: "rgba(255,255,255,0.4)" }} onClick={() => goApp("/bookings")}>
           <CalendarDays className="h-5 w-5" />
           <span className="mt-1 text-[10px] font-bold uppercase tracking-widest">Bookings</span>
         </button>
-        <button className="flex flex-col items-center justify-center rounded-2xl px-4 py-2 min-[380px]:px-6" style={{ color: "rgba(255,255,255,0.4)" }} onClick={() => goApp("/bookings", { initialTab: "upcoming" })}>
+        <button className="flex flex-col items-center justify-center min-w-0 max-w-[7rem] flex-1 rounded-2xl px-2 py-2" style={{ color: "rgba(255,255,255,0.4)" }} onClick={() => goApp("/bookings", { initialTab: "upcoming" })}>
           <Hourglass className="h-5 w-5" />
           <span className="mt-1 text-[10px] font-bold uppercase tracking-widest">Live Queue</span>
         </button>
-        <button className="flex flex-col items-center justify-center rounded-2xl px-4 py-2 min-[380px]:px-6" style={{ color: "rgba(255,255,255,0.4)" }} onClick={() => goApp(user ? "/my-profile" : "/login")}>
+        <button className="flex flex-col items-center justify-center min-w-0 max-w-[7rem] flex-1 rounded-2xl px-2 py-2" style={{ color: "rgba(255,255,255,0.4)" }} onClick={() => goApp(user ? "/my-profile" : "/login")}>
           <User className="h-5 w-5" />
           <span className="mt-1 text-[10px] font-bold uppercase tracking-widest">Profile</span>
         </button>

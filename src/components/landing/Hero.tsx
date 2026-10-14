@@ -102,7 +102,11 @@ export function Hero({ onBookings }: { onBookings: () => void }) {
           className="hidden md:flex justify-center">
           <div ref={phoneRef} style={{ transition: "transform 0.22s ease", willChange: "transform" }}>
             <div className="breathe" style={{ position: "relative" }}>
-              <div aria-hidden="true" style={{ position: "absolute", inset: -40, borderRadius: "50%", pointerEvents: "none",
+              {/* Glow extends 40px around the phone, but only 16px sideways (inside the section's
+                  24px padding, with room for the mouse tilt) until xl, where the centred container
+                  leaves space — otherwise it widens the page ~16px between md and ~1230px. */}
+              <div aria-hidden="true" className="absolute -inset-y-10 -inset-x-4 xl:-inset-x-10"
+                style={{ borderRadius: "50%", pointerEvents: "none",
                 background: `radial-gradient(ellipse, ${V}25, transparent 70%)`, filter: "blur(35px)" }} />
               <div aria-hidden="true" style={{ position: "absolute", bottom: -28, left: "15%", right: "15%", height: 28,
                 background: "rgba(124,58,237,0.22)", filter: "blur(20px)", borderRadius: "50%" }} />
