@@ -289,7 +289,7 @@ describe("email/password sign-in", () => {
 });
 
 // ---------------------------------------------------------------------------
-describe("phone OTP sign-in (MobileOtpAuth, unchanged)", () => {
+describe("phone OTP sign-in (MobileOtpAuth)", () => {
   const signInWithPhone = async () => {
     fireEvent.click(screen.getByRole("button", { name: /continue with mobile/i }));
     fireEvent.change(screen.getByLabelText("10-digit mobile number"), { target: { value: "9876543210" } });
@@ -319,5 +319,86 @@ describe("phone OTP sign-in (MobileOtpAuth, unchanged)", () => {
     await signInWithPhone();
     await landedOn("/salons");
     expect(saved()).toBeNull();
+  });
+
+  it("preserves the query and hash of a saved path", async () => {
+    localStorage.setItem("redirectAfterLogin", "/booking/confirm?x=1#details");
+    renderAt("/auth");
+    await signInWithPhone();
+    await landedOn("/booking/confirm?x=1#details");
+    expect(saved()).toBeNull();
+  });
+
+  it("falls back to /salons when nothing is saved", async () => {
+    renderAt("/auth");
+    await signInWithPhone();
+    await landedOn("/salons");
+    expect(saved()).toBeNull();
+  });
+
+  it.each([
+    ["protocol-relative", "//evil.com"],
+    ["protocol-relative with path", "//evil.com/bookings"],
+    ["backslash", "/\\evil.com"],
+    ["absolute http", "http://evil.com/bookings"],
+    ["javascript: URL", "javascript:alert(1)"],
+    ["data: URL", "data:text/html,<script>alert(1)</script>"],
+    ["relative (no leading slash)", "bookings"],
+    ["empty", ""],
+    ["control character", "/\t/evil.com"],
+    ["sign-in loop", "/login"],
+    ["callback loop", "/auth/callback?next=/bookings"],
+  ])("rejects a %s saved path, goes to /salons and clears it", async (_label, value) => {
+    localStorage.setItem("redirectAfterLogin", value);
+    renderAt("/auth");
+    await signInWithPhone();
+    await landedOn("/salons");
+    expect(saved()).toBeNull();
+  });
+
+  it("incomplete profile → /complete-profile, saved path kept for after completion", async () => {
+    mocks.profile = null;
+    localStorage.setItem("redirectAfterLogin", "/bookings");
+    render(
+      <MemoryRouter initialEntries={["/auth"]}>
+        <Routes>
+          <Route path="/auth" element={<CustomerLogin />} />
+          <Route path="*" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await signInWithPhone();
+    await landedOn("/complete-profile");
+    expect(saved()).toBe("/bookings");
+  });
+
+  it("no user after verification → /salons (unchanged)", async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: null } });
+    localStorage.setItem("redirectAfterLogin", "/bookings");
+    renderAt("/auth");
+    await signInWithPhone();
+    await landedOn("/salons");
+  });
+
+  it("OTP send and verify calls are unchanged", async () => {
+    renderAt("/auth");
+    await signInWithPhone();
+    await landedOn("/salons");
+    expect(mocks.signInWithOtp).toHaveBeenCalledTimes(1);
+    expect(mocks.signInWithOtp).toHaveBeenCalledWith({ phone: "+919876543210" });
+    expect(mocks.verifyOtp).toHaveBeenCalledTimes(1);
+    expect(mocks.verifyOtp).toHaveBeenCalledWith({ phone: "+919876543210", token: "123456", type: "sms" });
+  });
+
+  it("a failed verification stays on the code step and does not navigate or touch the saved path", async () => {
+    mocks.verifyOtp.mockResolvedValue({ data: { user: null, session: null }, error: { message: "Token has expired or is invalid", code: "otp_expired" } });
+    localStorage.setItem("redirectAfterLogin", "/bookings");
+    renderAt("/auth");
+    await signInWithPhone();
+    await waitFor(() => expect(mocks.verifyOtp).toHaveBeenCalledTimes(1));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(screen.queryByTestId("location")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Digit 1 of 6")).toBeInTheDocument();
+    expect(saved()).toBe("/bookings");
   });
 });

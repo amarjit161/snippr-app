@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ChevronLeft, Loader2, ShieldCheck, Smartphone } from 'lucide-react';
 import { V, VA, BODY, MONO } from '@/components/landing/tokens';
+import { consumeStoredReturnPath } from '@/lib/returnPath';
 import {
   getFriendlyOtpVerifyError,
   getFriendlyPhoneOtpError,
@@ -81,9 +82,8 @@ export default function MobileOtpAuth({ onBack }: MobileOtpAuthProps) {
       if (!profile?.first_name) {
         navigate('/complete-profile');
       } else {
-        const redirectTo = localStorage.getItem('redirectAfterLogin');
-        localStorage.removeItem('redirectAfterLogin');
-        navigate(redirectTo && redirectTo.startsWith('/') ? redirectTo : '/salons');
+        // Same validated read-and-clear as email/Google sign-in (falls back to /salons).
+        navigate(consumeStoredReturnPath());
       }
     } catch {
       navigate('/salons');
