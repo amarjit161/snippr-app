@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Eye, EyeOff } from 'lucide-react';
 import { V, VA, BG, DISP, BODY } from '@/components/landing/tokens';
+import { useAuth } from '@/contexts/AuthContext';
+import { hardNavigate } from '@/lib/hardNavigate';
 import {
   INVALID_LINK_MESSAGE,
   acknowledgeRecoveryRedirect,
@@ -28,6 +30,17 @@ const resolvePostResetDestination = async (userId: string | undefined): Promise<
   }
 };
 
+// After signing out, wait for AuthContext to report it before leaving this page:
+// pages such as /owner-login act on the provider's `user`, which only clears a
+// moment after signOut() (AuthContext debounces auth events). Navigating earlier
+// showed them a stale signed-in user with no owner profile, bouncing owners on to
+// /owner-register and then /owner-signup.
+//
+// Fallback, only if the provider never reports the sign-out: a full page load
+// to the destination. That re-initialises auth from storage, which signOut() has
+// already cleared, so the next page can't see stale state on this path either.
+const SIGNED_OUT_FALLBACK_MS = 3000;
+
 export const ResetPassword = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -42,6 +55,25 @@ export const ResetPassword = () => {
   const [loading, setLoading] = useState(false);
   const [verifiedSession, setVerifiedSession] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
+  const { session: authSession } = useAuth();
+  const [postResetDestination, setPostResetDestination] = useState<string | null>(null);
+  const leftAfterResetRef = useRef(false);
+
+  useEffect(() => {
+    if (!postResetDestination) return;
+    const leave = (fullPageLoad: boolean) => {
+      if (leftAfterResetRef.current) return; // exactly one navigation
+      leftAfterResetRef.current = true;
+      if (fullPageLoad) hardNavigate(postResetDestination);
+      else navigate(postResetDestination, { replace: true });
+    };
+    if (!authSession) {
+      leave(false);
+      return;
+    }
+    const fallback = setTimeout(() => leave(true), SIGNED_OUT_FALLBACK_MS);
+    return () => clearTimeout(fallback);
+  }, [postResetDestination, authSession, navigate]);
 
   useEffect(() => {
     setEmail(emailFromUrl);
@@ -185,16 +217,18 @@ export const ResetPassword = () => {
 
     if (error) {
       toast.error(error.message);
-    } else {
-      toast.success('Password updated successfully!');
-      // Chosen only after the update succeeded, and before signing out.
-      const destination = await resolvePostResetDestination(data?.user?.id);
-      clearRecoverySession();
-      await supabase.auth.signOut();
-      navigate(destination);
+      setLoading(false);
+      return;
     }
 
-    setLoading(false);
+    toast.success('Password updated successfully!');
+    // Chosen only after the update succeeded, and before signing out.
+    const destination = await resolvePostResetDestination(data?.user?.id);
+    clearRecoverySession();
+    await supabase.auth.signOut();
+    // Navigation happens in the effect above once the sign-out is reflected in
+    // AuthContext. The button stays in its loading state until then.
+    setPostResetDestination(destination);
   };
 
   const pageStyle: React.CSSProperties = { minHeight: '100vh', background: BG, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: BODY, position: 'relative', overflow: 'hidden' };
