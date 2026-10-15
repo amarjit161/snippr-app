@@ -4,6 +4,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Eye, EyeOff } from 'lucide-react';
 import { V, VA, BG, DISP, BODY } from '@/components/landing/tokens';
+import {
+  INVALID_LINK_MESSAGE,
+  clearRecoverySession,
+  getRecoveryLinkError,
+  getRecoverySession,
+  markRecoverySession,
+  stripRecoveryParamsFromUrl,
+  verifyRecoveryLink,
+} from '@/lib/passwordRecovery';
 
 // Owners and customers share this reset page, so send each back to their own
 // sign-in. Decided by the `owners` table, not user_metadata.role (older owner
@@ -31,6 +40,7 @@ export const ResetPassword = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [verifiedSession, setVerifiedSession] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   useEffect(() => {
     setEmail(emailFromUrl);
@@ -39,40 +49,71 @@ export const ResetPassword = () => {
   useEffect(() => {
     let active = true;
 
-    const handleRecoveryHash = async () => {
-      const hashParams = new URLSearchParams(window.location.hash.substring(1));
-      const accessToken = hashParams.get('access_token');
-      const type = hashParams.get('type');
-      const refreshToken = hashParams.get('refresh_token');
-
-      if (accessToken && type === 'recovery') {
-        const { error } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken || '',
-        });
-
-        if (!active) return;
-
-        if (!error) {
-          setVerifiedSession(true);
-          setStep('password');
-          window.history.replaceState({}, '', '/reset-password');
-        }
-      }
+    // The new-password form is shown only once a recovery session is verified.
+    const showPasswordForm = () => {
+      if (!active) return;
+      setLinkError(null);
+      setVerifiedSession(true);
+      setStep('password');
     };
 
-    void handleRecoveryHash();
-
+    // Recovery confirmed after this page mounted (e.g. still initialising).
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!active) return;
-
-      if (event === 'PASSWORD_RECOVERY' && session) {
-        setVerifiedSession(true);
-        setStep('password');
-      }
+      if (event === 'PASSWORD_RECOVERY' && session) showPasswordForm();
     });
+
+    const initRecovery = async () => {
+      const search = new URLSearchParams(window.location.search);
+      const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+
+      // 1. Supabase sent the user back with an error, or the link already expired.
+      const urlError = getRecoveryLinkError(search, hash);
+      if (urlError) {
+        if (active) setLinkError(urlError);
+        return;
+      }
+
+      // 2. A recovery session was already established (usually during start-up).
+      if (await getRecoverySession()) {
+        stripRecoveryParamsFromUrl();
+        showPasswordForm();
+        return;
+      }
+
+      // 3. Recovery tokens still in the hash (implicit flow, if not yet consumed).
+      const accessToken = hash.get('access_token');
+      if (accessToken && hash.get('type') === 'recovery') {
+        const { data, error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: hash.get('refresh_token') || '',
+        });
+        if (!active) return;
+        if (!error) {
+          markRecoverySession(data?.session);
+          stripRecoveryParamsFromUrl();
+          showPasswordForm();
+        } else {
+          setLinkError(INVALID_LINK_MESSAGE);
+        }
+        return;
+      }
+
+      // 4. ?token_hash=…&type=recovery or a PKCE ?code=… — verified once with Supabase.
+      const attempt = verifyRecoveryLink(search);
+      if (!attempt) return; // no link: the email + code form below is the way in
+      const result = await attempt;
+      if (!active) return;
+      if (result.status === 'verified') {
+        stripRecoveryParamsFromUrl();
+        showPasswordForm();
+      } else {
+        setLinkError(result.message);
+      }
+    };
+
+    void initRecovery();
 
     return () => {
       active = false;
@@ -107,6 +148,8 @@ export const ResetPassword = () => {
         toast.error(error.message);
       }
     } else if (data.session) {
+      markRecoverySession(data.session);
+      setLinkError(null);
       setVerifiedSession(true);
       setStep('password');
       toast.success('OTP verified! Set your new password.');
@@ -141,6 +184,7 @@ export const ResetPassword = () => {
       toast.success('Password updated successfully!');
       // Chosen only after the update succeeded, and before signing out.
       const destination = await resolvePostResetDestination(data?.user?.id);
+      clearRecoverySession();
       await supabase.auth.signOut();
       navigate(destination);
     }
@@ -169,6 +213,11 @@ export const ResetPassword = () => {
             <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 4 }}>Enter the OTP code from your email</p>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {linkError && (
+              <div role="alert" style={{ borderRadius: 12, padding: '12px 16px', fontSize: 13, lineHeight: 1.5, color: '#FCA5A5', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.25)' }}>
+                {linkError}
+              </div>
+            )}
             {!emailFromUrl && (
               <div>
                 <label style={labelStyle}>Email Address</label>
