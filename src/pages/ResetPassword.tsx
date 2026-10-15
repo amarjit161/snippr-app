@@ -5,6 +5,19 @@ import { toast } from 'sonner';
 import { Eye, EyeOff } from 'lucide-react';
 import { V, VA, BG, DISP, BODY } from '@/components/landing/tokens';
 
+// Owners and customers share this reset page, so send each back to their own
+// sign-in. Decided by the `owners` table, not user_metadata.role (older owner
+// accounts don't have it). Any lookup problem falls back to the customer sign-in.
+const resolvePostResetDestination = async (userId: string | undefined): Promise<string> => {
+  if (!userId) return '/login';
+  try {
+    const { data, error } = await supabase.from('owners').select('id').eq('id', userId).maybeSingle();
+    return !error && data ? '/owner-login' : '/login';
+  } catch {
+    return '/login';
+  }
+};
+
 export const ResetPassword = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -120,14 +133,16 @@ export const ResetPassword = () => {
 
     setLoading(true);
 
-    const { error } = await supabase.auth.updateUser({ password });
+    const { data, error } = await supabase.auth.updateUser({ password });
 
     if (error) {
       toast.error(error.message);
     } else {
       toast.success('Password updated successfully!');
+      // Chosen only after the update succeeded, and before signing out.
+      const destination = await resolvePostResetDestination(data?.user?.id);
       await supabase.auth.signOut();
-      navigate('/owner-login');
+      navigate(destination);
     }
 
     setLoading(false);
