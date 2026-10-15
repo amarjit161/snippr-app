@@ -21,7 +21,7 @@ import { CTA } from "@/components/landing/CTA";
 import { Footer } from "@/components/landing/Footer";
 import { useAppNavigate } from "@/components/landing/useAppNavigate";
 import { usePageMeta } from "@/hooks/usePageMeta";
-import { MARKETING_ORIGIN, getHostRole } from "@/lib/domains";
+import { MARKETING_ORIGIN, getHostRole, resolveRootAuthTarget } from "@/lib/domains";
 
 const ORGANIZATION_LD = JSON.stringify({
   "@context": "https://schema.org",
@@ -44,36 +44,11 @@ export default function Index() {
     canonical: `${MARKETING_ORIGIN}/`,
   });
 
+  // Recovery links can fall back to the site root (Supabase Site URL), and expired
+  // ones land here with hash errors only. Same rules as the app-host "/" route.
   useEffect(() => {
-    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-    const searchParams = new URLSearchParams(window.location.search);
-
-    const hashErrorCode = hashParams.get("error_code");
-    const hashError = hashParams.get("error");
-
-    const hasRecoveryInHash = hashParams.get("type") === "recovery";
-    const hasRecoveryInQuery = searchParams.get("type") === "recovery";
-    const hasRecoveryPayload =
-      Boolean(hashParams.get("access_token") && hashParams.get("refresh_token")) ||
-      Boolean(searchParams.get("token_hash")) ||
-      Boolean(searchParams.get("code"));
-
-    // Expired reset links can land on site root with hash errors only.
-    // Send users directly to reset page where OTP code fallback is available.
-    if (hashErrorCode === "otp_expired" || hashError === "access_denied") {
-      navigate("/reset-password?expired=1", { replace: true });
-      return;
-    }
-
-    if ((hasRecoveryInHash || hasRecoveryInQuery) && hasRecoveryPayload) {
-      const nextUrl = `/auth/callback${window.location.search}${window.location.hash}`;
-      console.log("RECOVERY_REDIRECT_FROM_ROOT", {
-        hasRecoveryInHash,
-        hasRecoveryInQuery,
-        nextUrl,
-      });
-      navigate(nextUrl, { replace: true });
-    }
+    const target = resolveRootAuthTarget(window.location.search, window.location.hash);
+    if (target) navigate(target, { replace: true });
   }, [navigate]);
 
   // intent "bookings" (nav Bookings / avatar) vs "queue" (Join Queue). They only

@@ -82,7 +82,9 @@ export function resolveRootAuthTarget(search: string, hash: string): string | nu
     Boolean(q.get("token_hash")) ||
     Boolean(q.get("code"));
 
-  if (isRecovery && hasRecoveryPayload) return `/auth/callback${search}${hash}`;
+  // Straight to the reset page (not /auth/callback, which handles sign-in):
+  // a recovery link must end with the user choosing a new password.
+  if (isRecovery && hasRecoveryPayload) return `/reset-password${search}${hash}`;
   return null;
 }
 

@@ -59,7 +59,7 @@ describe("domain split enabled", () => {
   it("forwards auth links that fell back to the www root", async () => {
     const d = await loadDomains(env);
     expect(d.getAppHostRedirect(at("https://www.snippr.in/#access_token=a&refresh_token=b&type=recovery")))
-      .toBe("https://app.snippr.in/auth/callback#access_token=a&refresh_token=b&type=recovery");
+      .toBe("https://app.snippr.in/reset-password#access_token=a&refresh_token=b&type=recovery");
     expect(d.getAppHostRedirect(at("https://www.snippr.in/#error=access_denied&error_code=otp_expired")))
       .toBe("https://app.snippr.in/reset-password?expired=1");
     expect(d.getAppHostRedirect(at("https://www.snippr.in/#access_token=a&refresh_token=b&type=magiclink")))
@@ -75,11 +75,21 @@ describe("domain split enabled", () => {
 });
 
 describe("resolveRootAuthTarget", () => {
-  it("matches the previous homepage recovery handling", async () => {
+  it("sends root recovery links to the reset page, keeping query and hash", async () => {
     const d = await loadDomains({});
     expect(d.resolveRootAuthTarget("", "#error=access_denied")).toBe("/reset-password?expired=1");
-    expect(d.resolveRootAuthTarget("?type=recovery&token_hash=t", "")).toBe("/auth/callback?type=recovery&token_hash=t");
+    expect(d.resolveRootAuthTarget("", "#error=access_denied&error_code=otp_expired")).toBe("/reset-password?expired=1");
+    expect(d.resolveRootAuthTarget("?type=recovery&token_hash=t", "")).toBe("/reset-password?type=recovery&token_hash=t");
+    expect(d.resolveRootAuthTarget("?type=recovery&code=c", "")).toBe("/reset-password?type=recovery&code=c");
+    expect(d.resolveRootAuthTarget("", "#access_token=a&refresh_token=b&type=recovery"))
+      .toBe("/reset-password#access_token=a&refresh_token=b&type=recovery");
     expect(d.resolveRootAuthTarget("", "#type=recovery")).toBeNull();
     expect(d.resolveRootAuthTarget("", "")).toBeNull();
+  });
+
+  it("leaves ordinary sign-in links (magic link, signup) alone", async () => {
+    const d = await loadDomains({});
+    expect(d.resolveRootAuthTarget("", "#access_token=a&refresh_token=b&type=magiclink")).toBeNull();
+    expect(d.resolveRootAuthTarget("", "#access_token=a&refresh_token=b&type=signup")).toBeNull();
   });
 });
