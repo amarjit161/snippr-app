@@ -141,5 +141,5 @@ describe("app routing", () => {
     walk(createRoutesFromChildren(appRouteTree));
     expect(paths).toContain("/owner-reset-password");
     expect(paths).toContain("/reset-password");
-  });
+  }, 20_000); // importing the whole App can exceed the 5s default under a parallel full-suite run
 });

@@ -16,7 +16,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    auth: { getSession: mocks.getSession },
+    auth: {
+      getSession: mocks.getSession,
+      // Registered by src/lib/passwordRecovery.ts when Index loads it.
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+    },
     from: (table: string) => ({
       select: () => ({
         eq: () => ({

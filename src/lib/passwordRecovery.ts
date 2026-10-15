@@ -15,6 +15,10 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
 let recoveryUserId: string | null = null;
+// Set by PASSWORD_RECOVERY; cleared once the user has been routed to (or has
+// opened) /reset-password, so entry pages redirect a single time, not on every visit.
+let resetPagePending = false;
+const recoveryListeners = new Set<() => void>();
 
 export function markRecoverySession(session: Session | null | undefined): void {
   if (session?.user?.id) recoveryUserId = session.user.id;
@@ -22,12 +26,53 @@ export function markRecoverySession(session: Session | null | undefined): void {
 
 export function clearRecoverySession(): void {
   recoveryUserId = null;
+  resetPagePending = false;
 }
 
 supabase.auth.onAuthStateChange((event, session) => {
-  if (event === 'PASSWORD_RECOVERY') markRecoverySession(session);
-  else if (event === 'SIGNED_OUT') clearRecoverySession();
+  if (event === 'PASSWORD_RECOVERY') {
+    markRecoverySession(session);
+    if (session?.user?.id) {
+      resetPagePending = true;
+      recoveryListeners.forEach((listener) => listener());
+    }
+  } else if (event === 'SIGNED_OUT') {
+    clearRecoverySession();
+  }
 });
+
+/** Notified when PASSWORD_RECOVERY arrives. Uses the module listener; adds no Supabase listener. */
+export function onRecoverySession(listener: () => void): () => void {
+  recoveryListeners.add(listener);
+  return () => {
+    recoveryListeners.delete(listener);
+  };
+}
+
+/**
+ * Resolves after auth events Supabase has already queued. During start-up it
+ * saves a recovery session and queues PASSWORD_RECOVERY with setTimeout(0)
+ * before getSession() resolves (which is what releases RootLoadingGuard), so by
+ * the time a page has rendered the event is at most one timer away.
+ */
+export const afterQueuedAuthEvents = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+/** /reset-password has been reached: entry pages must not send the user there again. */
+export function acknowledgeRecoveryRedirect(): void {
+  resetPagePending = false;
+}
+
+/**
+ * For entry pages ("/"): whether the current session is a recovery session
+ * that hasn't reached /reset-password yet. Does not consume anything — the
+ * caller calls acknowledgeRecoveryRedirect() synchronously when it actually
+ * navigates, so a cancelled effect (e.g. React Strict Mode) can't lose it.
+ */
+export async function hasPendingRecoveryRedirect(): Promise<boolean> {
+  if (!resetPagePending) return false;
+  const session = await getRecoverySession();
+  return Boolean(session) && resetPagePending;
+}
 
 /** The current session, if (and only if) it was established through password recovery. */
 export async function getRecoverySession(): Promise<Session | null> {

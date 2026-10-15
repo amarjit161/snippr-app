@@ -6,6 +6,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import { V, VA, BG, DISP, BODY } from '@/components/landing/tokens';
 import {
   INVALID_LINK_MESSAGE,
+  acknowledgeRecoveryRedirect,
   clearRecoverySession,
   getRecoveryLinkError,
   getRecoverySession,
@@ -48,10 +49,13 @@ export const ResetPassword = () => {
 
   useEffect(() => {
     let active = true;
+    // The user is on the reset page: the homepage must not send them here again.
+    acknowledgeRecoveryRedirect();
 
     // The new-password form is shown only once a recovery session is verified.
     const showPasswordForm = () => {
       if (!active) return;
+      acknowledgeRecoveryRedirect();
       setLinkError(null);
       setVerifiedSession(true);
       setStep('password');
@@ -149,6 +153,7 @@ export const ResetPassword = () => {
       }
     } else if (data.session) {
       markRecoverySession(data.session);
+      acknowledgeRecoveryRedirect();
       setLinkError(null);
       setVerifiedSession(true);
       setStep('password');

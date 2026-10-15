@@ -22,6 +22,12 @@ import { Footer } from "@/components/landing/Footer";
 import { useAppNavigate } from "@/components/landing/useAppNavigate";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { MARKETING_ORIGIN, getHostRole, resolveRootAuthTarget } from "@/lib/domains";
+import {
+  acknowledgeRecoveryRedirect,
+  afterQueuedAuthEvents,
+  hasPendingRecoveryRedirect,
+  onRecoverySession,
+} from "@/lib/passwordRecovery";
 
 const ORGANIZATION_LD = JSON.stringify({
   "@context": "https://schema.org",
@@ -48,7 +54,28 @@ export default function Index() {
   // ones land here with hash errors only. Same rules as the app-host "/" route.
   useEffect(() => {
     const target = resolveRootAuthTarget(window.location.search, window.location.hash);
-    if (target) navigate(target, { replace: true });
+    if (target) {
+      navigate(target, { replace: true });
+      return;
+    }
+
+    // Supabase usually consumes a recovery link's hash (saving the session and
+    // queueing PASSWORD_RECOVERY) before this page renders, so check for a
+    // verified recovery session too. An ordinary session never counts.
+    let active = true;
+    let done = false;
+    const goToResetIfPending = async () => {
+      if (!(await hasPendingRecoveryRedirect()) || !active || done) return;
+      done = true;
+      acknowledgeRecoveryRedirect();
+      navigate("/reset-password", { replace: true });
+    };
+    const unsubscribe = onRecoverySession(() => void goToResetIfPending());
+    void afterQueuedAuthEvents().then(goToResetIfPending);
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, [navigate]);
 
   // intent "bookings" (nav Bookings / avatar) vs "queue" (Join Queue). They only
