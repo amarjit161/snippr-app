@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { User, Phone, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { BookingPageShell } from "@/components/booking/BookingPageShell";
 import BookingSuccess from "@/components/BookingSuccess";
 import { useBookingDraft } from "@/contexts/BookingDraftContext";
+import { formatFullName, splitFullName } from "@/lib/fullName";
 
 const getSalonImageSrc = (imageUrl: string | null | undefined) => {
   if (!imageUrl) return "/default-salon.jpg";
@@ -35,6 +36,21 @@ export default function BookingConfirmPage() {
   } = useBookingDraft();
 
   const [touched, setTouched] = useState({ firstName: false, lastName: false, phone: false });
+
+  // The field shows exactly what was typed (spaces included); first/last name are
+  // derived from it. Rebuilding the value from the stored names would drop a
+  // trailing space on every keystroke, making a second word impossible to type.
+  const [fullNameInput, setFullNameInput] = useState(() =>
+    formatFullName(activeCustomer.firstName, activeCustomer.lastName),
+  );
+
+  // Names changed outside this field (saved profile toggled or restored) → show them.
+  useEffect(() => {
+    const typed = splitFullName(fullNameInput);
+    if (typed.firstName !== activeCustomer.firstName || typed.lastName !== activeCustomer.lastName) {
+      setFullNameInput(formatFullName(activeCustomer.firstName, activeCustomer.lastName));
+    }
+  }, [activeCustomer.firstName, activeCustomer.lastName, fullNameInput]);
 
   if (loadingSalon) return null;
 
@@ -96,10 +112,12 @@ export default function BookingConfirmPage() {
             </label>
             <Input
               id="booking-full-name"
-              value={`${activeCustomer.firstName} ${activeCustomer.lastName}`.trim()}
+              value={fullNameInput}
               onChange={(event) => {
-                const [first, ...last] = event.target.value.trim().split(" ");
-                setCustomer((prev) => ({ ...prev, firstName: first || "", lastName: last.join(" ") }));
+                const value = event.target.value;
+                const { firstName, lastName } = splitFullName(value);
+                setFullNameInput(value);
+                setCustomer((prev) => ({ ...prev, firstName, lastName }));
               }}
               onBlur={() => setTouched((prev) => ({ ...prev, firstName: true, lastName: true }))}
               placeholder="Johnathan Doe"
