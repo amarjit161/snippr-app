@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Eye, EyeOff, Mail, Lock, Chrome, Scissors, ChevronLeft, Smartphone } from 'lucide-react';
 import { V, VA, BG, DISP, BODY, MONO } from '@/components/landing/tokens';
 import MobileOtpAuth from '@/components/MobileOtpAuth';
+import { DEFAULT_RETURN_PATH, consumeStoredReturnPath, readStoredReturnPath } from '@/lib/returnPath';
 
 export default function CustomerLogin() {
   const navigate = useNavigate();
@@ -50,9 +51,7 @@ export default function CustomerLogin() {
         if (!profile?.first_name) {
           navigate('/complete-profile');
         } else {
-          const redirectTo = localStorage.getItem('redirectAfterLogin');
-          localStorage.removeItem('redirectAfterLogin');
-          navigate(redirectTo && redirectTo.startsWith('/') ? redirectTo : '/salons');
+          navigate(consumeStoredReturnPath());
         }
       }
     } catch {
@@ -65,7 +64,9 @@ export default function CustomerLogin() {
   const handleGoogle = async () => {
     setLoading(true);
     try {
-      const returnTo = sessionStorage.getItem('returnTo') || '/salons';
+      // The page the login gate saved (validated). Read, not cleared: the user may
+      // cancel at Google; AuthCallback clears it once they're actually signed in.
+      const returnTo = readStoredReturnPath() ?? DEFAULT_RETURN_PATH;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {

@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Phone, ShieldCheck } from 'lucide-react';
 import { V, VA, BG, DISP, BODY } from '@/components/landing/tokens';
 import { normalizePhone, syncVerifiedPhoneToProfile } from '@/lib/phone';
+import { consumeStoredReturnPath, sanitizeReturnPath } from '@/lib/returnPath';
 
 const calculateCompletion = (fields: { firstName?: string; lastName?: string; phone?: string; gender?: string; email?: string }): number => {
   const filled = Object.values(fields).filter(Boolean).length;
@@ -24,6 +25,7 @@ const labelStyle: React.CSSProperties = {
 
 export default function CompleteProfile() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
@@ -134,8 +136,11 @@ export default function CompleteProfile() {
       }
 
       toast.success('Profile updated!');
-      const returnTo = sessionStorage.getItem('returnTo') || '/salons';
-      navigate(returnTo);
+      // Destination handed over by AuthCallback (?next=) or saved by the login gate.
+      // Validated either way; the saved copy is cleared so it can't affect a later sign-in.
+      const requested = sanitizeReturnPath(searchParams.get('next'));
+      const saved = consumeStoredReturnPath();
+      navigate(requested ?? saved);
     } catch (err: any) {
       toast.error(err.message || 'Failed to save profile');
     } finally {

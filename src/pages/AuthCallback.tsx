@@ -1,6 +1,12 @@
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import {
+  DEFAULT_RETURN_PATH,
+  consumeStoredReturnPath,
+  readStoredReturnPath,
+  sanitizeReturnPath,
+} from '@/lib/returnPath';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
@@ -19,12 +25,18 @@ export default function AuthCallback() {
             .eq('id', session.user.id)
             .maybeSingle();
 
+          // `next` comes from the URL, so it's untrusted: only a safe same-site
+          // path is ever followed (never another origin or a sign-in page).
+          const requested = sanitizeReturnPath(searchParams.get('next'));
+
           if (!profile?.first_name) {
-            // New SSO user — collect details
-            navigate('/complete-profile');
+            // New SSO user — collect details, then continue to where they were going.
+            const destination = requested ?? readStoredReturnPath() ?? DEFAULT_RETURN_PATH;
+            navigate(`/complete-profile?next=${encodeURIComponent(destination)}`);
           } else {
-            const next = searchParams.get('next') || '/salons';
-            navigate(next);
+            // Always clear the saved path so it can't redirect a later sign-in.
+            const saved = consumeStoredReturnPath();
+            navigate(requested ?? saved);
           }
         } else {
           navigate('/login');
