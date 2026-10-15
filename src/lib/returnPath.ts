@@ -13,6 +13,8 @@
 
 export const RETURN_PATH_STORAGE_KEY = "redirectAfterLogin";
 export const DEFAULT_RETURN_PATH = "/salons";
+/** Query param carrying the destination to the sign-in pages (e.g. from www.snippr.in to app.snippr.in). */
+export const RETURN_PATH_PARAM = "next";
 
 const VALIDATION_ORIGIN = "https://return-path.invalid";
 
@@ -90,6 +92,32 @@ export function readStoredReturnPath(): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * A sign-in page path carrying the destination as `?next=`. The destination is
+ * validated first; an unsafe or missing one is simply left off.
+ */
+export function withReturnPath(authPath: string, destination: unknown): string {
+  const safe = sanitizeReturnPath(destination);
+  return safe ? `${authPath}?${RETURN_PATH_PARAM}=${encodeURIComponent(safe)}` : authPath;
+}
+
+/**
+ * The validated `?next=` destination in a sign-in page's query string, also
+ * saved as the return path so every sign-in method on this origin (email,
+ * Google, phone OTP, profile completion) honours it. Null when absent or unsafe.
+ */
+export function rememberReturnPathFromQuery(search: string): string | null {
+  const safe = sanitizeReturnPath(new URLSearchParams(search).get(RETURN_PATH_PARAM));
+  if (safe) {
+    try {
+      getStorage()?.setItem(RETURN_PATH_STORAGE_KEY, safe);
+    } catch {
+      // storage blocked — callers still get the value directly
+    }
+  }
+  return safe;
 }
 
 /**

@@ -175,7 +175,7 @@ export default function Index() {
           <Hourglass className="h-5 w-5" />
           <span className="mt-1 text-[10px] font-bold uppercase tracking-widest">Live Queue</span>
         </button>
-        <button className="flex flex-col items-center justify-center min-w-0 max-w-[7rem] flex-1 rounded-2xl px-2 py-2" style={{ color: "rgba(255,255,255,0.4)" }} onClick={() => goApp(user ? "/my-profile" : "/login")}>
+        <button className="flex flex-col items-center justify-center min-w-0 max-w-[7rem] flex-1 rounded-2xl px-2 py-2" style={{ color: "rgba(255,255,255,0.4)" }} onClick={() => goApp("/my-profile")}>
           <User className="h-5 w-5" />
           <span className="mt-1 text-[10px] font-bold uppercase tracking-widest">Profile</span>
         </button>

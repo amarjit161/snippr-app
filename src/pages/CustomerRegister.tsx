@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { rememberReturnPathFromQuery, sanitizeReturnPath, withReturnPath } from '@/lib/returnPath';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Eye, EyeOff, Mail, CheckCircle, ChevronLeft } from 'lucide-react';
@@ -23,6 +24,13 @@ const labelStyle: React.CSSProperties = {
 
 export default function CustomerRegister() {
   const navigate = useNavigate();
+  const { search } = useLocation();
+  // Carried through to the sign-in page so the user still lands on their intended page.
+  const requestedNext = sanitizeReturnPath(new URLSearchParams(search).get('next'));
+  const loginPath = withReturnPath('/login', requestedNext);
+  useEffect(() => {
+    rememberReturnPathFromQuery(search);
+  }, [search]);
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -110,7 +118,7 @@ export default function CustomerRegister() {
       }
 
       toast.success('Account created! Please sign in.');
-      navigate('/login');
+      navigate(loginPath);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'An error occurred';
       toast.error(message);
@@ -127,7 +135,7 @@ export default function CustomerRegister() {
         background: `radial-gradient(circle, ${V}12, transparent 70%)`, filter: 'blur(60px)', pointerEvents: 'none' }} />
 
       <div style={{ width: '100%', maxWidth: 460, position: 'relative', zIndex: 10 }}>
-        <button onClick={() => navigate('/login')}
+        <button onClick={() => navigate(loginPath)}
           style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer',
             color: 'rgba(255,255,255,0.3)', fontSize: 13, marginBottom: 24, padding: 0, fontFamily: BODY }}>
           <ChevronLeft style={{ width: 14, height: 14 }} /> Back to login
@@ -237,7 +245,7 @@ export default function CustomerRegister() {
 
           <p style={{ textAlign: 'center', marginTop: 18, fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>
             Already part of the community?{' '}
-            <Link to="/login" style={{ color: VA, fontWeight: 600, textDecoration: 'none' }}>Sign In</Link>
+            <Link to={loginPath} style={{ color: VA, fontWeight: 600, textDecoration: 'none' }}>Sign In</Link>
           </p>
         </div>
       </div>

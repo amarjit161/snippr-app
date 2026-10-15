@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ChevronLeft, Loader2, ShieldCheck, Smartphone } from 'lucide-react';
 import { V, VA, BODY, MONO } from '@/components/landing/tokens';
-import { consumeStoredReturnPath } from '@/lib/returnPath';
+import { consumeStoredReturnPath, sanitizeReturnPath, withReturnPath } from '@/lib/returnPath';
 import {
   getFriendlyOtpVerifyError,
   getFriendlyPhoneOtpError,
@@ -21,6 +21,8 @@ const RESEND_COOLDOWN_SECONDS = 60;
 interface MobileOtpAuthProps {
   /** Return to the primary Google/Email auth screen. Mobile OTP is opt-in only. */
   onBack: () => void;
+  /** Destination from the sign-in page's ?next= (re-validated here). Works without browser storage. */
+  returnTo?: string | null;
 }
 
 /**
@@ -32,7 +34,7 @@ interface MobileOtpAuthProps {
  * never called from a useEffect, on mount, or automatically in any way. Resend is
  * gated behind an explicit 60s cooldown + user click. There is no retry logic.
  */
-export default function MobileOtpAuth({ onBack }: MobileOtpAuthProps) {
+export default function MobileOtpAuth({ onBack, returnTo }: MobileOtpAuthProps) {
   const navigate = useNavigate();
   const [step, setStep] = useState<'entry' | 'verify'>('entry');
   const [phoneDigits, setPhoneDigits] = useState('');
@@ -79,11 +81,13 @@ export default function MobileOtpAuth({ onBack }: MobileOtpAuthProps) {
         .eq('id', userId)
         .maybeSingle();
 
+      const requested = sanitizeReturnPath(returnTo);
       if (!profile?.first_name) {
-        navigate('/complete-profile');
+        navigate(withReturnPath('/complete-profile', requested));
       } else {
         // Same validated read-and-clear as email/Google sign-in (falls back to /salons).
-        navigate(consumeStoredReturnPath());
+        const saved = consumeStoredReturnPath();
+        navigate(requested ?? saved);
       }
     } catch {
       navigate('/salons');

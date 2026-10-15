@@ -114,6 +114,14 @@ export function getAppHostRedirect(loc: LocationLike = window.location): string 
 export const appHref = (path: string): string =>
   getHostRole() === "marketing" && APP_ORIGIN ? `${APP_ORIGIN}${path}` : path;
 
+/**
+ * Origin for auth return URLs (OAuth redirectTo). Always the host that owns the
+ * session: app.snippr.in when the split is on and this is the marketing host,
+ * otherwise the current origin (app host, local dev, Vercel previews).
+ */
+export const authRedirectOrigin = (): string =>
+  getHostRole() === "marketing" && APP_ORIGIN ? APP_ORIGIN : window.location.origin;
+
 /** Link to a marketing route: absolute on the app host, relative everywhere else. */
 export const marketingHref = (path: string): string =>
   getHostRole() === "app" ? `${MARKETING_ORIGIN}${path}` : path;

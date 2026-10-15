@@ -7,3 +7,8 @@
 export function hardNavigate(path: string): void {
   window.location.replace(path);
 }
+
+/** Full page navigation to an absolute URL (e.g. the marketing site), keeping the history entry. */
+export function openUrl(url: string): void {
+  window.location.assign(url);
+}

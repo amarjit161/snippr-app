@@ -372,6 +372,88 @@ describe("phone OTP sign-in (MobileOtpAuth)", () => {
     expect(saved()).toBe("/bookings");
   });
 
+  describe("with a ?next= destination on the sign-in page", () => {
+    const blockStorage = () => {
+      const fail = () => {
+        throw new Error("storage blocked");
+      };
+      return [
+        vi.spyOn(Storage.prototype, "getItem").mockImplementation(fail),
+        vi.spyOn(Storage.prototype, "setItem").mockImplementation(fail),
+        vi.spyOn(Storage.prototype, "removeItem").mockImplementation(fail),
+      ];
+    };
+
+    it("complete profile → the requested page, saved copy cleared", async () => {
+      renderAt("/auth?next=%2Fbookings");
+      await signInWithPhone();
+      await landedOn("/bookings");
+      expect(saved()).toBeNull();
+    });
+
+    it("?next= wins over an older saved path", async () => {
+      localStorage.setItem("redirectAfterLogin", "/salon/old");
+      renderAt("/auth?next=%2Fmy-profile");
+      await signInWithPhone();
+      await landedOn("/my-profile");
+    });
+
+    it("incomplete profile → /complete-profile carrying next", async () => {
+      mocks.profile = null;
+      render(
+        <MemoryRouter initialEntries={["/auth?next=%2Fbookings"]}>
+          <Routes>
+            <Route path="/auth" element={<CustomerLogin />} />
+            <Route path="*" element={<LocationProbe />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+      await signInWithPhone();
+      await landedOn("/complete-profile?next=%2Fbookings");
+    });
+
+    it("storage unavailable: complete profile still reaches the requested page", async () => {
+      const spies = blockStorage();
+      renderAt("/auth?next=%2Fbookings");
+      await signInWithPhone();
+      await landedOn("/bookings");
+      spies.forEach((s) => s.mockRestore());
+    });
+
+    it("storage unavailable: incomplete profile still carries next", async () => {
+      const spies = blockStorage();
+      mocks.profile = null;
+      render(
+        <MemoryRouter initialEntries={["/auth?next=%2Fbookings"]}>
+          <Routes>
+            <Route path="/auth" element={<CustomerLogin />} />
+            <Route path="*" element={<LocationProbe />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+      await signInWithPhone();
+      await landedOn("/complete-profile?next=%2Fbookings");
+      spies.forEach((s) => s.mockRestore());
+    });
+
+    it.each(["https%3A%2F%2Fevil.com", "%2F%2Fevil.com", "%2Flogin"])("an unsafe ?next=%s is ignored → /salons", async (next) => {
+      renderAt(`/auth?next=${next}`);
+      await signInWithPhone();
+      await landedOn("/salons");
+      expect(saved()).toBeNull();
+    });
+
+    it("OTP send and verify calls are unchanged", async () => {
+      renderAt("/auth?next=%2Fbookings");
+      await signInWithPhone();
+      await landedOn("/bookings");
+      expect(mocks.signInWithOtp).toHaveBeenCalledTimes(1);
+      expect(mocks.signInWithOtp).toHaveBeenCalledWith({ phone: "+919876543210" });
+      expect(mocks.verifyOtp).toHaveBeenCalledTimes(1);
+      expect(mocks.verifyOtp).toHaveBeenCalledWith({ phone: "+919876543210", token: "123456", type: "sms" });
+    });
+  });
+
   it("no user after verification → /salons (unchanged)", async () => {
     mocks.getUser.mockResolvedValue({ data: { user: null } });
     localStorage.setItem("redirectAfterLogin", "/bookings");

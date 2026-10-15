@@ -1,14 +1,36 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Eye, EyeOff, Mail, Lock, Chrome, Scissors, ChevronLeft, Smartphone } from 'lucide-react';
 import { V, VA, BG, DISP, BODY, MONO } from '@/components/landing/tokens';
 import MobileOtpAuth from '@/components/MobileOtpAuth';
-import { DEFAULT_RETURN_PATH, consumeStoredReturnPath, readStoredReturnPath } from '@/lib/returnPath';
+import {
+  DEFAULT_RETURN_PATH,
+  consumeStoredReturnPath,
+  readStoredReturnPath,
+  rememberReturnPathFromQuery,
+  sanitizeReturnPath,
+  withReturnPath,
+} from '@/lib/returnPath';
+import { authRedirectOrigin, marketingHref } from '@/lib/domains';
+import { openUrl } from '@/lib/hardNavigate';
 
 export default function CustomerLogin() {
   const navigate = useNavigate();
+  const { search } = useLocation();
+  // Destination passed as ?next= (e.g. by www.snippr.in). Validated; never an external URL.
+  const requestedNext = sanitizeReturnPath(new URLSearchParams(search).get('next'));
+  useEffect(() => {
+    rememberReturnPathFromQuery(search);
+  }, [search]);
+  // The marketing homepage: www.snippr.in when the domain split is on (absolute,
+  // so a full page load), otherwise "/" on this origin (local dev, previews).
+  const goToWebsite = () => {
+    const home = marketingHref('/');
+    if (/^https?:\/\//.test(home)) openUrl(home);
+    else navigate(home);
+  };
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -49,9 +71,10 @@ export default function CustomerLogin() {
           .maybeSingle();
 
         if (!profile?.first_name) {
-          navigate('/complete-profile');
+          navigate(withReturnPath('/complete-profile', requestedNext));
         } else {
-          navigate(consumeStoredReturnPath());
+          const saved = consumeStoredReturnPath();
+          navigate(requestedNext ?? saved);
         }
       }
     } catch {
@@ -66,11 +89,11 @@ export default function CustomerLogin() {
     try {
       // The page the login gate saved (validated). Read, not cleared: the user may
       // cancel at Google; AuthCallback clears it once they're actually signed in.
-      const returnTo = readStoredReturnPath() ?? DEFAULT_RETURN_PATH;
+      const returnTo = requestedNext ?? readStoredReturnPath() ?? DEFAULT_RETURN_PATH;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(returnTo)}`,
+          redirectTo: `${authRedirectOrigin()}/auth/callback?next=${encodeURIComponent(returnTo)}`,
         },
       });
 
@@ -124,7 +147,7 @@ export default function CustomerLogin() {
       {/* Right panel — form */}
       <div style={{ flex: '0 0 auto', width: '100%', maxWidth: 440, display: 'flex', flexDirection: 'column',
         justifyContent: 'center', padding: '32px 28px', position: 'relative', zIndex: 10 }}>
-        <button onClick={() => navigate('/')} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none',
+        <button onClick={goToWebsite} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none',
           cursor: 'pointer', color: 'rgba(255,255,255,0.3)', fontSize: 13, marginBottom: 32, padding: 0, fontFamily: BODY }}>
           <ChevronLeft style={{ width: 14, height: 14 }} /> Back to website
         </button>
@@ -132,7 +155,7 @@ export default function CustomerLogin() {
         <div style={{ borderRadius: 24, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
           padding: 28, backdropFilter: 'blur(24px)' }}>
           {showMobileAuth ? (
-            <MobileOtpAuth onBack={() => setShowMobileAuth(false)} />
+            <MobileOtpAuth onBack={() => setShowMobileAuth(false)} returnTo={requestedNext} />
           ) : (
           <>
           <h1 style={{ fontFamily: DISP, fontSize: 26, fontWeight: 800, color: '#fff', marginBottom: 6, letterSpacing: '-0.02em' }}>Welcome back.</h1>
@@ -204,7 +227,7 @@ export default function CustomerLogin() {
 
           <p style={{ textAlign: 'center', marginTop: 18, fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>
             New to Snippr?{' '}
-            <Link to="/register" style={{ color: VA, fontWeight: 600, textDecoration: 'none' }}>Create account</Link>
+            <Link to={withReturnPath('/register', requestedNext)} style={{ color: VA, fontWeight: 600, textDecoration: 'none' }}>Create account</Link>
           </p>
           </>
           )}
