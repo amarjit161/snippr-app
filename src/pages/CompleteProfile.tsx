@@ -141,8 +141,8 @@ export default function CompleteProfile() {
       const requested = sanitizeReturnPath(searchParams.get('next'));
       const saved = consumeStoredReturnPath();
       navigate(requested ?? saved);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to save profile');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error && err.message ? err.message : 'Failed to save profile');
     } finally {
       setLoading(false);
     }
