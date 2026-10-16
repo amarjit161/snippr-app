@@ -68,7 +68,7 @@ export function LandingNavbar({ onBookings }: { onBookings: () => void }) {
                 style={{ borderColor: "rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.7)" }}>
                 Sign In
               </button>
-              <button onClick={() => goApp("/login")}
+              <button onClick={() => goApp("/register")}
                 className="text-sm px-4 py-2 rounded-lg font-semibold text-white" style={{ background: V }}>
                 Get Started
               </button>

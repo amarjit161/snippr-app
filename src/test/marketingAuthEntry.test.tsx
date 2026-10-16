@@ -165,6 +165,7 @@ describe("marketing host: routing to the app", () => {
     };
     expect(getAppHostRedirect(at("https://www.snippr.in/login"))).toBe(`${APP}/login`);
     expect(getAppHostRedirect(at("https://www.snippr.in/login?next=%2Fbookings"))).toBe(`${APP}/login?next=%2Fbookings`);
+    expect(getAppHostRedirect(at("https://www.snippr.in/register"))).toBe(`${APP}/register`);
     expect(getAppHostRedirect(at("https://www.snippr.in/register?next=%2Fmy-profile"))).toBe(`${APP}/register?next=%2Fmy-profile`);
     expect(getAppHostRedirect(at("https://www.snippr.in/auth/callback?next=%2Fsalons"))).toBe(`${APP}/auth/callback?next=%2Fsalons`);
   });
@@ -188,12 +189,18 @@ describe("marketing host: routing to the app", () => {
     );
   };
 
-  it("navbar Sign In and Get Started go to app.snippr.in/login", async () => {
+  it("navbar Sign In goes to app.snippr.in/login", async () => {
     withEnv(SPLIT_ON_HERE_MARKETING);
     await renderNavbar();
     fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
+    expect(mocks.hrefs).toEqual([`${APP}/login`]);
+  });
+
+  it("navbar Get Started goes to app.snippr.in/register", async () => {
+    withEnv(SPLIT_ON_HERE_MARKETING);
+    await renderNavbar();
     fireEvent.click(screen.getByRole("button", { name: "Get Started" }));
-    expect(mocks.hrefs).toEqual([`${APP}/login`, `${APP}/login`]);
+    expect(mocks.hrefs).toEqual([`${APP}/register`]);
   });
 
   it("mobile menu Sign In goes to app.snippr.in/login", async () => {
@@ -209,7 +216,8 @@ describe("marketing host: routing to the app", () => {
     withEnv(SPLIT_OFF);
     await renderNavbar();
     fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
-    expect(mocks.hrefs).toEqual(["/login"]);
+    fireEvent.click(screen.getByRole("button", { name: "Get Started" }));
+    expect(mocks.hrefs).toEqual(["/login", "/register"]);
   });
 
   const renderHome = async () => {
