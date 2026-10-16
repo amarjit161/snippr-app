@@ -11,6 +11,7 @@ import { verifyTurnstileToken } from "@/lib/turnstile";
 import { generateOTP } from "@/lib/otpUtils";
 import { sendBookingEmail } from "@/services/emailService";
 import { useSmartBarberAssignment, type BarberAssignmentResult } from "@/hooks/useSmartBarberAssignment";
+import { buildBookingServicePath, parseBookingUrlContext } from "@/lib/bookingUrlContext";
 import type { Tables } from "@/integrations/supabase/types";
 import type { TurnstileCaptchaHandle } from "@/components/TurnstileCaptcha";
 
@@ -18,6 +19,29 @@ const CUSTOMER_PROFILE_STORAGE_KEY = "snippr_customer_profile";
 const BOOKING_SALON_ID_KEY = "snippr_booking_salon_id";
 const BOOKING_DRAFT_KEY = "snippr_booking_draft";
 const BOOKING_DRAFT_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours — short-lived, matches the checkout-flow lifespan
+
+// sessionStorage can throw (privacy mode, sandboxed iframes); the draft is a convenience.
+const readSession = (key: string): string | null => {
+  try {
+    return sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+const writeSession = (key: string, value: string) => {
+  try {
+    sessionStorage.setItem(key, value);
+  } catch {
+    // storage blocked — the URL still carries the booking context
+  }
+};
+const removeSession = (key: string) => {
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    // storage blocked — nothing to clear
+  }
+};
 
 export type BookingSource = "app" | "qr";
 
@@ -130,7 +154,7 @@ export function startBookingFlow(
   preselectedServices?: Tables<"services">[],
   source: BookingSource = "app"
 ) {
-  sessionStorage.setItem(BOOKING_SALON_ID_KEY, salonId);
+  writeSession(BOOKING_SALON_ID_KEY, salonId);
 
   // Pre-seed the same sessionStorage draft the provider already restores on mount
   // (see the restore effect below) so a service chosen on the salon page doesn't
@@ -155,7 +179,9 @@ export function startBookingFlow(
     // the flow defaults to source 'app'.
   }
 
-  navigate("/booking/service");
+  // Same salon/services in the URL: ProtectedRoute saves this as the return path,
+  // so the flow can be rebuilt after signing in without this tab's sessionStorage.
+  navigate(buildBookingServicePath(salonId, (preselectedServices ?? []).map((s) => s.id)));
 }
 
 export function BookingFlowProvider() {
@@ -187,32 +213,46 @@ export function BookingFlowProvider() {
   // persisted draft; never inferred from location/pathname/history here.
   const [source, setSource] = useState<BookingSource>("app");
   const turnstileRef = useRef<TurnstileCaptchaHandle | null>(null);
+  // The URL at mount (startBookingFlow's /booking/service?salon=…&services=…). Read once:
+  // later steps navigate without it, and re-running the restore would reset the draft.
+  const initialSearchRef = useRef(location.search);
+  // Services from the URL, applied once this salon's services have loaded — only ids
+  // that belong to the salon are ever selected. invalidCount: malformed URL entries.
+  const pendingServicesRef = useRef<{ ids: string[]; invalidCount: number } | null>(null);
 
   const exitFlow = () => {
-    sessionStorage.removeItem(BOOKING_SALON_ID_KEY);
-    sessionStorage.removeItem(BOOKING_DRAFT_KEY);
+    removeSession(BOOKING_SALON_ID_KEY);
+    removeSession(BOOKING_DRAFT_KEY);
     navigate("/salons");
   };
 
-  // Resolve salon id (from sessionStorage, set when the flow was started) and fetch the salon.
+  // Resolve salon id and fetch the salon. The URL's salon (set by startBookingFlow and
+  // carried through sign-in) wins; otherwise the one this tab saved when the flow started.
   useEffect(() => {
-    const salonId = sessionStorage.getItem(BOOKING_SALON_ID_KEY);
+    const urlContext = parseBookingUrlContext(initialSearchRef.current);
+    const storedSalonId = readSession(BOOKING_SALON_ID_KEY);
+    const salonId = urlContext?.salonId ?? storedSalonId;
     if (!salonId) {
       toast.error("Start a booking from a salon page first.");
       navigate("/salons");
       return;
     }
+    if (salonId !== storedSalonId) writeSession(BOOKING_SALON_ID_KEY, salonId);
 
     // Best-effort restore of an in-progress draft (e.g. after a refresh). Only ever
     // applied when it belongs to this exact salon/flow and isn't stale — any mismatch
     // or malformed data is discarded rather than risking a crash or cross-salon leak.
+    let restoredServices = false;
     try {
-      const rawDraft = sessionStorage.getItem(BOOKING_DRAFT_KEY);
+      const rawDraft = readSession(BOOKING_DRAFT_KEY);
       if (rawDraft) {
         const parsed = JSON.parse(rawDraft) as Partial<PersistedBookingDraft> | null;
         const isFresh = typeof parsed?.savedAt === "number" && Date.now() - parsed.savedAt < BOOKING_DRAFT_TTL_MS;
         if (parsed && parsed.salonId === salonId && isFresh) {
-          if (Array.isArray(parsed.selectedServices)) setSelectedServices(parsed.selectedServices);
+          if (Array.isArray(parsed.selectedServices)) {
+            setSelectedServices(parsed.selectedServices);
+            restoredServices = parsed.selectedServices.length > 0;
+          }
           if (typeof parsed.date === "string") setDate(parsed.date);
           if (typeof parsed.time === "string") setTime(parsed.time);
           if (typeof parsed.timeLabel === "string") setTimeLabel(parsed.timeLabel);
@@ -222,11 +262,22 @@ export function BookingFlowProvider() {
           if (typeof parsed.bookingForSomeoneElse === "boolean") setBookingForSomeoneElse(parsed.bookingForSomeoneElse);
           setSource(parsed.source === "qr" ? "qr" : "app");
         } else {
-          sessionStorage.removeItem(BOOKING_DRAFT_KEY);
+          removeSession(BOOKING_DRAFT_KEY);
         }
       }
     } catch {
-      sessionStorage.removeItem(BOOKING_DRAFT_KEY);
+      removeSession(BOOKING_DRAFT_KEY);
+    }
+
+    // No services from this tab's draft (another tab, expired, another salon, blocked
+    // storage): rebuild the selection from the URL once the salon's services load.
+    if (
+      !restoredServices &&
+      urlContext &&
+      urlContext.salonId === salonId &&
+      (urlContext.serviceIds.length > 0 || urlContext.invalidServiceCount > 0)
+    ) {
+      pendingServicesRef.current = { ids: urlContext.serviceIds, invalidCount: urlContext.invalidServiceCount };
     }
 
     const fetchSalon = async () => {
@@ -270,7 +321,7 @@ export function BookingFlowProvider() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [salon?.id, user]);
 
-  // Services fetch (preserved verbatim)
+  // Services fetch; also applies any services restored from the booking URL once loaded
   useEffect(() => {
     if (!salon?.id) return;
     const fetchServices = async () => {
@@ -280,8 +331,12 @@ export function BookingFlowProvider() {
         .eq("salon_id", salon.id)
         .order("name");
 
+      const pending = pendingServicesRef.current;
+      pendingServicesRef.current = null;
+
       if (error) {
         setServices([]);
+        if (pending) toast.error("We couldn't load this salon's services. Please choose your services again.");
         return;
       }
       const safeServices = (data || []).map((svc) => ({
@@ -291,6 +346,18 @@ export function BookingFlowProvider() {
         duration: svc.duration ?? 30,
       }));
       setServices(safeServices as Tables<"services">[]);
+
+      // Services requested in the URL: select only those this salon actually offers
+      // (the query above is scoped to salon.id), and say so when any were dropped —
+      // unknown, another salon's, or not a well-formed id.
+      if (pending) {
+        const byId = new Map(safeServices.map((svc) => [svc.id, svc]));
+        const restored = pending.ids.flatMap((id) => byId.get(id) ?? []);
+        if (restored.length > 0) setSelectedServices(restored as Tables<"services">[]);
+        if (restored.length < pending.ids.length || pending.invalidCount > 0) {
+          toast.error("Some of the services you picked aren't available. Please check your selection.");
+        }
+      }
     };
     fetchServices();
   }, [salon?.id]);
@@ -354,7 +421,7 @@ export function BookingFlowProvider() {
   // "someone else" customer fields) can't resurrect a draft we just cleared.
   useEffect(() => {
     if (confirmedBookingState) return;
-    const salonId = sessionStorage.getItem(BOOKING_SALON_ID_KEY);
+    const salonId = readSession(BOOKING_SALON_ID_KEY);
     if (!salonId) return;
     const draft: PersistedBookingDraft = {
       salonId,
@@ -803,8 +870,8 @@ export function BookingFlowProvider() {
         arrivalOTP: arrivalOTP,
       });
       setBooking(false);
-      sessionStorage.removeItem(BOOKING_SALON_ID_KEY);
-      sessionStorage.removeItem(BOOKING_DRAFT_KEY);
+      removeSession(BOOKING_SALON_ID_KEY);
+      removeSession(BOOKING_DRAFT_KEY);
     } catch (err: any) {
       toast.error(err?.message || "Failed to join queue");
       setBooking(false);

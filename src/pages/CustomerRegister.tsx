@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { rememberReturnPathFromQuery, sanitizeReturnPath, withReturnPath } from '@/lib/returnPath';
+import { DEFAULT_RETURN_PATH, rememberReturnPathFromQuery, sanitizeReturnPath, withReturnPath } from '@/lib/returnPath';
+import { authRedirectOrigin } from '@/lib/domains';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Eye, EyeOff, Mail, CheckCircle, ChevronLeft } from 'lucide-react';
@@ -80,9 +81,16 @@ export default function CustomerRegister() {
         }
       }
 
+      // If email confirmation is on, the link comes back through the shared callback
+      // (same as Google sign-in) with this page's validated ?next=, so a booking started
+      // before signing up survives confirming in another tab. Without one, an explicit
+      // safe default — never an older saved path, which may be unrelated to this signup.
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          emailRedirectTo: `${authRedirectOrigin()}${withReturnPath('/auth/callback', requestedNext ?? DEFAULT_RETURN_PATH)}`,
+        },
       });
 
       if (error) {
