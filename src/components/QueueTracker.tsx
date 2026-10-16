@@ -60,8 +60,10 @@ const QueueTracker = () => {
   const fetchMyQueue = async () => {
     if (!user) return;
 
-    // Check for in_progress status too (service started)
-    const { data } = await supabase
+    // Check for in_progress status too (service started).
+    // Only columns that exist on `bookings` — an unknown column makes PostgREST
+    // reject the whole request (HTTP 400).
+    const { data, error } = await supabase
       .from("bookings")
       .select(`
         id,
@@ -73,8 +75,6 @@ const QueueTracker = () => {
         created_at,
         booking_date,
         booking_time,
-        customer_first_name,
-        customer_last_name,
         services (id, name, price, duration),
         salons (id, name, latitude, longitude, address, location, owner_id)
       `)
@@ -83,6 +83,13 @@ const QueueTracker = () => {
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    if (error) {
+      // A failed lookup is not "no booking": keep the tracker as it is rather than
+      // clearing it (or announcing a completed service). Log only the error itself.
+      console.warn("QUEUE_TRACKER_FETCH_FAILED", { code: error.code, message: error.message });
+      return;
+    }
 
     if (data) {
       const normalizedEntry = {
@@ -222,7 +229,8 @@ const QueueTracker = () => {
           salonId: entryAny.salons?.id || entry.salon_id || "",
           salonName: entryAny.salons?.name || "Salon",
           salonAddress: entryAny.salons?.address || entryAny.salons?.location || "",
-          customerName: `${entryAny.customer_first_name || ""} ${entryAny.customer_last_name || ""}`.trim() || "Customer",
+          // `bookings` has no customer name columns.
+          customerName: "Customer",
           customerEmail,
           ownerEmail: ownerData?.email || "",
           serviceName: entryAny.services?.name || "Service",
