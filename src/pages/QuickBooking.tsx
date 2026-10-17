@@ -5,29 +5,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { publicSupabase } from "@/integrations/supabase/publicClient";
 import { Skeleton } from "@/components/design/Skeleton";
 import { startBookingFlow } from "@/contexts/BookingDraftContext";
-
-// Same rule SalonPage.tsx uses, duplicated locally so this focused entry
-// point doesn't reach into another page's file to share a few lines of pure
-// logic — it also intentionally does NOT reuse SalonPage itself, since this
-// route only needs to identify the salon and hand off to booking, not show
-// the full salon detail experience.
-const isWithinOperatingHours = (openTime: string | null, closeTime: string | null): boolean => {
-  if (!openTime || !closeTime) return true;
-  try {
-    const now = new Date();
-    const currentTime = now.getHours() * 100 + now.getMinutes();
-    const openParts = openTime.split(":").map(Number);
-    const closeParts = closeTime.split(":").map(Number);
-    const openTimeNum = openParts[0] * 100 + (openParts[1] || 0);
-    const closeTimeNum = closeParts[0] * 100 + (closeParts[1] || 0);
-    if (openTimeNum <= closeTimeNum) {
-      return currentTime >= openTimeNum && currentTime <= closeTimeNum;
-    }
-    return currentTime >= openTimeNum || currentTime <= closeTimeNum;
-  } catch {
-    return true;
-  }
-};
+// Shared with SalonPage and the /salons cards, so every page agrees on open/closed.
+// This route still intentionally does NOT reuse SalonPage itself: it only needs to
+// identify the salon and hand off to booking, not show the full salon detail.
+import { isWithinOperatingHours } from "@/lib/salonDiscovery";
 
 const formatTime12h = (time: string | null): string | null => {
   if (!time) return null;

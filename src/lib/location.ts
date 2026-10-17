@@ -19,6 +19,33 @@ const deg2rad = (deg: number): number => {
   return deg * (Math.PI / 180);
 };
 
+const isCoordinate = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+
+/**
+ * A salon's [latitude, longitude], or null when either is missing or not a finite
+ * number. The same check distanceToSalonKm uses, so a salon has a map marker
+ * exactly when it can have a distance — never a guessed position.
+ */
+export const salonCoordinates = (salon: {
+  latitude?: number | null;
+  longitude?: number | null;
+}): [number, number] | null =>
+  isCoordinate(salon.latitude) && isCoordinate(salon.longitude) ? [salon.latitude, salon.longitude] : null;
+
+/**
+ * Straight-line distance (km) from the user to a salon, or undefined when either
+ * position is unknown. Salons carry `latitude` / `longitude` (salon_with_stats);
+ * a missing or non-numeric coordinate means "no distance", never a guess.
+ */
+export const distanceToSalonKm = (
+  user: { lat: number; lng: number } | null | undefined,
+  salon: { latitude?: number | null; longitude?: number | null },
+): number | undefined => {
+  if (!user || !isCoordinate(user.lat) || !isCoordinate(user.lng)) return undefined;
+  if (!isCoordinate(salon.latitude) || !isCoordinate(salon.longitude)) return undefined;
+  return calculateDistance(user.lat, user.lng, salon.latitude, salon.longitude);
+};
+
 export const getCurrentPosition = (): Promise<{lat: number, lng: number}> => {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {

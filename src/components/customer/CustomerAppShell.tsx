@@ -36,7 +36,8 @@ export function CustomerAppShell() {
       </div>
 
       <nav
-        className="fixed bottom-0 left-0 z-50 flex w-full items-center justify-around px-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-3 md:hidden"
+        // Five tabs share the width (no fixed padding), so all of them fit on 320px screens.
+        className="fixed bottom-0 left-0 z-50 flex w-full items-center justify-around gap-0.5 px-1 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-3 min-[360px]:gap-1 min-[360px]:px-2 md:hidden"
         style={{ background: "rgba(5,5,7,0.9)", backdropFilter: "blur(20px)", borderTop: "1px solid rgba(255,255,255,0.06)" }}
       >
         {TABS.map(({ key, label, icon: Icon, to, state }) => {
@@ -44,12 +45,12 @@ export function CustomerAppShell() {
           return (
             <button
               key={key}
-              className="flex flex-col items-center justify-center rounded-2xl px-4 py-2 transition-colors"
+              className="flex min-w-0 max-w-[5.5rem] flex-1 flex-col items-center justify-center rounded-2xl px-0.5 py-2 transition-colors min-[360px]:px-1"
               style={active ? { background: "#7C3AED", color: "#fff" } : { color: "rgba(255,255,255,0.4)" }}
               onClick={() => navigate(key === "profile" && !user ? "/login" : to, state ? { state } : undefined)}
             >
               <Icon className="h-5 w-5" />
-              <span className="mt-1 text-[10px] font-bold uppercase tracking-widest">{label}</span>
+              <span className="mt-1 max-w-full truncate text-[10px] font-bold uppercase tracking-normal min-[360px]:tracking-wider">{label}</span>
             </button>
           );
         })}
