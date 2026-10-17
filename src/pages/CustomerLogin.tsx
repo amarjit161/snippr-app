@@ -1,6 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import {
+  acknowledgeRecoveryRedirect,
+  afterQueuedAuthEvents,
+  hasPendingRecoveryRedirect,
+} from '@/lib/passwordRecovery';
 import { toast } from 'sonner';
 import { Eye, EyeOff, Mail, Lock, Chrome, Scissors, ChevronLeft, Smartphone } from 'lucide-react';
 import { V, VA, BG, DISP, BODY, MONO } from '@/components/landing/tokens';
@@ -38,6 +44,88 @@ export default function CustomerLogin() {
   // Mobile OTP is the third, optional auth method — never shown/active by default.
   const [showMobileAuth, setShowMobileAuth] = useState(false);
 
+  // Already signed in when arriving here (e.g. via the marketing site's Sign In):
+  // continue to where a fresh sign-in would go instead of showing the form.
+  const { session, loading: authLoading, profile: ownerProfile, profileLoading } = useAuth();
+  const sessionCheckDone = useRef(false);
+  const mounted = useRef(true);
+  const [checkingSession, setCheckingSession] = useState(() => !authLoading && Boolean(session?.user));
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  // Where a signed-in customer continues (shared with email sign-in): profile
+  // completion first, else the validated ?next=, else the saved path, else /salons.
+  // Both come from the returnPath helpers, so never another origin or a sign-in page.
+  const routeSignedInCustomer = async (userId: string, replace = false) => {
+    const { data: profile } = await supabase
+      .from('customer_profiles')
+      .select('first_name, phone')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (!profile?.first_name) {
+      navigate(withReturnPath('/complete-profile', requestedNext), { replace });
+    } else {
+      const saved = consumeStoredReturnPath();
+      navigate(requestedNext ?? saved, { replace });
+    }
+  };
+
+  // One check per visit, once auth has settled. A session that appears later
+  // comes from this page's own email / Google / phone sign-in, whose handlers
+  // navigate themselves — re-running here would race them.
+  useEffect(() => {
+    if (sessionCheckDone.current || authLoading) return;
+    if (!session?.user) {
+      sessionCheckDone.current = true;
+      return;
+    }
+    if (profileLoading) return; // owner profile still resolving
+
+    sessionCheckDone.current = true;
+    const userId = session.user.id;
+    const isOwner = Boolean(ownerProfile) || session.user.user_metadata?.role === 'owner';
+    setCheckingSession(true);
+
+    void (async () => {
+      try {
+        // Let already-queued auth events land (PASSWORD_RECOVERY is one timer away).
+        await afterQueuedAuthEvents();
+        // AuthContext applies auth events after a debounce, so right after a
+        // sign-out it can still hold the old session. Only Supabase's stored
+        // session for the same user counts.
+        const { data } = await supabase.auth.getSession();
+        if (!mounted.current) return;
+        if (data?.session?.user?.id !== userId) {
+          setCheckingSession(false);
+          return;
+        }
+
+        if (await hasPendingRecoveryRedirect()) {
+          if (!mounted.current) return;
+          acknowledgeRecoveryRedirect();
+          navigate('/reset-password', { replace: true });
+          return;
+        }
+        if (!mounted.current) return;
+
+        if (isOwner) {
+          navigate('/owner-dashboard', { replace: true });
+          return;
+        }
+        await routeSignedInCustomer(userId, true);
+      } catch {
+        if (mounted.current) setCheckingSession(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, session, profileLoading, ownerProfile]);
+
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -64,18 +152,7 @@ export default function CustomerLogin() {
       }
 
       if (data?.user?.id) {
-        const { data: profile } = await supabase
-          .from('customer_profiles')
-          .select('first_name, phone')
-          .eq('id', data.user.id)
-          .maybeSingle();
-
-        if (!profile?.first_name) {
-          navigate(withReturnPath('/complete-profile', requestedNext));
-        } else {
-          const saved = consumeStoredReturnPath();
-          navigate(requestedNext ?? saved);
-        }
+        await routeSignedInCustomer(data.user.id);
       }
     } catch {
       toast.error('Login failed');
@@ -106,6 +183,18 @@ export default function CustomerLogin() {
       setLoading(false);
     }
   };
+
+  if (checkingSession) {
+    return (
+      <div
+        role="status"
+        aria-label="Checking your session"
+        style={{ minHeight: '100vh', background: BG, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      >
+        <div className="h-6 w-6 animate-spin rounded-full border-[2.5px] border-white/20 border-t-white" />
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: BG, display: 'flex', fontFamily: BODY, position: 'relative', overflow: 'hidden' }}>

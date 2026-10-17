@@ -95,6 +95,8 @@ vi.mock("@/integrations/supabase/client", () => {
         signUp: mocks.signUp,
         getSession: mocks.getSession,
         getUser: mocks.getUser,
+        // passwordRecovery (imported by CustomerLogin) subscribes at import time.
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
       },
       from: query,
       channel: () => ({ on: function () { return this; }, subscribe: function () { return this; } }),

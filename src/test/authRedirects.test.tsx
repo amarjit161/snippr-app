@@ -29,6 +29,8 @@ vi.mock("@/integrations/supabase/client", () => ({
       verifyOtp: mocks.verifyOtp,
       getSession: mocks.getSession,
       getUser: mocks.getUser,
+      // passwordRecovery (imported by CustomerLogin) subscribes at import time.
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
     },
     from: () => ({
       select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: mocks.profile, error: null }) }) }),
