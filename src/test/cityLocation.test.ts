@@ -7,7 +7,12 @@ import {
   reverseGeocodeCity,
   cityValueIssue,
   salonCityOptions,
+  INDIA_VIEW,
+  mapViewFor,
+  mostCommonSalonCity,
+  salonMapFallbackView,
 } from "@/lib/cityLocation";
+import { toMapPoints } from "@/lib/salonMapPoints";
 
 const okResponse = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response;
 
@@ -147,5 +152,80 @@ describe("city data quality (no state names, no placeholders as cities)", () => 
     expect(options.cities.map((c) => c.name)).toEqual(["Delhi", "Noida"]);
     expect(options.unlisted).toBe(3);
     expect(options.cities.reduce((n, c) => n + c.count, 0) + options.unlisted).toBe(salons.length);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Map framing when no salon can be framed: the salons' own most common city.
+// ---------------------------------------------------------------------------
+describe("salonMapFallbackView / mostCommonSalonCity", () => {
+  const DELHI_VIEW = mapViewFor("Delhi", null);
+  const NOIDA_VIEW = mapViewFor("Noida", null);
+  const noCoords = (city: string | null) => ({ city, latitude: null, longitude: null });
+
+  it("several salons in one city → that city's existing centre (city zoom), not India", () => {
+    const salons = [noCoords("Delhi"), noCoords("Delhi"), noCoords(" delhi ")];
+    expect(mostCommonSalonCity(salons)).toBe("Delhi");
+    expect(salonMapFallbackView(null, null, salons)).toEqual(DELHI_VIEW);
+    expect(DELHI_VIEW).toEqual({ center: [28.6139, 77.209], zoom: 11.5 });
+  });
+
+  it("mixed cities → the most frequent one; aliases count together; ties go alphabetically", () => {
+    expect(salonMapFallbackView(null, null, [noCoords("Noida"), noCoords("Noida"), noCoords("Delhi")])).toEqual(NOIDA_VIEW);
+    // "New Delhi" is an alias of Delhi, so Delhi (2) beats Noida (1).
+    expect(mostCommonSalonCity([noCoords("New Delhi"), noCoords("Delhi"), noCoords("Noida")])).toMatch(/Delhi/);
+    expect(salonMapFallbackView(null, null, [noCoords("New Delhi"), noCoords("Delhi"), noCoords("Noida")])).toEqual(DELHI_VIEW);
+    // Tie: 2 and 2 → alphabetical, so the result doesn't depend on list order.
+    const tie = [noCoords("Noida"), noCoords("Delhi"), noCoords("Noida"), noCoords("Delhi")];
+    expect(salonMapFallbackView(null, null, tie)).toEqual(DELHI_VIEW);
+    expect(salonMapFallbackView(null, null, [...tie].reverse())).toEqual(DELHI_VIEW);
+  });
+
+  it("cities without a known centre are skipped in favour of the most frequent supported one", () => {
+    const salons = [noCoords("Testville"), noCoords("Testville"), noCoords("Testville"), noCoords("Noida")];
+    expect(mostCommonSalonCity(salons)).toBe("Noida");
+    expect(salonMapFallbackView(null, null, salons)).toEqual(NOIDA_VIEW);
+  });
+
+  it.each([
+    ["only unsupported names", [noCoords("Testville"), noCoords("Smallplace")]],
+    ["state names, placeholders and blanks", [noCoords("Uttar Pradesh"), noCoords("Test"), noCoords(null), noCoords("  ")]],
+    ["no salons", []],
+  ])("%s → the existing India-wide view", (_label, salons) => {
+    expect(mostCommonSalonCity(salons)).toBeNull();
+    expect(salonMapFallbackView(null, null, salons)).toEqual(INDIA_VIEW);
+  });
+
+  it("a chosen (or detected) city always wins over the salons' city — even one without a known centre", () => {
+    const salons = [noCoords("Delhi"), noCoords("Delhi")];
+    expect(salonMapFallbackView("Noida", null, salons)).toEqual(NOIDA_VIEW);
+    // Unchanged behaviour: an unknown chosen city keeps the India view (no silent switch to Delhi).
+    expect(salonMapFallbackView("Testville", null, salons)).toEqual(INDIA_VIEW);
+  });
+
+  it("the customer's shared position wins over everything", () => {
+    const at = { lat: 28.5, lng: 77.3 };
+    expect(salonMapFallbackView(null, at, [noCoords("Delhi")])).toEqual({ center: [28.5, 77.3], zoom: 13 });
+    expect(salonMapFallbackView("Noida", at, [noCoords("Delhi")])).toEqual({ center: [28.5, 77.3], zoom: 13 });
+  });
+
+  it("when any listed salon has coordinates, the salons' city isn't used (the map frames the markers)", () => {
+    const salons = [noCoords("Delhi"), noCoords("Delhi"), { city: "Noida", latitude: 28.57, longitude: 77.33 }];
+    expect(salonMapFallbackView(null, null, salons)).toEqual(INDIA_VIEW);
+  });
+
+  it("never creates markers from city names", () => {
+    const salons = [noCoords("Delhi"), noCoords("Delhi")].map((s, i) => ({
+      ...s,
+      id: `s${i}`,
+      name: `Salon ${i}`,
+      open_time: null,
+      close_time: null,
+      is_manual_closed: false,
+      waitTime: 5,
+    }));
+    salonMapFallbackView(null, null, salons);
+    expect(toMapPoints(salons)).toEqual([]);
+    expect(salons.every((s) => s.latitude === null && s.longitude === null)).toBe(true); // inputs untouched
   });
 });

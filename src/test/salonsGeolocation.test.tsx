@@ -7,6 +7,7 @@ import { geolocationErrorMessage, useGeolocation } from "@/hooks/useGeolocation"
 import SalonCard from "@/components/SalonCard";
 import Salons from "@/pages/Salons";
 import type { Tables } from "@/integrations/supabase/types";
+import { markCityAutoDetectAttempted, resetCitySession } from "@/lib/citySession";
 
 // ---------------------------------------------------------------------------
 // /salons Stage 1: real distances from latitude/longitude, no invented
@@ -85,6 +86,10 @@ const installGeolocation = (impl: "success" | "error" | "pending" | "missing", e
 };
 
 beforeEach(() => {
+  // Not about city detection: start after this tab session's automatic attempt
+  // (salonsCityLocation.test covers the first visit).
+  resetCitySession();
+  markCityAutoDetectAttempted();
   mocks.salons = [SALON_WITH_COORDS, SALON_NO_COORDS];
   vi.spyOn(console, "log").mockImplementation(() => {});
 });

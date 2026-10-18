@@ -9,16 +9,22 @@
 import { Component, Suspense, lazy, useEffect, useState, type ReactNode } from "react";
 import { MapPin, X } from "lucide-react";
 import { useReducedMotion } from "framer-motion";
-import { getCartoTileUrl, MAP_ATTRIBUTION } from "@/lib/mapConfig";
+import { CARTO_DEV_KEY_VAR, cartoKeyVariable, getCartoTileUrl, MAP_ATTRIBUTION, redactMapKey } from "@/lib/mapConfig";
 import { toMapPoints, type MapSalon, type SalonMapPoint } from "@/lib/salonMapPoints";
 import type { MapView } from "@/lib/cityLocation";
 
 const SalonMap = lazy(() => import("./SalonMap"));
 
-export function MapNotice({ children }: { children: ReactNode }) {
+/**
+ * A full-panel notice. `status` is exposed as data-map-status (with the expected key
+ * variable, when relevant) so the cause can be read in DevTools — no values.
+ */
+export function MapNotice({ children, status, keyVar }: { children: ReactNode; status?: string; keyVar?: string }) {
   return (
     <div
       role="status"
+      data-map-status={status}
+      data-map-key-var={keyVar}
       className="flex h-full min-h-48 w-full flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-muted/50 p-6 text-center"
     >
       <MapPin className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
@@ -37,12 +43,17 @@ class MapErrorBoundary extends Component<{ children: ReactNode; onError?: () => 
   }
 
   componentDidCatch(error: unknown) {
-    console.error("SALON_MAP_ERROR", error);
+    // The map library's own error, distinct from a missing key or refused tiles; any
+    // key in the text is hidden.
+    const e = error as { name?: unknown; message?: unknown } | null;
+    const name = typeof e?.name === "string" ? e.name : "Error";
+    const message = redactMapKey(typeof e?.message === "string" ? e.message : String(error));
+    console.error(`[map] SALON_MAP_ERROR: the map failed to start (${name}): ${message}`);
     this.props.onError?.();
   }
 
   render() {
-    return this.state.failed ? <MapNotice>{MAP_FAILED}</MapNotice> : this.props.children;
+    return this.state.failed ? <MapNotice status="init-failed">{MAP_FAILED}</MapNotice> : this.props.children;
   }
 }
 
@@ -62,6 +73,8 @@ interface SalonMapPanelProps {
   fallbackView: MapView;
   /** The selected salon's compact preview, shown over the bottom of the map. */
   preview?: ReactNode;
+  /** Name the missing key variable in the "map isn't available" notice (development server only). */
+  showKeyHint?: boolean;
 }
 
 export default function SalonMapPanel({
@@ -72,6 +85,7 @@ export default function SalonMapPanel({
   scrollWheelZoom,
   fallbackView,
   preview,
+  showKeyHint = import.meta.env.DEV && import.meta.env.MODE !== "test",
 }: SalonMapPanelProps) {
   const reducedMotion = useReducedMotion() ?? false;
   const [tileStatus, setTileStatus] = useState<"loading" | "loaded" | "failed">("loading");
@@ -85,22 +99,39 @@ export default function SalonMapPanel({
   const stack = (stackIds ?? []).map((id) => points.find((p) => p.id === id)).filter((p): p is SalonMapPoint => !!p);
 
   useEffect(() => {
-    // Developer hint only (never in production builds or tests): the usual local cause.
-    if (tileStatus === "failed" && import.meta.env.DEV && import.meta.env.MODE !== "test") {
+    // Diagnostic hint in every build (no key value): the usual cause is a key whose
+    // CARTO allowed domains don't include this origin — the Network tab shows 403s.
+    if (tileStatus === "failed") {
       console.warn(
-        `Map tiles failed. CARTO refuses keys that aren't allowed for ${window.location.origin}: add it to the key's allowed domains in CARTO, or use a local dev key.`,
+        `[map] Map tiles failed to load on ${window.location.origin}. If the tile requests return 403, this origin isn't in the CARTO key's allowed domains.`,
       );
     }
   }, [tileStatus]);
 
   if (!tileUrl) {
-    return <MapNotice>The map isn't available right now. You can still browse and book salons from the list.</MapNotice>;
+    return (
+      <MapNotice status="missing-key" keyVar={cartoKeyVariable({ DEV: import.meta.env.DEV })}>
+        The map isn't available right now. You can still browse and book salons from the list.
+        {/* import.meta.env.DEV is a build-time constant, so production bundles drop this branch entirely. */}
+        {import.meta.env.DEV && showKeyHint ? (
+          // Development only (never in production builds): which variable is missing — never a value.
+          <span data-testid="map-key-hint" className="mt-2 block text-xs">
+            Dev: {CARTO_DEV_KEY_VAR} isn't set for this dev server. Add it to .env.local, then restart the dev server.
+          </span>
+        ) : null}
+      </MapNotice>
+    );
   }
 
   const unmapped = salons.length - points.length;
 
   return (
-    <section aria-label="Salon map" className="relative isolate z-0 h-full w-full overflow-hidden rounded-2xl border border-border">
+    <section
+      aria-label="Salon map"
+      // loading → loaded | tiles-failed (tiles refused or unreachable — see the Network tab).
+      data-map-status={tileStatus === "failed" ? "tiles-failed" : tileStatus}
+      className="relative isolate z-0 h-full w-full overflow-hidden rounded-2xl border border-border"
+    >
       <MapErrorBoundary onError={() => setCrashed(true)}>
         <Suspense fallback={<MapSkeleton />}>
           <SalonMap

@@ -20,6 +20,8 @@ export interface SalonMapPreviewSalon {
   startingPrice?: number | null;
   distance?: number | null;
   distanceApproximate?: boolean;
+  /** Set for demo/test coordinates (lib/demoLocations.ts): labelled so it isn't taken as real. */
+  locationDemo?: unknown;
 }
 
 interface SalonMapPreviewProps {
@@ -54,6 +56,13 @@ export default function SalonMapPreview({ salon, onOpen, onClose }: SalonMapPrev
         </button>
       </div>
       {address ? <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground" title={address}>{address}</p> : null}
+      {salon.locationDemo ? (
+        <p className="mt-1.5">
+          <span className="inline-flex rounded-md bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-900">
+            Demo location — not verified
+          </span>
+        </p>
+      ) : null}
       <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
         <span className={`flex items-center gap-1.5 font-semibold ${isOpen ? "text-emerald-700" : "text-muted-foreground"}`}>
           <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${isOpen ? "bg-success" : "bg-muted-foreground/50"}`} />

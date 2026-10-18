@@ -5,12 +5,14 @@
  * RegisterSalon): the public OpenStreetMap Nominatim `/reverse` endpoint. Its usage
  * policy allows direct, user-triggered requests from browsers at moderate volume,
  * requires results to be cached, at most 1 request per second, and visible
- * attribution — so it is called only when the user presses "Detect my city", once
- * per detection, with a per-session cache. There is no SLA; see the Stage report.
+ * attribution — so it is called at most once per detection (the automatic attempt
+ * on a tab session's first /salons visit, or "Detect my city"), with an in-memory
+ * cache. There is no SLA; see the Stage report.
  *
  * Nothing here invents a place: an unreadable answer resolves to null and the UI
  * falls back to manual city selection.
  */
+import { salonCoordinates } from "@/lib/location";
 
 export const REVERSE_GEOCODE_ATTRIBUTION = {
   label: "OpenStreetMap contributors",
@@ -49,24 +51,13 @@ export function normalizeCity(name: string | null | undefined): string {
 const cacheKey = (lat: number, lng: number) => `snippr:city:${lat.toFixed(2)},${lng.toFixed(2)}`;
 const memoryCache = new Map<string, ResolvedPlace | null>();
 
-const readCache = (key: string): ResolvedPlace | null | undefined => {
-  if (memoryCache.has(key)) return memoryCache.get(key);
-  try {
-    const raw = window.sessionStorage.getItem(key);
-    if (raw) return JSON.parse(raw) as ResolvedPlace;
-  } catch {
-    /* storage unavailable: fine, just no cache */
-  }
-  return undefined;
-};
+// Memory only: the key is derived from the position, and the UI promises the
+// location isn't saved — so nothing position-related goes into browser storage.
+// (The chosen city name itself is remembered per tab by lib/citySession.)
+const readCache = (key: string): ResolvedPlace | null | undefined => (memoryCache.has(key) ? memoryCache.get(key) : undefined);
 
 const writeCache = (key: string, place: ResolvedPlace) => {
   memoryCache.set(key, place);
-  try {
-    window.sessionStorage.setItem(key, JSON.stringify(place));
-  } catch {
-    /* ignore */
-  }
 };
 
 /** Test hook: forget cached lookups. */
@@ -241,4 +232,29 @@ export function mapViewFor(city: string | null | undefined, userLocation: { lat:
   }
   const center = city ? CITY_CENTERS[normalizeCity(city)] : undefined;
   return center ? { center, zoom: 11.5 } : INDIA_VIEW;
+}
+
+/**
+ * The most common city among the salons' own `city` values that has a known centre
+ * (ties: alphabetical, via salonCityOptions); null when none does. State names,
+ * placeholders and blanks never count, and addresses are not parsed. This only
+ * chooses where to look — it is never used as, or shown as, a salon's location.
+ */
+export function mostCommonSalonCity(salons: readonly { city?: string | null }[]): string | null {
+  return salonCityOptions(salons).cities.find((c) => CITY_CENTERS[normalizeCity(c.name)])?.name ?? null;
+}
+
+/**
+ * The map's view when no salon can be framed. In order: the customer's shared
+ * position, then the city they chose or detected, then — only when none of the
+ * listed salons has map coordinates — the salons' most common known city, then India.
+ */
+export function salonMapFallbackView(
+  selectedCity: string | null | undefined,
+  userLocation: { lat: number; lng: number } | null | undefined,
+  salons: readonly { city?: string | null; latitude?: number | null; longitude?: number | null }[],
+): MapView {
+  const salonCity =
+    !selectedCity && !salons.some((salon) => salonCoordinates(salon)) ? mostCommonSalonCity(salons) : null;
+  return mapViewFor(selectedCity || salonCity, userLocation);
 }

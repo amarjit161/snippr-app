@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useLocation } from "react-router-dom";
 import type { Tables } from "@/integrations/supabase/types";
 import { distanceToSalonKm } from "@/lib/location";
+import { demoLocationMode } from "@/lib/demoLocations";
 import { COARSE_ACCURACY_METRES, locationQualityOf } from "@/lib/salonLocation";
 import { getStartingPrices, sortSalons, type DiscoverySort } from "@/lib/salonDiscovery";
 import {
@@ -33,13 +34,20 @@ import SalonMapPreview from "@/components/salons/SalonMapPreview";
 import { CityPicker } from "@/components/salons/CityPicker";
 import {
   REVERSE_GEOCODE_ATTRIBUTION,
-  mapViewFor,
+  salonMapFallbackView,
   matchSalonCity,
   normalizeCity,
   reverseGeocodeCity,
   salonCityOptions,
-  type ResolvedPlace,
 } from "@/lib/cityLocation";
+import {
+  cityAutoDetectAttempted,
+  geolocationAvailability,
+  markCityAutoDetectAttempted,
+  readSessionCity,
+  writeSessionCity,
+  type SessionCityChoice,
+} from "@/lib/citySession";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -236,11 +244,14 @@ const Salons = () => {
   const [selectedSalonId, setSelectedSalonId] = useState<string | null>(null);
   const reducedMotion = useReducedMotion() ?? false;
   const [showSuggestions, setShowSuggestions] = useState(false);
-  // The city the list is filtered to: detected from the device (opt-in) or picked.
-  const [cityChoice, setCityChoice] = useState<
-    { source: "detected"; place: ResolvedPlace } | { source: "manual"; name: string } | null
-  >(null);
-  const [detection, setDetection] = useState<"idle" | "locating" | "resolving" | "unresolved" | "denied" | "failed">("idle");
+  // The city the list is filtered to: detected from the device or picked. Remembered
+  // for this tab session (the city only — never coordinates), so returning to /salons
+  // doesn't ask again or lose the customer's choice.
+  const [cityChoice, setCityChoice] = useState<SessionCityChoice | null>(() => readSessionCity());
+  useEffect(() => writeSessionCity(cityChoice), [cityChoice]);
+  const [detection, setDetection] = useState<
+    "idle" | "locating" | "resolving" | "unresolved" | "denied" | "failed" | "unsupported" | "insecure"
+  >("idle");
   const [pickerOpen, setPickerOpen] = useState(false);
   const cityTriggerRef = useRef<HTMLButtonElement>(null);
   // Each detection gets a token; choosing a city manually invalidates it, so a late
@@ -250,11 +261,45 @@ const Salons = () => {
   const detecting = detection === "locating" || detection === "resolving";
 
   const handleDetectCity = () => {
+    // One request at a time: a second press while the browser is still answering does nothing.
+    if (detecting) return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setDetection("unsupported");
+      return;
+    }
+    if (typeof window !== "undefined" && window.isSecureContext === false) {
+      setDetection("insecure");
+      return;
+    }
     detectTokenRef.current += 1;
     lookupAbortRef.current?.abort();
     setDetection("locating");
     requestLocation();
   };
+
+  // First visit in this tab session: try to find the customer's city once, unless they
+  // already have one. A permission granted earlier answers silently; an undecided one
+  // shows the browser's own prompt (once); a denied one isn't asked again. The ref
+  // keeps React Strict Mode's double effect from asking twice; the session flag keeps
+  // re-renders, refetches and route changes from asking again.
+  const autoDetectStartedRef = useRef(false);
+  useEffect(() => {
+    if (autoDetectStartedRef.current) return;
+    autoDetectStartedRef.current = true;
+    if (cityChoice || cityAutoDetectAttempted()) return;
+    markCityAutoDetectAttempted();
+    const token = detectTokenRef.current;
+    void geolocationAvailability().then((availability) => {
+      // The customer picked a city (or pressed Detect) meanwhile: leave it alone.
+      if (detectTokenRef.current !== token) return;
+      if (availability === "unsupported") setDetection("unsupported");
+      else if (availability === "insecure") setDetection("insecure");
+      else if (availability === "denied") setDetection("denied");
+      else handleDetectCity();
+    });
+    // Runs once per mount by design (guarded above).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const chooseCity = (city: string | null) => {
     detectTokenRef.current += 1;
@@ -309,11 +354,18 @@ const Salons = () => {
 
       if (error) throw error;
 
-      // Development only: approximate test locations for salons without coordinates.
-      // The dynamic import sits behind import.meta.env.DEV, so production builds
-      // drop it entirely (no fixture data is shipped); tests never load it.
+      // Demo coordinates for the test salons (src/dev/testSalonLocations.ts): on the
+      // dev server, or in a build made with VITE_DEMO_SALON_LOCATIONS=true (Preview
+      // only — see lib/demoLocations.ts), never on a production domain. Both checks
+      // are build-time constants, so an ordinary production build drops the import and
+      // ships no fixture data. Nothing is written anywhere; the UI labels them as demo.
       const rows =
-        import.meta.env.DEV && import.meta.env.MODE !== "test"
+        ((import.meta.env.DEV && import.meta.env.MODE !== "test") || import.meta.env.VITE_DEMO_SALON_LOCATIONS === "true") &&
+        demoLocationMode({
+          devServer: import.meta.env.DEV && import.meta.env.MODE !== "test",
+          demoBuild: import.meta.env.VITE_DEMO_SALON_LOCATIONS === "true",
+          hostname: window.location.hostname,
+        })
           ? (await import("@/dev/testSalonLocations")).withTestLocations(data as any[], true)
           : (data as any[]);
       // API order is the "Recommended" order; sorting happens in sortSalons.
@@ -692,7 +744,11 @@ const Salons = () => {
       : detection === "failed" && !cityChoice
       ? `${geoError ?? "Location unavailable"}. Try again, or choose your city.`
       : detection === "unresolved" && !cityChoice
-      ? "We found your location but couldn't identify the city. Choose it instead."
+      ? "We found your location but couldn't identify the city. Try again, or choose it instead."
+      : detection === "unsupported" && !cityChoice
+      ? "This browser can't share your location. Choose your city instead."
+      : detection === "insecure" && !cityChoice
+      ? "Location only works on a secure (https) connection. Choose your city instead."
       : cityChoice?.source === "detected" && cityCounts !== null && !matchedDetectedCity
       ? `No salons on Snippr in ${cityChoice.place.city} yet.`
       : null;
@@ -708,7 +764,7 @@ const Salons = () => {
           {locationNote}
         </p>
       ) : null}
-      {!cityChoice && detection === "idle" ? (
+      {!cityChoice && (detection === "idle" || detecting) ? (
         <p className="mt-2 text-xs leading-relaxed text-white/55">
           Used only for your city and distances. It isn’t saved.
         </p>
@@ -989,7 +1045,7 @@ const Salons = () => {
       onSelect={handleMarkerSelect}
       userLocation={userCoords}
       scrollWheelZoom={isDesktop}
-      fallbackView={mapViewFor(filterCity, userCoords)}
+      fallbackView={salonMapFallbackView(filterCity, userCoords, sortedFiltered)}
       preview={
         selectedSalon ? (
           <SalonMapPreview
@@ -1022,10 +1078,14 @@ const Salons = () => {
         selectedCity={filterCity}
         onSelectCity={chooseCity}
         returnFocusTo={cityTriggerRef}
-        onDetect={detection === "denied" ? null : handleDetectCity}
+        onDetect={detection === "denied" || detection === "unsupported" || detection === "insecure" ? null : handleDetectCity}
         detectNote={
           detection === "denied"
             ? "Location access is blocked in this browser. Allow it in your browser settings to detect your city."
+            : detection === "unsupported"
+            ? "This browser can't share your location."
+            : detection === "insecure"
+            ? "Location only works on a secure (https) connection."
             : null
         }
       />
@@ -1133,6 +1193,16 @@ const Salons = () => {
               </div>
             </div>
 
+            {sortedFiltered.some((salon) => salon.locationDemo) ? (
+              <p
+                role="note"
+                data-testid="demo-locations-note"
+                className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900"
+              >
+                <span className="font-semibold">Demo locations:</span> map positions and distances for these salons use
+                test coordinates for trying out the map — they are not real or verified salon locations.
+              </p>
+            ) : null}
             {sortNote ? (
               <p id="sort-note" role="status" className="-mt-1 mb-3 text-xs leading-relaxed text-muted-foreground sm:-mt-2 sm:mb-4">
                 {sortNote}

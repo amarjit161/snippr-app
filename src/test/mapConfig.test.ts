@@ -45,11 +45,39 @@ describe("CARTO key selection", () => {
     expect(error).toHaveBeenCalledTimes(1);
   });
 
-  it("a missing production key returns null quietly (the map shows its notice)", async () => {
+  it("a production build without its key (e.g. a Vercel environment without it) says which variable is missing, once", async () => {
     const { getCartoTileUrl } = await fresh();
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(getCartoTileUrl({ DEV: false })).toBeNull();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    // The development key alone never stands in for the production one.
+    expect(getCartoTileUrl({ DEV: false, VITE_CARTO_DEV_API_KEY: "dev-fake" })).toBeNull();
     expect(error).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledTimes(1);
+    const message = String(warn.mock.calls[0][0]);
+    expect(message).toContain("VITE_CARTO_API_KEY was not set when this build was made");
+    expect(message).toContain("Production or Preview");
+    expect(message).not.toContain("dev-fake");
+    getCartoTileUrl({ DEV: false });
+    expect(warn).toHaveBeenCalledTimes(1); // once per page load
+  });
+
+  it("a build with its key says so once — the variable name, never the value", async () => {
+    const { getCartoTileUrl } = await fresh();
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    getCartoTileUrl({ DEV: false, VITE_CARTO_API_KEY: "prod-secret-sss" });
+    getCartoTileUrl({ DEV: false, VITE_CARTO_API_KEY: "prod-secret-sss" });
+    expect(info).toHaveBeenCalledTimes(1);
+    expect(String(info.mock.calls[0][0])).toBe("[map] VITE_CARTO_API_KEY is set for this build (value hidden).");
+  });
+
+  it("redactMapKey hides key values in URLs and messages (keys may contain any letters)", async () => {
+    const { redactMapKey } = await fresh();
+    expect(redactMapKey("https://basemaps.cartocdn.com/a/1/2/3.png?key=abc_sss-XYZ")).toBe(
+      "https://basemaps.cartocdn.com/a/1/2/3.png?key=<hidden>",
+    );
+    expect(redactMapKey("GET ...?x=1&key=s3cr3ts&y=2 failed")).toBe("GET ...?x=1&key=<hidden>&y=2 failed");
+    expect(redactMapKey("load 'https://t.invalid/z.png?KEY=Sss' (403)")).toBe("load 'https://t.invalid/z.png?KEY=<hidden>' (403)");
+    expect(redactMapKey("nothing to hide")).toBe("nothing to hide");
   });
 
   it("by default reads the current mode's variable (Vitest runs in development mode)", async () => {

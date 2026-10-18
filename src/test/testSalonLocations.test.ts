@@ -63,6 +63,7 @@ describe("development demo-location fixture", () => {
       { ...demo, name: "John Sallon", open_time: null, close_time: null, is_manual_closed: false, waitTime: 0 },
     ]);
     expect(point.approximate).toBeUndefined();
-    expect(point.label).toBe("John Sallon, No wait, walk in now");
+    // Named as a demo location for screen readers (and labelled in the UI).
+    expect(point.label).toBe("John Sallon, No wait, walk in now, demo location");
   });
 });

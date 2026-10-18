@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Salons from "@/pages/Salons";
+import { markCityAutoDetectAttempted, resetCitySession } from "@/lib/citySession";
 
 // ---------------------------------------------------------------------------
 // /salons discovery filters: quick chips, the "All filters" sheet, applied-filter
@@ -62,6 +63,10 @@ const row = (id: string, name: string, city: string, extra: Record<string, unkno
 });
 
 beforeEach(() => {
+  // Not about city detection: start after this tab session's automatic attempt
+  // (salonsCityLocation.test covers the first visit).
+  resetCitySession();
+  markCityAutoDetectAttempted();
   mocks.salons = [
     row("a", "Aura", "Delhi", { wait_time: 10 }),
     row("b", "Blade", "Delhi", { wait_time: 40 }),

@@ -1,25 +1,36 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { StrictMode } from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Salons from "@/pages/Salons";
 import { clearCityCache } from "@/lib/cityLocation";
+import { markCityAutoDetectAttempted, resetCitySession } from "@/lib/citySession";
 
 // ---------------------------------------------------------------------------
-// /salons city experience: opt-in detection (GPS → OpenStreetMap Nominatim
-// reverse lookup), a "YOUR CITY" panel, and a searchable city picker built on
-// real salon data. Supabase, geolocation and fetch are mocked: no network.
+// /salons city experience: detection (GPS → OpenStreetMap Nominatim reverse
+// lookup) — tried automatically once per tab session, and on request — a "YOUR
+// CITY" panel, and a searchable city picker built on real salon data. Supabase,
+// geolocation and fetch are mocked: no network, no writes.
 // ---------------------------------------------------------------------------
-const mocks = vi.hoisted(() => ({ salons: [] as Record<string, unknown>[] }));
+const mocks = vi.hoisted(() => ({ salons: [] as Record<string, unknown>[], writes: [] as string[] }));
 
 vi.mock("@/integrations/supabase/publicClient", () => ({
   publicSupabase: {
     from: (table: string) => {
       const result = { data: table === "services" ? [] : mocks.salons, error: null };
+      const write = (op: string) => () => {
+        mocks.writes.push(`${op} ${table}`);
+        return chain;
+      };
       const chain = {
         select: () => chain,
         not: () => chain,
         order: () => chain,
+        insert: write("insert"),
+        update: write("update"),
+        upsert: write("upsert"),
+        delete: write("delete"),
         then: (ok: (r: typeof result) => unknown) => Promise.resolve(result).then(ok),
       };
       return chain;
@@ -85,6 +96,11 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
   clearCityCache();
   window.sessionStorage.clear();
+  mocks.writes = [];
+  // These suites start after this tab session's automatic attempt; the first visit
+  // itself is covered by "automatic city detection" below.
+  resetCitySession();
+  markCityAutoDetectAttempted();
   vi.spyOn(console, "log").mockImplementation(() => {});
 });
 afterEach(() => {
@@ -110,7 +126,7 @@ const picker = () => screen.getByRole("dialog", { name: "Choose your city" });
 
 // ---------------------------------------------------------------------------
 describe("/salons city panel — before any choice", () => {
-  it("asks for nothing on load: 'Choose your city', a 'Detect my city' action, no 'All cities' select", async () => {
+  it("after this session's automatic attempt, nothing more is asked on load: 'Choose your city', 'Detect my city'", async () => {
     await renderPage();
     expect(getCurrentPosition).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
@@ -206,7 +222,7 @@ describe("/salons city detection — failures", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     await answerLookup(address as Record<string, string> | null, status);
     expect(cityText()).toBe("Choose your city");
-    expect(screen.getByText("We found your location but couldn't identify the city. Choose it instead.")).toBeInTheDocument();
+    expect(screen.getByText("We found your location but couldn't identify the city. Try again, or choose it instead.")).toBeInTheDocument();
     expect(cards()).toHaveLength(3); // no filter applied from a guess
     expect(within(panel()).getByRole("button", { name: "Try again" })).toBeInTheDocument();
   });
@@ -436,5 +452,210 @@ describe("/salons nearest-first default and honest distances", () => {
     await waitFor(() => expect(screen.getAllByText(/^≈ /).length).toBeGreaterThan(0));
     expect(screen.queryByText(/^\d+\.\d km$/)).toBeNull();
     expect(screen.getByText("Your device gave an approximate location (about 5 km), so distances are approximate.")).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// First visit in a tab session: one automatic attempt, never repeated.
+// ---------------------------------------------------------------------------
+describe("/salons automatic city detection (first visit in a tab session)", () => {
+  const setPermission = (state: PermissionState | null) =>
+    Object.defineProperty(navigator, "permissions", {
+      value: state === null ? undefined : { query: vi.fn(async () => ({ state })) },
+      configurable: true,
+    });
+  const setSecure = (secure: boolean | undefined) =>
+    Object.defineProperty(window, "isSecureContext", { value: secure, configurable: true });
+
+  beforeEach(() => {
+    resetCitySession(); // a fresh tab session
+  });
+  afterEach(() => {
+    setPermission(null);
+    setSecure(undefined);
+  });
+
+  const page = (strict = false) => {
+    const tree = (
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/salons"]}>
+          <Salons />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+    return render(strict ? <StrictMode>{tree}</StrictMode> : tree);
+  };
+  const loaded = () => waitFor(() => expect(screen.getAllByTestId("salon-card").length).toBeGreaterThan(0));
+
+  it("permission already granted: the city is detected and applied without a click", async () => {
+    setPermission("granted");
+    page();
+    await waitFor(() => expect(getCurrentPosition).toHaveBeenCalledTimes(1));
+    expect(cityText()).toBe("Detecting your city…");
+    // The privacy note is shown while detecting.
+    expect(screen.getByText(/Used only for your city and distances\. It isn.t saved\./)).toBeInTheDocument();
+    answerPosition(28.535, 77.391);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await answerLookup({ city: "Noida", state: "Uttar Pradesh", country: "India" });
+    await loaded();
+    expect(cityText()).toBe("Noida, India");
+    expect(cards()).toEqual(["Noida One"]);
+  });
+
+  it("first visit with no decision yet: exactly one request, so the browser prompts once", async () => {
+    setPermission("prompt");
+    page();
+    await waitFor(() => expect(getCurrentPosition).toHaveBeenCalledTimes(1));
+    await loaded();
+    // Re-renders (typing, data refreshes) don't ask again.
+    fireEvent.change(screen.getByRole("textbox", { name: "Search salons" }), { target: { value: "Del" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Search salons" }), { target: { value: "" } });
+    await act(async () => {});
+    expect(getCurrentPosition).toHaveBeenCalledTimes(1);
+  });
+
+  it("without a Permissions API (e.g. older Safari) it still asks exactly once", async () => {
+    setPermission(null);
+    page();
+    await waitFor(() => expect(getCurrentPosition).toHaveBeenCalledTimes(1));
+    await loaded();
+    expect(getCurrentPosition).toHaveBeenCalledTimes(1);
+  });
+
+  it("React Strict Mode's double effects don't ask twice", async () => {
+    setPermission("prompt");
+    page(true);
+    await waitFor(() => expect(getCurrentPosition).toHaveBeenCalled());
+    await loaded();
+    expect(getCurrentPosition).toHaveBeenCalledTimes(1);
+  });
+
+  it("permission previously denied: no prompt at all, and manual choice works", async () => {
+    setPermission("denied");
+    page();
+    await loaded();
+    await waitFor(() => expect(screen.getByText(/Location access is blocked/)).toBeInTheDocument());
+    expect(getCurrentPosition).not.toHaveBeenCalled();
+    openPicker();
+    fireEvent.click(within(picker()).getByRole("button", { name: /^Delhi/ }));
+    expect(cityText()).toBe("Delhi");
+    expect(cards()).toEqual(["Delhi One", "Delhi Two"]);
+  });
+
+  it("the customer denies the prompt: a clear fallback, and no re-prompt on returning", async () => {
+    setPermission("prompt");
+    const { unmount } = page();
+    await waitFor(() => expect(getCurrentPosition).toHaveBeenCalledTimes(1));
+    denyPosition(1);
+    await loaded();
+    expect(screen.getByText(/Location access is blocked/)).toBeInTheDocument();
+    expect(within(panel()).getByRole("button", { name: "Choose city" })).toBeInTheDocument();
+    unmount(); // e.g. the customer navigates away…
+    page(); // …and comes back in the same tab
+    await loaded();
+    expect(getCurrentPosition).toHaveBeenCalledTimes(1);
+    expect(cityText()).toBe("Choose your city");
+  });
+
+  it("a timeout offers 'Try again', which asks exactly once more (a double press doesn't double it)", async () => {
+    setPermission("prompt");
+    page();
+    await waitFor(() => expect(getCurrentPosition).toHaveBeenCalledTimes(1));
+    denyPosition(3);
+    await loaded();
+    expect(screen.getByText("Location request timed out. Try again, or choose your city.")).toBeInTheDocument();
+    const retry = within(panel()).getByRole("button", { name: "Try again" });
+    fireEvent.click(retry);
+    fireEvent.click(retry);
+    expect(getCurrentPosition).toHaveBeenCalledTimes(2);
+  });
+
+  it("the city lookup fails: no guessed city, manual choice and 'Try again' offered", async () => {
+    setPermission("granted");
+    page();
+    await waitFor(() => expect(getCurrentPosition).toHaveBeenCalledTimes(1));
+    answerPosition();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await answerLookup(null, 503);
+    await loaded();
+    expect(cityText()).toBe("Choose your city");
+    expect(screen.getByText("We found your location but couldn't identify the city. Try again, or choose it instead.")).toBeInTheDocument();
+    expect(cards()).toHaveLength(3);
+    expect(within(panel()).getByRole("button", { name: "Try again" })).toBeInTheDocument();
+  });
+
+  it("no Geolocation API: nothing is requested and the fallback says so", async () => {
+    Object.defineProperty(navigator, "geolocation", { value: undefined, configurable: true });
+    page();
+    await loaded();
+    await waitFor(() => expect(screen.getByText("This browser can't share your location. Choose your city instead.")).toBeInTheDocument());
+    expect(within(panel()).queryByRole("button", { name: /Detect my city|Try again/ })).toBeNull();
+    openPicker();
+    fireEvent.click(within(picker()).getByRole("button", { name: /^Noida/ }));
+    expect(cityText()).toBe("Noida");
+  });
+
+  it("not a secure (https) page: nothing is requested and the fallback says so", async () => {
+    setSecure(false);
+    page();
+    await loaded();
+    await waitFor(() =>
+      expect(screen.getByText("Location only works on a secure (https) connection. Choose your city instead.")).toBeInTheDocument(),
+    );
+    expect(getCurrentPosition).not.toHaveBeenCalled();
+  });
+
+  it("a city picked while detection is still running is never overwritten", async () => {
+    setPermission("prompt");
+    page();
+    await waitFor(() => expect(getCurrentPosition).toHaveBeenCalledTimes(1));
+    await loaded();
+    openPicker();
+    fireEvent.click(within(picker()).getByRole("button", { name: /^Delhi/ }));
+    answerPosition(28.535, 77.391); // a late answer from the browser
+    await act(async () => {});
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(cityText()).toBe("Delhi");
+    expect(cards()).toEqual(["Delhi One", "Delhi Two"]);
+  });
+
+  it("a city picked earlier in the session is kept on return, and nothing is requested", async () => {
+    setPermission("granted");
+    const first = page();
+    await waitFor(() => expect(getCurrentPosition).toHaveBeenCalledTimes(1));
+    await loaded();
+    openPicker();
+    fireEvent.click(within(picker()).getByRole("button", { name: /^Delhi/ }));
+    first.unmount();
+    page();
+    await loaded();
+    expect(cityText()).toBe("Delhi");
+    expect(getCurrentPosition).toHaveBeenCalledTimes(1);
+  });
+
+  it("a detected city is remembered for the session — the city only, no coordinates, no database writes", async () => {
+    setPermission("granted");
+    const first = page();
+    await waitFor(() => expect(getCurrentPosition).toHaveBeenCalledTimes(1));
+    answerPosition(28.535, 77.391);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await answerLookup({ city: "Noida", state: "Uttar Pradesh", country: "India" });
+    await loaded();
+    expect(cityText()).toBe("Noida, India");
+
+    const stored = Object.keys(window.sessionStorage)
+      .map((k) => `${k}=${window.sessionStorage.getItem(k)}`)
+      .join("\n");
+    expect(stored).toContain("Noida");
+    expect(stored).not.toMatch(/28\.5|77\.3|"lat|"lng|"lon/i);
+    expect(window.localStorage.length).toBe(0);
+    expect(mocks.writes).toEqual([]);
+
+    first.unmount();
+    page();
+    await loaded();
+    expect(cityText()).toBe("Noida, India");
+    expect(getCurrentPosition).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

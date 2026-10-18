@@ -1,17 +1,27 @@
 import "dotenv/config";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import type { Plugin } from "vite";
 import { config as loadDotenv } from "dotenv";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { verifyTurnstileWithCloudflare } from "./src/lib/turnstile-server";
+import { demoSalonLocationsForBuild } from "./src/lib/demoLocations";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   loadDotenv({ path: path.resolve(process.cwd(), ".env.local") });
 
   const turnstileSecret = process.env.TURNSTILE_SECRET_KEY;
+
+  // Demo salon coordinates in a deployed build (src/lib/demoLocations.ts): only when
+  // VITE_DEMO_SALON_LOCATIONS=true is set for that build (meant for Vercel Preview), and
+  // never for a Vercel Production build (VERCEL_ENV=production), even if it is set there.
+  // Baked in as "true"/"false" so ordinary builds drop the demo fixture entirely.
+  const demoSalonLocations = demoSalonLocationsForBuild(
+    loadEnv(mode, process.cwd(), "VITE_DEMO_").VITE_DEMO_SALON_LOCATIONS,
+    process.env.VERCEL_ENV,
+  );
 
   const turnstileDevApiPlugin: Plugin = {
     name: "snippr-turnstile-dev-api",
@@ -255,6 +265,9 @@ export default defineConfig(({ mode }) => {
   };
 
   return {
+    define: {
+      "import.meta.env.VITE_DEMO_SALON_LOCATIONS": JSON.stringify(demoSalonLocations ? "true" : "false"),
+    },
     server: {
       host: "::",
       port: 5174,

@@ -17,6 +17,8 @@ export type MapSalon = DiscoverySalon & {
   longitude?: number | null;
   /** Position explicitly known to be approximate (drawn hollow and labelled). */
   locationApproximate?: boolean;
+  /** A demo/test coordinate (lib/demoLocations.ts) — named as such for screen readers. */
+  locationDemo?: unknown;
 };
 
 /**
@@ -38,7 +40,12 @@ export function toMapPoints(salons: readonly MapSalon[], now: Date = new Date())
         approximate: true,
       });
     } else {
-      points.push({ id: salon.id, name: salon.name, label: `${salon.name}, ${badge.description}`, position });
+      points.push({
+        id: salon.id,
+        name: salon.name,
+        label: `${salon.name}, ${badge.description}${salon.locationDemo ? ", demo location" : ""}`,
+        position,
+      });
     }
   }
   return points;

@@ -7,6 +7,8 @@ import { getCartoTileUrl, MAP_ATTRIBUTION } from "@/lib/mapConfig";
 import { toMapPoints } from "@/lib/salonMapPoints";
 import SalonMapPanel from "@/components/salons/SalonMapPanel";
 import Salons from "@/pages/Salons";
+import { markCityAutoDetectAttempted, resetCitySession } from "@/lib/citySession";
+import { TEST_SALON_LOCATIONS } from "@/dev/testSalonLocations";
 
 // ---------------------------------------------------------------------------
 // /salons Stage 4: the CARTO/Leaflet map. react-leaflet is mocked (no tiles are
@@ -21,6 +23,7 @@ configure({ asyncUtilTimeout: 5000 });
 const mocks = vi.hoisted(() => ({
   reducedMotion: false,
   throwOnRender: false,
+  throwMessage: null as string | null,
   mapProps: null as Record<string, unknown> | null,
   tileProps: null as { url: string; eventHandlers: Record<string, () => void> } | null,
   map: null as null | Record<string, ReturnType<typeof vi.fn>>,
@@ -59,7 +62,7 @@ vi.mock("react-leaflet", () => {
   };
   return {
     MapContainer: ({ children, ...props }: { children: ReactNode }) => {
-      if (mocks.throwOnRender) throw new Error("leaflet exploded");
+      if (mocks.throwOnRender) throw new Error(mocks.throwMessage ?? "leaflet exploded");
       mocks.mapProps = props;
       return <div data-testid="leaflet-map">{children}</div>;
     },
@@ -132,9 +135,14 @@ const setDesktop = (desktop: boolean) => {
 const originalMatchMedia = window.matchMedia;
 
 beforeEach(() => {
+  // Not about city detection: start after this tab session's automatic attempt
+  // (salonsCityLocation.test covers the first visit).
+  resetCitySession();
+  markCityAutoDetectAttempted();
   vi.stubEnv("VITE_CARTO_DEV_API_KEY", FAKE_KEY); // Vitest runs in development mode
   mocks.reducedMotion = false;
   mocks.throwOnRender = false;
+  mocks.throwMessage = null;
   mocks.mapProps = null;
   mocks.tileProps = null;
   mocks.map = null;
@@ -254,6 +262,74 @@ describe("SalonMapPanel", () => {
     renderPanel();
     expect(screen.getByRole("status").textContent).toMatch(/map isn't available right now/i);
     expect(screen.queryByTestId("leaflet-map")).toBeNull();
+  });
+
+  describe("diagnostics: the three failures are distinct (and never show a key)", () => {
+    it("missing key → data-map-status='missing-key' naming the expected variable; no map, no tiles", () => {
+      vi.stubEnv("VITE_CARTO_DEV_API_KEY", "");
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      renderPanel();
+      const notice = screen.getByRole("status");
+      expect(notice).toHaveAttribute("data-map-status", "missing-key");
+      expect(notice).toHaveAttribute("data-map-key-var", "VITE_CARTO_DEV_API_KEY"); // Vitest = development mode
+      expect(screen.queryByTestId("leaflet-map")).toBeNull();
+      expect(mocks.tileProps).toBeNull();
+    });
+
+    it("map start-up failure → data-map-status='init-failed' and a redacted console error", async () => {
+      mocks.throwOnRender = true;
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      renderPanel();
+      const notice = await screen.findByText("The map couldn't load. You can still browse and book salons from the list.");
+      expect(notice.closest("[role=status]")).toHaveAttribute("data-map-status", "init-failed");
+      const logged = error.mock.calls.map((c) => String(c[0])).find((m) => m.startsWith("[map] SALON_MAP_ERROR"));
+      expect(logged).toBe("[map] SALON_MAP_ERROR: the map failed to start (Error): leaflet exploded");
+    });
+
+    it("start-up errors that mention a tile URL never reveal its key", async () => {
+      mocks.throwOnRender = true;
+      mocks.throwMessage = "bad tile https://basemaps.cartocdn.com/x.png?key=test-key-not-real";
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      renderPanel();
+      await screen.findByText(/The map couldn't load/);
+      // Our own diagnostic line is redacted. (React itself also reports errors caught by
+      // an error boundary; that report is outside the app's control.)
+      const ours = error.mock.calls.map((c) => String(c[0])).filter((m) => m.startsWith("[map]"));
+      expect(ours).toEqual(["[map] SALON_MAP_ERROR: the map failed to start (Error): bad tile https://basemaps.cartocdn.com/x.png?key=<hidden>"]);
+      expect(ours.join("\n")).not.toContain("test-key-not-real");
+    });
+
+    it("tiles: loading → loaded, or tiles-failed after repeated tile errors", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      renderPanel();
+      await screen.findByTestId("leaflet-map");
+      const section = screen.getByLabelText("Salon map");
+      expect(section).toHaveAttribute("data-map-status", "loading");
+      act(() => {
+        for (let i = 0; i < 4; i++) mocks.tileProps!.eventHandlers.tileerror();
+      });
+      expect(section).toHaveAttribute("data-map-status", "tiles-failed");
+      fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+      act(() => mocks.tileProps!.eventHandlers.tileload());
+      expect(section).toHaveAttribute("data-map-status", "loaded");
+    });
+  });
+
+  it("missing key on the dev server: the notice names the variable to set (never a value); otherwise no hint", () => {
+    vi.stubEnv("VITE_CARTO_DEV_API_KEY", "");
+    vi.stubEnv("VITE_CARTO_API_KEY", "prod-key-not-for-dev");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { unmount } = render(
+      <SalonMapPanel salons={[]} selectedId={null} onSelect={vi.fn()} userLocation={null} scrollWheelZoom={false} fallbackView={DELHI_VIEW} showKeyHint />,
+    );
+    const hint = screen.getByTestId("map-key-hint");
+    expect(hint.textContent).toBe("Dev: VITE_CARTO_DEV_API_KEY isn't set for this dev server. Add it to .env.local, then restart the dev server.");
+    expect(screen.getByRole("status").textContent).not.toContain("prod-key-not-for-dev");
+    unmount();
+    // Default outside the development server (tests, production builds): the generic notice only.
+    renderPanel();
+    expect(screen.queryByTestId("map-key-hint")).toBeNull();
+    expect(screen.getByRole("status").textContent).toBe("The map isn't available right now. You can still browse and book salons from the list.");
   });
 
   it("no salon with valid coordinates → the basemap still renders, framed on the fallback view, with a note", async () => {
@@ -621,7 +697,7 @@ describe("/salons with the map", () => {
     expect(within(city).getByRole("button", { name: "Detect my city" })).toBeInTheDocument();
     // One button per action: no separate "Choose city" button on phones.
     expect(within(city).queryByRole("button", { name: "Choose city" })).toBeNull();
-    expect(getCurrentPosition).not.toHaveBeenCalled(); // still opt-in
+    expect(getCurrentPosition).not.toHaveBeenCalled(); // nothing more after the session's automatic attempt
     // List stays the default view on phones; the map isn't loaded.
     expect(screen.getByRole("button", { name: "List" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByTestId("leaflet-map")).toBeNull();
@@ -636,6 +712,59 @@ describe("/salons with the map", () => {
       "placeholder",
       "Search salons, landmarks, addresses…",
     );
+  });
+
+  it("no salon has coordinates: the map starts on the salons' own most common city (not India), with no markers", async () => {
+    mocks.salons = mocks.salons.map((s) => ({ ...s, latitude: null, longitude: null })); // all four are in Delhi
+    renderPage();
+    await waitFor(() => expect(cardNames()).toHaveLength(4)); // the list is unchanged
+    fireEvent.click(screen.getByRole("button", { name: "Map" }));
+    await screen.findByTestId("leaflet-map");
+    expect(mocks.mapProps).toMatchObject({ center: [28.6139, 77.209], zoom: 11.5 });
+    expect(screen.queryAllByTestId("marker")).toHaveLength(0);
+    expect(screen.getByText("None of these salons has a map location yet — they're all in the list.")).toBeInTheDocument();
+    expect(getCurrentPosition).not.toHaveBeenCalled();
+  });
+
+  describe("demo salon locations (explicit demo builds only)", () => {
+    // Two real test-salon ids from the fixture (stored without coordinates), plus one
+    // salon that isn't in the fixture.
+    const [a, b] = TEST_SALON_LOCATIONS;
+    beforeEach(() => {
+      mocks.salons = [
+        row(a.salonId, a.salonName, { latitude: null, longitude: null }),
+        row(b.salonId, b.salonName, { latitude: null, longitude: null }),
+        row("not-in-fixture", "Other Salon", { latitude: null, longitude: null }),
+      ];
+    });
+
+    it("a build made with VITE_DEMO_SALON_LOCATIONS=true shows the fixture's markers, clearly labelled as demo", async () => {
+      vi.stubEnv("VITE_DEMO_SALON_LOCATIONS", "true");
+      renderPage();
+      await waitFor(() => expect(cardNames()).toHaveLength(3));
+      expect(await screen.findByTestId("demo-locations-note")).toHaveTextContent(
+        "Demo locations: map positions and distances for these salons use test coordinates for trying out the map — they are not real or verified salon locations.",
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Map" }));
+      const markers = await screen.findAllByTestId("marker");
+      expect(markers.map((m) => m.title).sort()).toEqual([a.salonName, b.salonName].sort());
+      await waitFor(() => expect(markers[0].getAttribute("aria-label")).toMatch(/, demo location$/));
+      // The salon outside the fixture gets nothing invented.
+      expect(screen.getByText("1 salon isn't on the map yet — see the list.")).toBeInTheDocument();
+      fireEvent.click(markers.find((m) => m.title === a.salonName)!);
+      expect(within(await screen.findByTestId("map-preview")).getByText("Demo location — not verified")).toBeInTheDocument();
+    });
+
+    it("an ordinary build (flag absent or not exactly 'true') never applies them", async () => {
+      vi.stubEnv("VITE_DEMO_SALON_LOCATIONS", "false");
+      renderPage();
+      await waitFor(() => expect(cardNames()).toHaveLength(3));
+      expect(screen.queryByTestId("demo-locations-note")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Map" }));
+      await screen.findByTestId("leaflet-map");
+      expect(screen.queryAllByTestId("marker")).toHaveLength(0);
+      expect(screen.getByText("None of these salons has a map location yet — they're all in the list.")).toBeInTheDocument();
+    });
   });
 
   it("map view with no results shows the empty state with a way to reset", async () => {
@@ -703,7 +832,7 @@ describe("/salons with the map", () => {
     // Back to the list: Salon B (no coordinates, no marker) is still listed.
     fireEvent.click(screen.getByRole("button", { name: "List" }));
     expect(cardNames()).toContain("Salon B");
-    expect(getCurrentPosition).not.toHaveBeenCalled(); // location is opt-in: nothing on load
+    expect(getCurrentPosition).not.toHaveBeenCalled(); // this session already had its one automatic attempt
   });
 
   it("quick filters: 'All filters' opens a dialog and shows how many filters are active", async () => {

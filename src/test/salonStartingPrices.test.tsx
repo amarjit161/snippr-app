@@ -7,6 +7,7 @@ import Salons from "@/pages/Salons";
 import SalonPage from "@/pages/SalonPage";
 import QuickBooking from "@/pages/QuickBooking";
 import type { Tables } from "@/integrations/supabase/types";
+import { markCityAutoDetectAttempted, resetCitySession } from "@/lib/citySession";
 
 // ---------------------------------------------------------------------------
 // /salons Stage 3: real starting prices from one batched services read, and a
@@ -77,6 +78,10 @@ const salonRow = (id: string, name: string, extra: Record<string, unknown> = {})
 });
 
 beforeEach(() => {
+  // Not about city detection: start after this tab session's automatic attempt
+  // (salonsCityLocation.test covers the first visit).
+  resetCitySession();
+  markCityAutoDetectAttempted();
   mocks.salons = [];
   mocks.services = null;
   mocks.salon = null;

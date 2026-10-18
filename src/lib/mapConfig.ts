@@ -47,7 +47,11 @@ function currentEnv(): CartoEnv {
 /** Which variable supplies the key in this environment. */
 export const cartoKeyVariable = (env: CartoEnv) => (env.DEV ? CARTO_DEV_KEY_VAR : CARTO_PROD_KEY_VAR);
 
-let reportedMissingDevKey = false;
+/** Hides any `key=` value in a string (URLs, error messages) before it is logged. */
+export const redactMapKey = (text: string) => text.replace(/([?&]key=)[^&\s"'<>)]+/gi, "$1<hidden>");
+
+let reportedMissingKey = false;
+let reportedConfigured = false;
 
 /**
  * The tile URL template with the key applied, or null when the key for this
@@ -56,14 +60,27 @@ let reportedMissingDevKey = false;
 export function getCartoTileUrl(env: CartoEnv = currentEnv()): string | null {
   const key = env.DEV ? env.VITE_CARTO_DEV_API_KEY : env.VITE_CARTO_API_KEY;
   if (typeof key !== "string" || key.trim() === "") {
-    if (env.DEV && !reportedMissingDevKey) {
-      reportedMissingDevKey = true;
-      console.error(
-        `[map] ${CARTO_DEV_KEY_VAR} is not set, so the map is disabled in development. ` +
-          `Add it to .env.local and restart the dev server. (${CARTO_PROD_KEY_VAR} is used only by production builds.)`,
-      );
+    // Say which variable is missing (never a key value), once per page load.
+    if (!reportedMissingKey) {
+      reportedMissingKey = true;
+      if (env.DEV) {
+        console.error(
+          `[map] ${CARTO_DEV_KEY_VAR} is not set, so the map is disabled in development. ` +
+            `Add it to .env.local and restart the dev server. (${CARTO_PROD_KEY_VAR} is used only by production builds.)`,
+        );
+      } else {
+        console.warn(
+          `[map] ${CARTO_PROD_KEY_VAR} was not set when this build was made, so the map is disabled. ` +
+            `Vite reads it at build time: on Vercel, add it for this environment (Production or Preview) and redeploy.`,
+        );
+      }
     }
     return null;
+  }
+  // A safe "the build has a key" signal for diagnosis — the variable name, never the value.
+  if (!reportedConfigured) {
+    reportedConfigured = true;
+    console.info(`[map] ${cartoKeyVariable(env)} is set for this build (value hidden).`);
   }
   return `${CARTO_VOYAGER_TILES}?key=${encodeURIComponent(key.trim())}`;
 }
