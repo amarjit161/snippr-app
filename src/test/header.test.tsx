@@ -1,7 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import Header from "@/components/Header";
+
+// The signed-in account (for its provider name / photo). Null unless a test sets it.
+const authMocks = vi.hoisted(() => ({ user: null as null | { email?: string; user_metadata?: Record<string, unknown> } }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: authMocks.user }) }));
 
 // The shared app Header, restyled after the landing-page navbar. Destinations,
 // auth states, role actions and sign-out must behave exactly as before.
@@ -27,6 +31,7 @@ const renderAt = (path: string, props: Parameters<typeof Header>[0] = {}) =>
 const where = () => screen.getByTestId("location").textContent;
 
 beforeEach(() => {
+  authMocks.user = null;
   vi.spyOn(console, "log").mockImplementation(() => {});
 });
 afterEach(() => vi.restoreAllMocks());
@@ -139,18 +144,87 @@ describe("Header — signed in", () => {
     profileName: "Asha",
     ...extra,
   });
+  const trigger = () => screen.getByRole("button", { name: "Open account menu" });
+  // Radix opens the menu on Enter / Space / ArrowDown, or a primary-button pointer press.
+  const openWithKey = (key = "Enter") => fireEvent.keyDown(trigger(), { key });
+  const openWithPointer = () => fireEvent.pointerDown(trigger(), { button: 0, ctrlKey: false, pointerType: "mouse" });
+  const menu = () => screen.getByRole("menu", { name: "Account menu" });
 
-  it("shows the avatar (no public actions) and opens the account dialog with focus on close", () => {
+  beforeAll(() => {
+    // jsdom has no PointerEvent: without it a pointer press carries no "button", and
+    // Radix (rightly) only opens on a primary-button press.
+    if (!("PointerEvent" in window)) {
+      vi.stubGlobal(
+        "PointerEvent",
+        class extends MouseEvent {
+          pointerType: string;
+          constructor(type: string, init: PointerEventInit = {}) {
+            super(type, init);
+            this.pointerType = init.pointerType ?? "mouse";
+          }
+        },
+      );
+    }
+    // Radix measures the trigger/content; jsdom has no ResizeObserver.
+    if (!("ResizeObserver" in window)) {
+      vi.stubGlobal(
+        "ResizeObserver",
+        class {
+          observe() {}
+          unobserve() {}
+          disconnect() {}
+        },
+      );
+    }
+  });
+
+  it("shows the avatar trigger (no public actions) with the account's initial and a menu popup", () => {
     renderAt("/bookings", signedIn());
     expect(screen.queryByRole("button", { name: /Get Started/ })).toBeNull();
     expect(screen.queryByRole("button", { name: "Sign In" })).toBeNull();
-    const avatar = screen.getByRole("button", { name: "Open account menu" });
-    expect(avatar.textContent).toBe("A");
-    fireEvent.click(avatar);
-    const dialog = screen.getByRole("dialog", { name: "Account menu" });
-    expect(dialog).toHaveAttribute("aria-modal", "true");
-    expect(within(dialog).getByText("Asha")).toBeInTheDocument();
-    expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "Close account menu" }));
+    expect(trigger()).toHaveAttribute("aria-haspopup", "menu");
+    expect(trigger()).toHaveAttribute("aria-expanded", "false");
+    expect(trigger().textContent).toBe("A");
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it.each([["Enter"], [" "], ["ArrowDown"]])("%j opens the menu, focuses the first item and marks the trigger open", (key) => {
+    renderAt("/bookings", signedIn());
+    openWithKey(key);
+    expect(menu()).toBeInTheDocument();
+    expect(trigger()).toHaveAttribute("aria-expanded", "true");
+    expect(trigger()).toHaveAttribute("data-state", "open");
+    expect(document.activeElement).toBe(within(menu()).getAllByRole("menuitem")[0]);
+  });
+
+  it("a pointer press opens it too; the menu shows the real name and email only", () => {
+    renderAt("/bookings", signedIn());
+    openWithPointer();
+    const m = menu();
+    expect(within(m).getByText("Asha")).toBeInTheDocument();
+    expect(within(m).getByText("asha@example.com")).toBeInTheDocument();
+    expect(within(m).getAllByRole("menuitem").map((i) => i.textContent)).toEqual([
+      "My Profile",
+      "My Bookings",
+      "Live Queue",
+      "Favorites",
+      "Notifications",
+      "Support",
+      "Sign Out",
+    ]);
+  });
+
+  it("arrow keys move between items and wrap around", async () => {
+    renderAt("/bookings", signedIn());
+    openWithKey("Enter");
+    const items = within(menu()).getAllByRole("menuitem");
+    // Radix moves focus on the next tick.
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowUp" });
+    await waitFor(() => expect(document.activeElement).toBe(items[items.length - 1])); // wraps to Sign Out
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+    await waitFor(() => expect(document.activeElement).toBe(items[0]));
+    fireEvent.keyDown(document.activeElement!, { key: "End" });
+    await waitFor(() => expect(document.activeElement).toBe(items[items.length - 1]));
   });
 
   it.each([
@@ -160,27 +234,47 @@ describe("Header — signed in", () => {
     ["Favorites", "/favorites"],
     ["Notifications", "/notifications"],
     ["Support", "/support"],
-  ])("account item %s → %s (unchanged)", (label, expected) => {
+  ])("account item %s → %s (unchanged), then the menu closes", (label, expected) => {
     renderAt("/salons", signedIn());
-    fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
-    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: new RegExp(`^${label}`) }));
+    openWithKey();
+    fireEvent.click(within(menu()).getByRole("menuitem", { name: label }));
     expect(where()).toBe(expected);
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 
-  it("Escape closes the account dialog and returns focus to the avatar", () => {
+  it("Enter on an item activates it", () => {
+    renderAt("/salons", signedIn());
+    openWithKey();
+    fireEvent.keyDown(within(menu()).getByRole("menuitem", { name: "My Profile" }), { key: "Enter" });
+    expect(where()).toBe("/my-profile");
+  });
+
+  it("Escape closes the menu and returns focus to the avatar", async () => {
     renderAt("/bookings", signedIn());
-    fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
-    fireEvent.keyDown(window, { key: "Escape" });
-    expect(screen.queryByRole("dialog")).toBeNull();
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Open account menu" }));
+    openWithKey();
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(trigger()));
+    expect(trigger()).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("a click outside closes the menu without taking an action", async () => {
+    renderAt("/bookings", signedIn());
+    openWithPointer();
+    expect(menu()).toBeInTheDocument();
+    // Radix starts listening for outside presses on the next tick (so the opening
+    // press itself can't close the menu).
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    fireEvent.pointerDown(document.body, { button: 0 });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(where()).toBe("/bookings");
   });
 
   it("Sign Out calls onSignOut, then goes to /", async () => {
     const props = signedIn();
     renderAt("/favorites", props);
-    fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
-    fireEvent.click(screen.getByRole("button", { name: "Sign Out" }));
+    openWithKey();
+    fireEvent.click(within(menu()).getByRole("menuitem", { name: "Sign Out" }));
     await waitFor(() => expect(where()).toBe("/"));
     expect(props.onSignOut).toHaveBeenCalledTimes(1);
   });
@@ -189,9 +283,17 @@ describe("Header — signed in", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const props = signedIn({ onSignOut: vi.fn().mockRejectedValue(new Error("network")) });
     renderAt("/favorites", props);
-    fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
-    fireEvent.click(screen.getByRole("button", { name: "Sign Out" }));
+    openWithKey();
+    fireEvent.click(within(menu()).getByRole("menuitem", { name: "Sign Out" }));
     await waitFor(() => expect(where()).toBe("/"));
+  });
+
+  it("Sign Out is set apart (its own group, red) from ordinary navigation", () => {
+    renderAt("/favorites", signedIn());
+    openWithKey();
+    const signOut = within(menu()).getByRole("menuitem", { name: "Sign Out" });
+    expect(signOut.className).toContain("text-red-400");
+    expect(signOut.previousElementSibling).toHaveAttribute("role", "separator");
   });
 
   it("role action: Admin toggle and Owner Dashboard call onAdminToggle; the active state is shown", () => {
@@ -200,16 +302,85 @@ describe("Header — signed in", () => {
     const admin = screen.getByRole("button", { name: "Admin" });
     expect(admin.className).toContain("bg-primary");
     fireEvent.click(admin);
-    fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
-    fireEvent.click(screen.getByRole("button", { name: /Owner Dashboard/ }));
+    openWithKey();
+    fireEvent.click(within(menu()).getByRole("menuitem", { name: /Owner Dashboard/ }));
     expect(onAdminToggle).toHaveBeenCalledTimes(2);
   });
 
   it("without onAdminToggle there is no Admin action or Owner Dashboard item", () => {
     renderAt("/favorites", signedIn());
     expect(screen.queryByRole("button", { name: "Admin" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
-    expect(screen.queryByRole("button", { name: /Owner Dashboard/ })).toBeNull();
+    openWithKey();
+    expect(within(menu()).queryByRole("menuitem", { name: /Owner Dashboard/ })).toBeNull();
+  });
+
+  it("no invented details: without a name the email leads; without email or name, no placeholder text", () => {
+    renderAt("/bookings", signedIn({ profileName: undefined }));
+    openWithKey();
+    const m = menu();
+    expect(within(m).getAllByText("asha@example.com")).toHaveLength(1);
+    expect(within(m).queryByText(/No email available|^User$/)).toBeNull();
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+  });
+
+  it("a phone-only account shows the phone, and its avatar falls back to an icon (no fake letter)", () => {
+    renderAt("/bookings", { onSignOut: vi.fn(), userName: "+919876543210" });
+    expect(trigger().textContent).toBe("");
+    expect(trigger().querySelector("svg")).not.toBeNull();
+    openWithKey();
+    expect(within(menu()).getByText("+919876543210")).toBeInTheDocument();
+    expect(within(menu()).queryByText(/No email available/)).toBeNull();
+  });
+
+  it("an avatar photo is used when given, and falls back to the initial if it fails to load", () => {
+    renderAt("/bookings", signedIn({ avatarUrl: "https://images.invalid/asha.jpg" }));
+    const img = trigger().querySelector("img")!;
+    expect(img).toHaveAttribute("src", "https://images.invalid/asha.jpg");
+    expect(img).toHaveAttribute("alt", "");
+    fireEvent.error(img);
+    expect(trigger().querySelector("img")).toBeNull();
+    expect(trigger().textContent).toBe("A");
+  });
+
+  it("uses the signed-in account's own name and photo from its sign-in provider (e.g. Google)", () => {
+    authMocks.user = {
+      email: "asha@example.com",
+      user_metadata: { full_name: "Asha Verma", avatar_url: "https://lh3.googleusercontent.invalid/a.jpg" },
+    };
+    renderAt("/bookings", signedIn({ profileName: undefined }));
+    expect(trigger().querySelector("img")).toHaveAttribute("src", "https://lh3.googleusercontent.invalid/a.jpg");
+    openWithKey();
+    expect(within(menu()).getByText("Asha Verma")).toBeInTheDocument();
+    expect(within(menu()).getByText("asha@example.com")).toBeInTheDocument();
+  });
+
+  it("never shows another account's name or photo", () => {
+    authMocks.user = { email: "someone-else@example.com", user_metadata: { full_name: "Someone Else", picture: "https://x.invalid/p.jpg" } };
+    renderAt("/bookings", signedIn({ profileName: undefined }));
+    expect(trigger().querySelector("img")).toBeNull();
+    openWithKey();
+    expect(within(menu()).queryByText("Someone Else")).toBeNull();
+  });
+
+  it("non-https photo URLs are ignored", () => {
+    renderAt("/bookings", signedIn({ avatarUrl: "javascript:alert(1)" }));
+    expect(trigger().querySelector("img")).toBeNull();
+  });
+
+  it("motion is opt-in: hover tilt and menu animation only apply without reduced motion", () => {
+    renderAt("/bookings", signedIn());
+    const tilt = trigger().firstElementChild as HTMLElement;
+    expect(tilt.className).toMatch(/motion-safe:group-hover\/acct:\[transform:/);
+    expect(tilt.className).not.toMatch(/(^|\s)group-hover\/acct:\[transform:/);
+    openWithKey();
+    expect(menu().className).toMatch(/motion-safe:data-\[state=open\]:animate-\[accountMenuIn/);
+    expect(menu().className).not.toMatch(/(^|\s)data-\[state=open\]:animate-/);
+  });
+
+  it("the menu stays inside small screens", () => {
+    renderAt("/bookings", signedIn());
+    openWithKey();
+    expect(menu().className).toContain("w-[min(18rem,calc(100vw-1.5rem))]");
   });
 });
 
