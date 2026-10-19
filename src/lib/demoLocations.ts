@@ -13,11 +13,45 @@
  */
 
 /**
- * The build-time decision (used by vite.config.ts): demo locations only when the build
- * explicitly asks for them, and never in a Vercel Production build.
+ * Whether the flag says "true". Tolerant of how dashboards store values (case,
+ * surrounding spaces or quotes) but still an explicit yes — "1", "yes" etc. are no.
  */
+export const isDemoFlagOn = (flag: string | undefined) =>
+  (flag ?? "").trim().replace(/^(["'])(.*)\1$/, "$2").trim().toLowerCase() === "true";
+
+/**
+ * The build-time decision (used by vite.config.ts) and a one-line reason for the
+ * build log: demo locations only when the build explicitly asks for them, and never in
+ * a Vercel Production build. Contains no secrets (the flag and VERCEL_ENV only).
+ */
+export function describeDemoBuild(flag: string | undefined, vercelEnv: string | undefined): { enabled: boolean; reason: string } {
+  const env = vercelEnv ? `VERCEL_ENV=${vercelEnv}` : "VERCEL_ENV not set";
+  if (!isDemoFlagOn(flag)) {
+    return { enabled: false, reason: `OFF — VITE_DEMO_SALON_LOCATIONS is ${flag === undefined ? "not set" : "not \"true\""} for this build (${env})` };
+  }
+  if (vercelEnv === "production") {
+    return { enabled: false, reason: "OFF — Vercel Production build (the flag is ignored in Production)" };
+  }
+  return { enabled: true, reason: `ON — VITE_DEMO_SALON_LOCATIONS=true (${env}); never applied on production domains` };
+}
+
 export function demoSalonLocationsForBuild(flag: string | undefined, vercelEnv: string | undefined): boolean {
-  return flag === "true" && vercelEnv !== "production";
+  return describeDemoBuild(flag, vercelEnv).enabled;
+}
+
+let reportedDemoRows = false;
+
+/**
+ * Runtime note, once per page load, when demo coordinates are in use: how many of the
+ * listed salons got one (salons outside the fixture get none). Returns the rows as-is.
+ */
+export function reportDemoLocations<T extends { locationDemo?: unknown }>(rows: T[]): T[] {
+  if (!reportedDemoRows) {
+    reportedDemoRows = true;
+    const withDemo = rows.filter((row) => row.locationDemo).length;
+    console.info(`[map] Demo salon locations are on: ${withDemo} of ${rows.length} salons use test coordinates (not real locations).`);
+  }
+  return rows;
 }
 
 /** Production hostnames: demo locations are never applied here. */

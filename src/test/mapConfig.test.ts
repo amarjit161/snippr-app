@@ -88,3 +88,15 @@ describe("CARTO key selection", () => {
     expect(getCartoTileUrl()).toMatch(/\?key=dev-fake$/);
   });
 });
+
+describe("tile style", () => {
+  it("stays on CARTO Voyager; high-DPI screens get CARTO's documented @2x tiles with the same key", async () => {
+    const { getCartoTileUrl } = await fresh();
+    const L = (await import("leaflet")).default;
+    const url = getCartoTileUrl({ DEV: false, VITE_CARTO_API_KEY: "prod-fake" })!;
+    const at = (r: string) => L.Util.template(url, { z: 12, x: 2925, y: 1709, r });
+    // Leaflet fills {r} with "@2x" on retina screens and "" elsewhere.
+    expect(at("")).toBe("https://basemaps.cartocdn.com/rastertiles/voyager/12/2925/1709.png?key=prod-fake");
+    expect(at("@2x")).toBe("https://basemaps.cartocdn.com/rastertiles/voyager/12/2925/1709@2x.png?key=prod-fake");
+  });
+});

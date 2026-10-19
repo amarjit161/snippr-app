@@ -24,29 +24,50 @@ const renderRow = (extra: Record<string, unknown>) => {
 describe("SalonCard location labels", () => {
   it("approximate test location: '≈' rounded distance and an unobtrusive label", () => {
     renderRow({ distance: 2.6, distanceApproximate: true, locationQuality: "approximate" });
-    expect(screen.getByText("≈ 3 km")).toHaveAttribute("title", "Approximate distance");
+    // Straight-line, approximate — said in the tooltip and to screen readers.
+    expect(screen.getByText("≈ 3 km").parentElement).toHaveAttribute("title", "About 3 km away in a straight line (not by road)");
+    expect(screen.getByText("About 3 km away in a straight line (not by road)")).toHaveClass("sr-only");
     expect(screen.getByText("Approximate test location")).toBeInTheDocument();
   });
 
   it("local demo fixture: no location label (clean UI), distance still rounded", () => {
     renderRow({ distance: 2.6, distanceApproximate: true, locationQuality: "demo" });
     expect(screen.getByText("≈ 3 km")).toBeInTheDocument();
-    expect(screen.queryByText(/Approximate test location|Location unavailable|verified/i)).toBeNull();
+    expect(screen.queryByText(/Approximate test location|Distance unavailable|verified/i)).toBeNull();
   });
 
   it("coordinates on file: precise distance, no label (never 'verified')", () => {
     renderRow({ distance: 1.24, locationQuality: "on-file" });
     expect(screen.getByText("1.2 km")).toBeInTheDocument();
-    expect(screen.queryByText(/Approximate|verified|Location unavailable/i)).toBeNull();
+    expect(screen.queryByText(/Approximate|verified|Distance unavailable/i)).toBeNull();
   });
 
-  it("missing coordinates: 'Location unavailable' only when distances are expected", () => {
+  it("missing coordinates: 'Distance unavailable' only when distances are expected — never a made-up distance", () => {
     const { unmount } = renderRow({ locationQuality: "missing", flagMissingLocation: true });
-    expect(screen.getByText("Location unavailable")).toBeInTheDocument();
-    expect(screen.queryByText(/ km$/)).toBeNull();
+    expect(screen.getByText("Distance unavailable")).toBeInTheDocument();
+    expect(screen.queryByText(/ (k?m)$/)).toBeNull();
     unmount();
     renderRow({ locationQuality: "missing", flagMissingLocation: false });
-    expect(screen.queryByText("Location unavailable")).toBeNull();
+    expect(screen.queryByText("Distance unavailable")).toBeNull();
+  });
+
+  it("under 1 km a precise distance is in metres; straight-line wording for screen readers", () => {
+    renderRow({ distance: 0.437, locationQuality: "on-file" });
+    expect(screen.getByText("440 m")).toBeInTheDocument();
+    expect(screen.getByText("440 m away in a straight line (not by road)")).toHaveClass("sr-only");
+  });
+
+  it("the nearest salon is marked; a demo-location nearest says so", () => {
+    const { unmount } = renderRow({ distance: 1.24, locationQuality: "on-file", isNearest: true });
+    expect(screen.getByTestId("nearest-badge")).toHaveTextContent(/^Nearest$/);
+    unmount();
+    renderRow({ distance: 1.24, locationQuality: "demo", distanceApproximate: true, isNearest: true, locationDemo: { source: "test" } });
+    expect(screen.getByTestId("nearest-badge")).toHaveTextContent("Nearest (demo location)");
+  });
+
+  it("no badge unless marked nearest", () => {
+    renderRow({ distance: 1.24, locationQuality: "on-file" });
+    expect(screen.queryByTestId("nearest-badge")).toBeNull();
   });
 });
 

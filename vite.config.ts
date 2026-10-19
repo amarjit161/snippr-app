@@ -6,7 +6,7 @@ import { config as loadDotenv } from "dotenv";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { verifyTurnstileWithCloudflare } from "./src/lib/turnstile-server";
-import { demoSalonLocationsForBuild } from "./src/lib/demoLocations";
+import { describeDemoBuild } from "./src/lib/demoLocations";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -18,10 +18,10 @@ export default defineConfig(({ mode }) => {
   // VITE_DEMO_SALON_LOCATIONS=true is set for that build (meant for Vercel Preview), and
   // never for a Vercel Production build (VERCEL_ENV=production), even if it is set there.
   // Baked in as "true"/"false" so ordinary builds drop the demo fixture entirely.
-  const demoSalonLocations = demoSalonLocationsForBuild(
-    loadEnv(mode, process.cwd(), "VITE_DEMO_").VITE_DEMO_SALON_LOCATIONS,
-    process.env.VERCEL_ENV,
-  );
+  const demoBuild = describeDemoBuild(loadEnv(mode, process.cwd(), "VITE_DEMO_").VITE_DEMO_SALON_LOCATIONS, process.env.VERCEL_ENV);
+  const demoSalonLocations = demoBuild.enabled;
+  // Shown in the build log (e.g. Vercel's), so a Preview without demo markers is easy to diagnose.
+  if (mode === "production") console.log(`[demo] Demo salon locations: ${demoBuild.reason}`);
 
   const turnstileDevApiPlugin: Plugin = {
     name: "snippr-turnstile-dev-api",

@@ -56,6 +56,12 @@ vi.mock("react-leaflet", () => {
         x: ((ll.lng + 180) / 360) * 256 * 2 ** z,
         y: ((90 - ll.lat) / 180) * 256 * 2 ** z,
       }),
+      // On-screen positions for label placement: the same projection, no layout size.
+      latLngToContainerPoint: (ll: { lat: number; lng: number }) => ({
+        x: ((ll.lng + 180) / 360) * 256 * 2 ** mocks.zoom,
+        y: ((90 - ll.lat) / 180) * 256 * 2 ** mocks.zoom,
+      }),
+      getSize: () => ({ x: 0, y: 0 }),
       getBounds: () => ({ contains: () => true }),
       getContainer: () => document.createElement("div"),
     };
@@ -170,9 +176,9 @@ const salon = (id: string, name: string, extra: Record<string, unknown> = {}) =>
 
 // ---------------------------------------------------------------------------
 describe("CARTO configuration", () => {
-  it("builds the documented Voyager raster URL with the key", () => {
+  it("builds the documented Voyager raster URL with the key (and Leaflet's retina placeholder)", () => {
     expect(getCartoTileUrl({ VITE_CARTO_API_KEY: "abc" })).toBe(
-      "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=abc",
+      "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=abc",
     );
     expect(getCartoTileUrl({ VITE_CARTO_API_KEY: " a&b " })).toMatch(/\?key=a%26b$/);
   });
@@ -208,6 +214,30 @@ describe("toMapPoints", () => {
 
   it("empty input → no points", () => {
     expect(toMapPoints([])).toEqual([]);
+  });
+
+  it("with the customer's position: each point carries its straight-line distance, and the nearest is named", () => {
+    const [near, far, demo] = toMapPoints([
+      salon("a", "Salon A", { distance: 0.437, isNearest: true }),
+      salon("b", "Salon B", { distance: 2.04 }),
+      salon("c", "Salon C", { distance: 2.6, distanceApproximate: true, locationDemo: { source: "test" } }),
+    ]);
+    expect(near).toMatchObject({
+      distanceText: "440 m",
+      nearest: true,
+      label: "Salon A, Short wait, about 10 minutes, 440 m away in a straight line (not by road), nearest salon",
+    });
+    expect(far).toMatchObject({ distanceText: "2.0 km", label: "Salon B, Short wait, about 10 minutes, 2.0 km away in a straight line (not by road)" });
+    expect(far.nearest).toBeUndefined();
+    // Demo coordinates keep their demo wording; the distance is rounded and said to be approximate.
+    expect(demo.label).toBe("Salon C, Short wait, about 10 minutes, demo location, About 3 km away in a straight line (not by road)");
+  });
+
+  it("no customer position → no distance text (never fabricated)", () => {
+    const [point] = toMapPoints([salon("a", "Salon A", { isNearest: true })]);
+    expect(point.distanceText).toBeUndefined();
+    expect(point.nearest).toBeUndefined();
+    expect(point.label).toBe("Salon A, Short wait, about 10 minutes");
   });
 });
 
@@ -254,6 +284,60 @@ describe("SalonMapPanel", () => {
       "https://www.openstreetmap.org/copyright",
     );
     expect(within(attribution).getByRole("link", { name: "CARTO" })).toHaveAttribute("href", "https://carto.com/attributions");
+  });
+
+  describe("Snippr Maps identity", () => {
+    it("shows a compact 'Snippr Maps' badge inside the map, alongside the data attribution", async () => {
+      renderPanel();
+      await screen.findByTestId("leaflet-map");
+      const section = screen.getByLabelText("Salon map");
+      const brand = within(section).getByTestId("map-brand");
+      expect(brand.textContent).toContain("Snippr Maps");
+      expect(brand.textContent).toContain("Explore nearby salons");
+      // The icon is decorative; the badge is plain text (not a live announcement on every change).
+      expect(brand.querySelector("svg")?.closest("[aria-hidden=true]")).not.toBeNull();
+      expect(brand.closest("[aria-live]")).toBeNull();
+      // Salon labels are placed clear of it.
+      expect(brand).toHaveAttribute("data-map-avoid");
+      expect(section).toHaveAttribute("data-map-root");
+      // The map data is still credited to its real providers, and nothing implies Google.
+      expect(within(section).getByTestId("map-attribution").textContent).toBe("© OpenStreetMap contributors, © CARTO");
+      expect(section.textContent).not.toMatch(/google/i);
+    });
+
+    it("keeps the badge small on phones (no subtitle) and out of the controls' column", async () => {
+      renderPanel();
+      await screen.findByTestId("leaflet-map");
+      const subtitle = screen.getByText("Explore nearby salons");
+      expect(subtitle.className).toMatch(/(^|\s)hidden(\s|$)/);
+      expect(subtitle.className).toContain("sm:block");
+      const overlay = screen.getByTestId("map-brand").parentElement!;
+      expect(overlay.className).toContain("left-3");
+      expect(overlay.className).toContain("right-[4.25rem]"); // the controls' 44px column + gaps stays free
+    });
+
+    it("notices sit under the badge, still announced politely and avoided by labels", async () => {
+      renderPanel();
+      await screen.findByTestId("leaflet-map");
+      const notice = screen.getByText("1 salon isn't on the map yet — see the list.");
+      expect(notice.closest("[aria-live=polite]")).not.toBeNull();
+      expect(notice).toHaveAttribute("data-map-avoid");
+    });
+
+    it("no badge without a map: missing key", () => {
+      vi.stubEnv("VITE_CARTO_DEV_API_KEY", "");
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      renderPanel();
+      expect(screen.queryByTestId("map-brand")).toBeNull();
+    });
+
+    it("no badge without a map: crashed map", async () => {
+      mocks.throwOnRender = true;
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      renderPanel();
+      await screen.findByText(/The map couldn't load/);
+      expect(screen.queryByTestId("map-brand")).toBeNull();
+    });
   });
 
   it("missing API key → a notice instead of the map, without crashing", () => {
@@ -738,6 +822,31 @@ describe("/salons with the map", () => {
       ];
     });
 
+    it("all six fixture salons appear on the map in demo mode (as markers or inside a group); the seventh gets none", async () => {
+      mocks.salons = [
+        ...TEST_SALON_LOCATIONS.map((t) => row(t.salonId, t.salonName, { latitude: null, longitude: null })),
+        row("not-in-fixture", "Realtime Proof", { latitude: null, longitude: null }),
+      ];
+      vi.stubEnv("VITE_DEMO_SALON_LOCATIONS", "true");
+      vi.spyOn(console, "info").mockImplementation(() => {});
+      renderPage();
+      await waitFor(() => expect(cardNames()).toHaveLength(7));
+      fireEvent.click(screen.getByRole("button", { name: "Map" }));
+      const markers = await screen.findAllByTestId("marker");
+      // Single markers are named by title; a group badge lists its salons in its label.
+      await waitFor(() => expect(markers.every((m) => m.getAttribute("aria-label"))).toBe(true));
+      const shown = new Set<string>();
+      for (const m of markers) {
+        const label = m.getAttribute("aria-label") ?? "";
+        const group = label.match(/^\d+ salons close together: (.*)\. (?:Zoom in|Show them)/);
+        if (group) group[1].split(", ").forEach((n) => shown.add(n));
+        else shown.add(m.title!);
+      }
+      expect([...shown].sort()).toEqual(TEST_SALON_LOCATIONS.map((t) => t.salonName).sort());
+      expect(screen.getByText("1 salon isn't on the map yet — see the list.")).toBeInTheDocument();
+      expect(screen.getByTestId("demo-locations-note")).toBeInTheDocument();
+    });
+
     it("a build made with VITE_DEMO_SALON_LOCATIONS=true shows the fixture's markers, clearly labelled as demo", async () => {
       vi.stubEnv("VITE_DEMO_SALON_LOCATIONS", "true");
       renderPage();
@@ -930,6 +1039,159 @@ describe("/salons with the map", () => {
     ).toBeInTheDocument();
     expect(within(sortGroup).getByRole("button", { name: "Nearest" })).toBeDisabled();
     expect(within(sortGroup).getByRole("button", { name: "Recommended" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  describe("customer location on the map", () => {
+    // The browser answers when the test says so.
+    let answers: { ok: (p: unknown) => void; fail: (e: { code: number }) => void }[] = [];
+    beforeEach(() => {
+      answers = [];
+      getCurrentPosition.mockImplementation((ok: (p: unknown) => void, fail: (e: { code: number }) => void) => {
+        answers.push({ ok, fail });
+      });
+    });
+    const answer = (lat = 28.71, lng = 77.11) => act(() => answers[answers.length - 1].ok({ coords: { latitude: lat, longitude: lng, accuracy: 20 } }));
+    const openMap = async () => {
+      renderPage();
+      await waitFor(() => expect(cardNames()).toHaveLength(4));
+      fireEvent.click(screen.getByRole("button", { name: "Map" }));
+      await screen.findAllByTestId("marker");
+    };
+    const card = (name: string) => screen.getAllByTestId("salon-card").find((c) => c.querySelector("h3")?.textContent === name)!;
+
+    it("no marker until the browser returns a real position; 'Show my location' asks once, then centres on it", async () => {
+      await openMap();
+      expect(screen.queryByTestId("user-location")).toBeNull();
+      expect(getCurrentPosition).not.toHaveBeenCalled();
+
+      const locate = screen.getByRole("button", { name: "Show my location" });
+      fireEvent.click(locate);
+      expect(getCurrentPosition).toHaveBeenCalledTimes(1);
+      // While the browser answers: busy, and further presses don't ask again.
+      const busy = screen.getByRole("button", { name: "Finding your location…" });
+      expect(busy).toHaveAttribute("aria-busy", "true");
+      fireEvent.click(busy);
+      fireEvent.click(busy);
+      expect(getCurrentPosition).toHaveBeenCalledTimes(1);
+      expect(screen.queryByTestId("user-location")).toBeNull();
+
+      answer(28.71, 77.11);
+      expect(await screen.findByTestId("user-location")).toBeInTheDocument();
+      // Centred on the customer (the nearby nearest salon kept in view).
+      await waitFor(() => expect(mocks.map!.flyToBounds).toHaveBeenCalled());
+      const bounds = mocks.map!.flyToBounds.mock.calls.at(-1)![0] as { getCenter: () => { lat: number; lng: number } };
+      expect(bounds.getCenter().lat).toBeCloseTo(28.71, 6);
+      expect(bounds.getCenter().lng).toBeCloseTo(77.11, 6);
+      const centrings = mocks.map!.flyToBounds.mock.calls.length;
+      // Later renders (e.g. typing a search) don't re-centre or re-ask.
+      fireEvent.change(screen.getByRole("textbox", { name: "Search salons" }), { target: { value: "Salon" } });
+      await act(async () => {});
+      expect(mocks.map!.flyToBounds.mock.calls.length).toBe(centrings);
+      expect(getCurrentPosition).toHaveBeenCalledTimes(1);
+    });
+
+    it("with a position: distances, a single Nearest salon (card and preview), and Nearest sort by real distance", async () => {
+      await openMap();
+      fireEvent.click(screen.getByRole("button", { name: "Show my location" }));
+      answer(28.71, 77.11); // closest to Salon D (28.7, 77.1)
+      await screen.findByTestId("user-location");
+      const sortGroup = screen.getByRole("group", { name: "Sort salons" });
+      await waitFor(() => expect(within(sortGroup).getByRole("button", { name: "Nearest" })).toHaveAttribute("aria-pressed", "true"));
+      fireEvent.click(screen.getByRole("button", { name: "List" }));
+      // A and C share a position (equal distance): by name. B has no coordinates: listed, last.
+      expect(cardNames()).toEqual(["Salon D", "Salon A", "Salon C", "Salon B"]);
+      expect(within(card("Salon D")).getByTestId("nearest-badge")).toHaveTextContent(/^Nearest$/);
+      expect(screen.getAllByTestId("nearest-badge")).toHaveLength(1);
+      expect(within(card("Salon D")).getByText(/^\d+ m$|^\d+\.\d km$/)).toBeInTheDocument();
+      expect(within(card("Salon B")).getByText("Distance unavailable")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Map" }));
+      const markers = await screen.findAllByTestId("marker");
+      fireEvent.click(markers.find((m) => m.title === "Salon D")!);
+      const preview = await screen.findByTestId("map-preview");
+      expect(within(preview).getByTestId("nearest-badge")).toBeInTheDocument();
+      expect(within(preview).getByText(/away in a straight line \(not by road\)/)).toHaveClass("sr-only");
+    });
+
+    it.each([
+      [1, /Location is blocked for this site\. To show where you are, allow Location for this site in your browser's site settings/],
+      [3, /Finding your location took too long\. Press “Show my location” to try again\./],
+      [2, /Your device couldn't find your location right now\. Try again in a moment, or choose your city\./],
+    ])("error code %s: explained on the map, no marker, no distances, the city choice still works", async (code, text) => {
+      await openMap();
+      fireEvent.click(screen.getByRole("button", { name: "Show my location" }));
+      act(() => answers[0].fail({ code }));
+      const message = await screen.findByTestId("map-location-message");
+      expect(message.textContent).toMatch(text);
+      expect(screen.queryByTestId("user-location")).toBeNull();
+      expect(screen.queryByText(/^\d+ m$|^\d+\.\d km$/)).toBeNull();
+      expect(screen.queryByTestId("nearest-badge")).toBeNull();
+      // Dismissable; the location button can try again (one more request).
+      fireEvent.click(within(message).getByRole("button", { name: "Dismiss location message" }));
+      expect(screen.queryByTestId("map-location-message")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Show my location" }));
+      expect(getCurrentPosition).toHaveBeenCalledTimes(2);
+    });
+
+    it("not https: says so instead of asking", async () => {
+      Object.defineProperty(window, "isSecureContext", { value: false, configurable: true });
+      try {
+        await openMap();
+        fireEvent.click(screen.getByRole("button", { name: "Show my location" }));
+        expect(getCurrentPosition).not.toHaveBeenCalled();
+        expect((await screen.findByTestId("map-location-message")).textContent).toMatch(/secure \(https\) connection/);
+      } finally {
+        Object.defineProperty(window, "isSecureContext", { value: undefined, configurable: true });
+      }
+    });
+
+    it("a chosen city is never shown as the customer's position", async () => {
+      renderPage();
+      await waitFor(() => expect(cardNames()).toHaveLength(4));
+      fireEvent.click(screen.getByRole("button", { name: "Map" }));
+      await screen.findAllByTestId("marker");
+      expect(screen.queryByTestId("user-location")).toBeNull();
+      expect(screen.queryByText(/^\d+ m$|^\d+\.\d km$/)).toBeNull();
+      expect(getCurrentPosition).not.toHaveBeenCalled();
+    });
+
+    it("back on /salons within the app: the marker and distances return without asking again; nothing is stored", async () => {
+      const first = render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/salons"]}>
+            <Salons />
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+      await waitFor(() => expect(cardNames()).toHaveLength(4));
+      fireEvent.click(screen.getByRole("button", { name: "Map" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Show my location" }));
+      answer(28.71, 77.11);
+      await screen.findByTestId("user-location");
+      first.unmount();
+
+      await openMap();
+      expect(await screen.findByTestId("user-location")).toBeInTheDocument();
+      expect(getCurrentPosition).toHaveBeenCalledTimes(1);
+      const stored = JSON.stringify({ ...window.localStorage }) + JSON.stringify({ ...window.sessionStorage });
+      expect(stored).not.toContain("28.71");
+      expect(stored).not.toContain("77.11");
+    });
+
+    it("when only demo coordinates give distances, the ranking says it is demo-only", async () => {
+      mocks.salons = mocks.salons.map((s) => (s.latitude === null ? s : { ...s, locationDemo: { source: "test" } }));
+      await openMap();
+      fireEvent.click(screen.getByRole("button", { name: "Show my location" }));
+      answer(28.71, 77.11);
+      await screen.findByTestId("user-location");
+      fireEvent.click(screen.getByRole("button", { name: "List" }));
+      expect(
+        await screen.findByText("Sorted by straight-line distance to demo salon locations (not verified) — for trying out the map only."),
+      ).toBeInTheDocument();
+      expect(within(card("Salon D")).getByTestId("nearest-badge")).toHaveTextContent("Nearest (demo location)");
+      // Demo distances are rounded ("≈"), never presented as precise.
+      expect(within(card("Salon D")).getByText(/^≈ /)).toBeInTheDocument();
+    });
   });
 
   it("cards use the compact row layout with real data and no invented values", async () => {

@@ -31,13 +31,27 @@ export const COARSE_ACCURACY_METRES = 1000;
 
 /**
  * A distance phrased no more precisely than the data allows, or null when there
- * is no distance. Approximate distances are rounded and marked with "≈".
+ * is no distance. Approximate distances are rounded and marked with "≈". Under
+ * 1 km a precise reading is shown in metres (to the nearest 10 m, never below
+ * "50 m" — GPS isn't better than that); from 1 km, one decimal ("1.5 km", "2.0 km").
  */
 export function formatDistance(km: number | null | undefined, approximate: boolean): string | null {
   if (!finite(km) || km < 0) return null;
   if (approximate) return km < 1 ? "≈ <1 km" : `≈ ${Math.round(km)} km`;
+  const metres = Math.round((km * 1000) / 10) * 10;
+  if (metres < 1000) return metres < 50 ? "< 50 m" : `${metres} m`;
   return `${km.toFixed(1)} km`;
 }
+
+/** Shown where a distance is expected but the customer's or the salon's position is unknown. */
+export const DISTANCE_UNAVAILABLE = "Distance unavailable";
+
+/**
+ * Screen-reader / tooltip wording: these are straight-line ("as the crow flies")
+ * distances from the customer's device position, not road distances.
+ */
+export const distanceDescription = (text: string, approximate: boolean) =>
+  `${approximate ? "About " : ""}${text.replace(/^≈ /, "")} away in a straight line (not by road)`;
 
 // ── Owner address + pin ────────────────────────────────────────────────────
 

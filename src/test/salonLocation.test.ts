@@ -47,7 +47,12 @@ describe("locationQualityOf (never claims owner-verified)", () => {
 describe("formatDistance (no false precision)", () => {
   it.each([
     [1.234, false, "1.2 km"],
-    [0.4, false, "0.4 km"],
+    [1.5, false, "1.5 km"],
+    [2, false, "2.0 km"],
+    [0.4, false, "400 m"],
+    [0.8549, false, "850 m"],
+    [0.9996, false, "1.0 km"],
+    [0.02, false, "< 50 m"],
     [2.6, true, "≈ 3 km"],
     [0.4, true, "≈ <1 km"],
   ])("%s km, approximate=%s → %s", (km, approx, text) => {

@@ -323,7 +323,8 @@ describe("/salons distances after detection", () => {
     answerPosition(28.6315, 77.2167);
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     await answerLookup({ city: "Delhi", state: "Delhi", country: "India" });
-    await waitFor(() => expect(screen.getAllByText(/ km$/)).toHaveLength(1));
+    // Under 1 km a precise reading is shown in metres.
+    await waitFor(() => expect(screen.getAllByText(/^\d+ m$|^\d+\.\d km$/)).toHaveLength(1));
     expect(cards()).toEqual(["Delhi One", "Delhi Two"]);
   });
 });
@@ -432,9 +433,13 @@ describe("/salons nearest-first default and honest distances", () => {
     await waitFor(() => expect(within(sortGroup()).getByRole("button", { name: "Nearest" })).toHaveAttribute("aria-pressed", "true"));
     await waitFor(() => expect(cards()).toEqual(["Near Salon", "Far Salon", "No Coords Salon"]));
     const card = (n: string) => screen.getAllByTestId("salon-card").find((c) => c.querySelector("h3")?.textContent === n)!;
-    expect(within(card("Near Salon")).getByText(/^\d+\.\d km$/)).toBeInTheDocument(); // precise reading → one decimal
-    expect(within(card("No Coords Salon")).getByText("Location unavailable")).toBeInTheDocument();
-    expect(within(card("Near Salon")).queryByText("Location unavailable")).toBeNull();
+    expect(within(card("Near Salon")).getByText(/^\d+ m$/)).toBeInTheDocument(); // precise reading under 1 km → metres
+    expect(within(card("Far Salon")).getByText(/^\d+\.\d km$/)).toBeInTheDocument(); // from 1 km → one decimal
+    expect(within(card("No Coords Salon")).getByText("Distance unavailable")).toBeInTheDocument();
+    expect(within(card("Near Salon")).queryByText("Distance unavailable")).toBeNull();
+    // The closest salon with coordinates is marked Nearest — only that one.
+    expect(within(card("Near Salon")).getByTestId("nearest-badge")).toHaveTextContent(/^Nearest$/);
+    expect(screen.getAllByTestId("nearest-badge")).toHaveLength(1);
   });
 
   it("a sort the customer picked is kept when their location arrives", async () => {

@@ -57,6 +57,36 @@ describe("development demo-location fixture", () => {
     expect(locationQualityOf(out[2])).toBe("missing");
   });
 
+  it.each(TEST_SALON_LOCATIONS.map((t) => [t.salonName, t] as const))(
+    "%s: its exact fixture coordinate becomes one labelled demo marker",
+    (_name, t) => {
+      const [row] = withTestLocations([{ id: t.salonId, latitude: null, longitude: null }], true);
+      expect([row.latitude, row.longitude]).toEqual([t.lat, t.lng]);
+      expect(row.locationDemo).toEqual({ status: t.status, basis: t.basis });
+      const points = toMapPoints([
+        { ...row, name: t.salonName, open_time: null, close_time: null, is_manual_closed: false, waitTime: 0 },
+      ]);
+      expect(points).toHaveLength(1);
+      expect(points[0].position).toEqual([t.lat, t.lng]);
+      expect(points[0].label).toMatch(/, demo location$/);
+      expect(points[0].approximate).toBeUndefined();
+    },
+  );
+
+  it("the fixture covers exactly these six salon ids (no extra or invented entries)", () => {
+    expect(TEST_SALON_LOCATIONS.map((t) => t.salonId)).toEqual([
+      "59581580-0ade-4372-a4f3-73f3f7778760",
+      "19b6801b-321a-41ed-b3fc-603f2d3b5a11",
+      "1212f6b0-06ef-4384-a88f-1d5395d19890",
+      "6d8ad927-22d4-4e0b-9287-1594c4426620",
+      "f44a75eb-9f0f-4a31-a34a-c51f7f81c576",
+      "50a23609-e0f3-45d4-93f4-825d37993d2d",
+    ]);
+    // A salon outside the fixture (e.g. the one without an address) gets nothing.
+    const [other] = withTestLocations([{ id: "f10567a2-0000-0000-0000-000000000000", latitude: null, longitude: null }], true);
+    expect(other).toEqual({ id: "f10567a2-0000-0000-0000-000000000000", latitude: null, longitude: null });
+  });
+
   it("demo salons become normal map markers (not the hollow approximate style)", () => {
     const [demo] = withTestLocations([{ id: TEST_SALON_LOCATIONS[0].salonId, latitude: null, longitude: null }], true);
     const [point] = toMapPoints([

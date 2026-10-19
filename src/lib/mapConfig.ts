@@ -6,6 +6,11 @@
  * https://www.carto.com/basemaps/apikey/ : one `key` query parameter on every
  * tile URL, and "© OpenStreetMap contributors, © CARTO" on every map.
  *
+ * Voyager is the documented style closest to a pale, premium look with soft green
+ * parks (Positron/light_all has none). `{r}` is Leaflet's retina placeholder: it
+ * becomes CARTO's documented "@2x" (double-resolution tiles, same key) on high-DPI
+ * screens and is empty elsewhere — same tiles, same zoom levels, sharper text.
+ *
  * Two keys, chosen by Vite mode:
  *  - development (`npm run dev`): VITE_CARTO_DEV_API_KEY — allowed for local origins;
  *  - production builds: VITE_CARTO_API_KEY — restricted to app.snippr.in.
@@ -17,7 +22,7 @@
  * Keys are bundled into the browser JavaScript, so they are public by design; abuse
  * protection relies on CARTO-side domain restrictions, not secrecy.
  */
-const CARTO_VOYAGER_TILES = "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png";
+const CARTO_VOYAGER_TILES = "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
 
 /** Required attribution, rendered visibly on the map. */
 export const MAP_ATTRIBUTION = [

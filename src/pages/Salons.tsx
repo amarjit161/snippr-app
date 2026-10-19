@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { ChevronDown, Search, List as ListIcon, LocateFixed, Map as MapIcon, MapPin, SlidersHorizontal, X } from "lucide-react";
 import { useReducedMotion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,9 +12,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useLocation } from "react-router-dom";
 import type { Tables } from "@/integrations/supabase/types";
 import { distanceToSalonKm } from "@/lib/location";
-import { demoLocationMode } from "@/lib/demoLocations";
+import { demoLocationMode, reportDemoLocations } from "@/lib/demoLocations";
 import { COARSE_ACCURACY_METRES, locationQualityOf } from "@/lib/salonLocation";
-import { getStartingPrices, sortSalons, type DiscoverySort } from "@/lib/salonDiscovery";
+import { getStartingPrices, nearestSalon, sortSalons, type DiscoverySort } from "@/lib/salonDiscovery";
 import {
   EMPTY_FILTERS,
   activeFilterChips,
@@ -206,16 +206,19 @@ const Salons = () => {
   const navigate = useNavigate();
   const routerLocation = useLocation();
   const searchInputRef = useRef<HTMLInputElement>(null);
-  // userCoords is the device's real position or null (never a substitute location).
-  // Opt-in: the browser is asked for a position only when the user presses
-  // "Use current location" — never on page load.
+  // userCoords is the device's real position or null (never a substitute location —
+  // not a city centre, the map's default view or a demo coordinate). Asked for by the
+  // first-visit city detection, "Detect my city", "Nearest" or the map's "Show my
+  // location". A recent reading is remembered in memory only (never storage), so coming
+  // back to /salons within the app keeps the customer's marker and distances without
+  // asking again; a reload forgets it.
   const {
     location: userCoords,
     status: geoStatus,
     error: geoError,
     request: requestLocation,
     accuracy: geoAccuracy,
-  } = useGeolocation({ enabled: false });
+  } = useGeolocation({ enabled: false, remember: true });
   // A coarse device reading (e.g. Wi-Fi only) only supports approximate distances.
   const coarseLocation = !!userCoords && geoAccuracy !== null && geoAccuracy > COARSE_ACCURACY_METRES;
 
@@ -335,6 +338,51 @@ const Salons = () => {
   }, [detection, geoStatus, userCoords, geoError]);
 
   useEffect(() => () => lookupAbortRef.current?.abort(), []);
+
+  // "Show my location" on the map: a fresh reading on each press (one at a time — a press
+  // while the browser is answering does nothing), then the map centres on it. Problems are
+  // explained over the map; the city choice is never touched.
+  const [locateRequested, setLocateRequested] = useState(false);
+  const [locateInsecure, setLocateInsecure] = useState(false);
+  const [locationMessageDismissed, setLocationMessageDismissed] = useState(false);
+  const awaitingLocateRef = useRef(false);
+  const handleLocateMe = () => {
+    if (geoStatus === "pending") return;
+    setLocationMessageDismissed(false);
+    setLocateRequested(true);
+    if (typeof window !== "undefined" && window.isSecureContext === false) {
+      setLocateInsecure(true);
+      return;
+    }
+    awaitingLocateRef.current = true;
+    requestLocation();
+  };
+  // Centre the map on the customer when their position is first obtained on this page,
+  // and after each "Show my location" — once each, so later panning/zooming is theirs.
+  const [centreOnUser, setCentreOnUser] = useState(false);
+  const centredOnceRef = useRef(false);
+  useEffect(() => {
+    if (!userCoords) return;
+    if (!centredOnceRef.current || awaitingLocateRef.current) setCentreOnUser(true);
+    centredOnceRef.current = true;
+    awaitingLocateRef.current = false;
+    // A position now works: an earlier "blocked"/"failed" city note no longer applies.
+    setDetection((d) => (d === "denied" || d === "failed" ? "idle" : d));
+  }, [userCoords]);
+  const locationMessage =
+    locationMessageDismissed || !locateRequested
+      ? null
+      : locateInsecure
+      ? "Location only works on a secure (https) connection. You can still choose your city."
+      : geoStatus !== "unavailable"
+      ? null
+      : geoError === "Location permission denied"
+      ? "Location is blocked for this site. To show where you are, allow Location for this site in your browser's site settings (the icon beside the address bar), then press “Show my location” again. You can still choose your city."
+      : geoError === "Location request timed out"
+      ? "Finding your location took too long. Press “Show my location” to try again."
+      : geoError === "Geolocation not supported"
+      ? "This browser can't share your location. Choose your city instead."
+      : "Your device couldn't find your location right now. Try again in a moment, or choose your city.";
   const debouncedSearch = useDebounce(search, 300);
   const queryClient = useQueryClient();
 
@@ -343,8 +391,8 @@ const Salons = () => {
       searchInputRef.current?.focus();
     }
   }, [routerLocation.state]);
-  const { data: salons = [], isLoading: loading, error: queryError } = useQuery({
-    queryKey: ["salons", userCoords],
+  const { data: salonRows = [], isLoading: loading, error: queryError } = useQuery({
+    queryKey: ["salons"],
     queryFn: async () => {
       console.log("FETCH_SALONS_OPTIMIZED_START");
       // publicSupabase: salon discovery must work for anonymous visitors too (public SEO pages).
@@ -366,7 +414,7 @@ const Salons = () => {
           demoBuild: import.meta.env.VITE_DEMO_SALON_LOCATIONS === "true",
           hostname: window.location.hostname,
         })
-          ? (await import("@/dev/testSalonLocations")).withTestLocations(data as any[], true)
+          ? reportDemoLocations((await import("@/dev/testSalonLocations")).withTestLocations(data as any[], true))
           : (data as any[]);
       // API order is the "Recommended" order; sorting happens in sortSalons.
       return rows.map((salon) => ({
@@ -374,16 +422,21 @@ const Salons = () => {
         queueCount: salon.queue_count,
         waitTime: salon.wait_time,
         // salon_with_stats exposes latitude/longitude (not lat/lng).
-        distance: distanceToSalonKm(userCoords, salon),
         locationQuality: locationQualityOf(salon),
       }));
     },
     enabled: !authLoading,
     refetchInterval: 5 * 60 * 1000,
-    // When the device position arrives the key changes (distances are added);
-    // keep showing the current list meanwhile instead of a loading skeleton.
     placeholderData: (previous) => previous,
   });
+  // Straight-line distances from the customer's real position, worked out here (not in
+  // the query): a new reading needs no refetch, and the distances — and so the nearest
+  // salon — are ready in the same render as the position. No position or no salon
+  // coordinates → no distance (never a guess).
+  const salons = useMemo(
+    () => salonRows.map((salon) => ({ ...salon, distance: distanceToSalonKm(userCoords, salon) })),
+    [salonRows, userCoords],
+  );
 
   const loadError = queryError ? "Could not load salons right now." : null;
 
@@ -391,6 +444,10 @@ const Salons = () => {
   // location; never pretend otherwise (salons without one stay in the list, last).
   const anyDistance = salons.some((s) => typeof s.distance === "number" && Number.isFinite(s.distance));
   const nearestAvailable = !!userCoords && anyDistance;
+  // Every calculable distance comes from a demo/test coordinate: the ranking is demo-only.
+  const distancesAllDemo =
+    anyDistance &&
+    salons.every((s) => !(typeof s.distance === "number" && Number.isFinite(s.distance)) || !!(s as { locationDemo?: unknown }).locationDemo);
   useEffect(() => {
     if (nearestAvailable && !sortChosen) setSortBy("distance");
   }, [nearestAvailable, sortChosen]);
@@ -404,6 +461,8 @@ const Salons = () => {
         : `${geoError ?? "Location unavailable"}, so salons are in recommended order. Choose Nearest to try again.`
       : userCoords && !anyDistance
       ? "None of these salons has a map location yet, so they can't be sorted by distance."
+      : effectiveSort === "distance" && distancesAllDemo
+      ? "Sorted by straight-line distance to demo salon locations (not verified) — for trying out the map only."
       : !userCoords && effectiveSort === "recommended"
       ? "Nearest asks for your location first."
       : null;
@@ -433,9 +492,15 @@ const Salons = () => {
     startingPrice: startingPrices?.get(salon.id) ?? null,
     serviceLabels: salonCategoryLabels(serviceData?.categories.get(salon.id)),
     // Demo fixtures and approximate positions are locality-level: distances are rounded ("≈").
+    ...withDistanceInfo(salon),
+  });
+  // Distance presentation shared by the cards, the map and its preview.
+  const withDistanceInfo = <T extends { id: string }>(salon: T) => ({
+    // Demo fixtures and approximate positions are locality-level: distances are rounded ("≈").
     distanceApproximate:
       coarseLocation || ["approximate", "demo"].includes((salon as { locationQuality?: string }).locationQuality ?? ""),
     flagMissingLocation: !!userCoords,
+    isNearest: salon.id === nearestId,
   });
 
   const { data: favoriteIds = [] } = useQuery({
@@ -616,6 +681,9 @@ const Salons = () => {
   // known wait first, closed last).
   const filterCtx = { categories: serviceData?.categories ?? new Map<string, Set<ServiceCategoryId>>(), startingPrices };
   const sortedFiltered = sortSalons(applyDiscoveryFilters(filtered, filters, filterCtx), effectiveSort);
+  // The closest of the shown salons to the customer's real position, by calculated
+  // distance — none without a position, or when no shown salon has coordinates.
+  const nearestId = userCoords ? nearestSalon(sortedFiltered)?.salon.id ?? null : null;
   // Options are counted on the city + search results, and only offered when they match salons.
   const filterOptions = filterOptionCounts(filtered, filterCtx);
   const quickCategories = [...filterOptions.categories].sort((a, b) => b.count - a.count).slice(0, 3);
@@ -1040,12 +1108,18 @@ const Salons = () => {
     <MapNotice>The map needs the salon list, which couldn't load right now.</MapNotice>
   ) : (
     <SalonMapPanel
-      salons={sortedFiltered}
+      salons={sortedFiltered.map((salon) => ({ ...salon, ...withDistanceInfo(salon) }))}
       selectedId={selectedSalon?.id ?? null}
       onSelect={handleMarkerSelect}
       userLocation={userCoords}
       scrollWheelZoom={isDesktop}
       fallbackView={salonMapFallbackView(filterCity, userCoords, sortedFiltered)}
+      onLocate={handleLocateMe}
+      locating={geoStatus === "pending"}
+      centreOnUser={centreOnUser}
+      onCentred={() => setCentreOnUser(false)}
+      locationMessage={locationMessage}
+      onDismissLocationMessage={() => setLocationMessageDismissed(true)}
       preview={
         selectedSalon ? (
           <SalonMapPreview

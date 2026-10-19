@@ -8,7 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { cardFloat } from "@/lib/motion";
 // Shared with SalonPage and QuickBooking, so every page agrees on open/closed.
 import { formatStartingPrice, getWaitBadge, isWithinOperatingHours, type WaitColor } from "@/lib/salonDiscovery";
-import { formatDistance, type LocationQuality } from "@/lib/salonLocation";
+import { DISTANCE_UNAVAILABLE, distanceDescription, formatDistance, type LocationQuality } from "@/lib/salonLocation";
+import NearestBadge from "@/components/salons/NearestBadge";
 
 const WAIT_DOT_CLASS: Record<WaitColor, string> = {
   green: "bg-success",
@@ -64,8 +65,12 @@ interface SalonCardProps {
     distanceApproximate?: boolean;
     /** How trustworthy the salon position is (row layout labels it). */
     locationQuality?: LocationQuality;
-    /** Show "Location unavailable" for salons without coordinates (when distances are expected). */
+    /** Show "Distance unavailable" for salons without coordinates (when distances are expected). */
     flagMissingLocation?: boolean;
+    /** The closest salon to the customer (by calculated straight-line distance). */
+    isNearest?: boolean;
+    /** A demo/test coordinate (lib/demoLocations.ts). */
+    locationDemo?: unknown;
   };
   index: number;
   onSelect: (salon: Tables<"salons">) => void;
@@ -214,15 +219,21 @@ const SalonCard = ({
             {salon.distance !== undefined && formatDistance(salon.distance, !!salon.distanceApproximate) ? (
               <span
                 className="font-mono text-muted-foreground"
-                title={salon.distanceApproximate ? "Approximate distance" : undefined}
+                title={distanceDescription(formatDistance(salon.distance, !!salon.distanceApproximate)!, !!salon.distanceApproximate)}
               >
-                {formatDistance(salon.distance, !!salon.distanceApproximate)}
+                <span aria-hidden="true">{formatDistance(salon.distance, !!salon.distanceApproximate)}</span>
+                <span className="sr-only">
+                  {distanceDescription(formatDistance(salon.distance, !!salon.distanceApproximate)!, !!salon.distanceApproximate)}
+                </span>
               </span>
             ) : null}
+            {salon.isNearest ? <NearestBadge demo={!!salon.locationDemo} /> : null}
             {salon.locationQuality === "approximate" ? (
               <span className="text-muted-foreground">Approximate test location</span>
             ) : salon.locationQuality === "missing" && salon.flagMissingLocation ? (
-              <span className="text-muted-foreground">Location unavailable</span>
+              <span className="text-muted-foreground" title="This salon hasn't added its map location yet">
+                {DISTANCE_UNAVAILABLE}
+              </span>
             ) : null}
           </div>
 

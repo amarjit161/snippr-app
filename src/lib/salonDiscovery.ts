@@ -175,8 +175,33 @@ export function sortSalons<T extends DiscoverySalon>(
 
   return indexed
     .map((e) => ({ ...e, key: key(e.salon) }))
-    .sort((a, b) => a.key[0] - b.key[0] || a.key[1] - b.key[1] || a.index - b.index)
+    .sort(
+      (a, b) =>
+        a.key[0] - b.key[0] ||
+        a.key[1] - b.key[1] ||
+        // Equal known distances: by name, then id — the API's row order isn't guaranteed.
+        // (Salons without a distance keep the Recommended order among themselves.)
+        (sort === "distance" && a.key[0] === 0 ? distanceTieBreak(a.salon, b.salon) : 0) ||
+        a.index - b.index,
+    )
     .map((e) => e.salon);
+}
+
+const distanceTieBreak = (a: DiscoverySalon, b: DiscoverySalon) =>
+  String((a as { name?: unknown }).name ?? "").localeCompare(String((b as { name?: unknown }).name ?? "")) ||
+  (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+/**
+ * The salon closest to the customer, by calculated (straight-line) distance, or
+ * null when no salon has one — never a guess. Ties: by name, then id. `demo` is
+ * true when that salon's position is a demo/test coordinate (lib/demoLocations).
+ */
+export function nearestSalon<T extends DiscoverySalon>(salons: readonly T[]): { salon: T; demo: boolean } | null {
+  const [first] = sortSalons(
+    salons.filter((s) => finiteOrNull(s.distance) !== null),
+    "distance",
+  );
+  return first ? { salon: first, demo: !!(first as { locationDemo?: unknown }).locationDemo } : null;
 }
 
 // ── Starting prices ────────────────────────────────────────────────────────
