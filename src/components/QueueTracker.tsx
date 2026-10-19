@@ -11,8 +11,10 @@ import type { Tables } from "@/integrations/supabase/types";
 
 const QueueTracker = () => {
   const { user } = useAuth();
-  const { location } = useGeolocation();
   const [entry, setEntry] = useState<(Tables<"queue"> & { salons: Tables<"salons">; services: Tables<"services"> }) | null>(null);
+  // Location is only used for the travel-time hint of an active entry, so it is
+  // requested once there is one — never on page load for everyone (e.g. /salons).
+  const { location } = useGeolocation({ enabled: !!entry });
   const [queue, setQueue] = useState<Tables<"queue">[]>([]);
   const [aheadCount, setAheadCount] = useState(0);
   const [myPosition, setMyPosition] = useState<number | null>(null);

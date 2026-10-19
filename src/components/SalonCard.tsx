@@ -1,11 +1,25 @@
-import React from "react";
-import { Clock, Heart, MapPin, Star, Users } from "lucide-react";
+import React, { useState } from "react";
+import { Clock, Heart, LocateFixed, MapPin, Star, Users } from "lucide-react";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { cardFloat } from "@/lib/motion";
+// Shared with SalonPage and QuickBooking, so every page agrees on open/closed.
+import { formatStartingPrice, getWaitBadge, isWithinOperatingHours, type WaitColor } from "@/lib/salonDiscovery";
+import { DISTANCE_UNAVAILABLE, distanceDescription, formatDistance, type LocationQuality } from "@/lib/salonLocation";
+import NearestBadge from "@/components/salons/NearestBadge";
+
+const WAIT_DOT_CLASS: Record<WaitColor, string> = {
+  green: "bg-success",
+  amber: "bg-warning",
+  red: "bg-destructive",
+  muted: "bg-white/60",
+};
+
+// The row card's badge sits on a light chip rather than over a photo.
+const ROW_WAIT_DOT_CLASS: Record<WaitColor, string> = { ...WAIT_DOT_CLASS, muted: "bg-muted-foreground/60" };
 
 import salon1 from "@/assets/salon-1.jpg";
 import salon2 from "@/assets/salon-2.jpg";
@@ -36,50 +50,65 @@ const getSalonImageSrc = (imageUrl: string | null) => {
   return data.publicUrl || "/default-salon.jpg";
 };
 
-const isWithinOperatingHours = (openTime: string | null, closeTime: string | null): boolean => {
-  if (!openTime || !closeTime) return true; // If no times set, assume always open
-  
-  try {
-    const now = new Date();
-    const currentTime = now.getHours() * 100 + now.getMinutes(); // Convert to HHMM format (e.g., 1430 for 2:30 PM)
-    
-    // Parse time - handle both "09:00" and "09:00:00" formats
-    const openParts = openTime.split(":").map(Number);
-    const closeParts = closeTime.split(":").map(Number);
-    
-    const [openHour, openMin] = [openParts[0], openParts[1] || 0];
-    const [closeHour, closeMin] = [closeParts[0], closeParts[1] || 0];
-    
-    const openTimeNum = openHour * 100 + openMin;
-    const closeTimeNum = closeHour * 100 + closeMin;
-    
-    // Handle case where closing time is next day (e.g., 9 AM to 11 PM)
-    if (openTimeNum <= closeTimeNum) {
-      return currentTime >= openTimeNum && currentTime <= closeTimeNum;
-    } else {
-      // Closing time is next day (e.g., 10 PM to 6 AM)
-      return currentTime >= openTimeNum || currentTime <= closeTimeNum;
-    }
-  } catch (e) {
-    console.error("TIME_PARSE_ERROR", openTime, closeTime, e);
-    return true; // Assume open if parse fails
-  }
-};
-
 interface SalonCardProps {
-  salon: Tables<"salons"> & { queueCount: number; waitTime: number; distance?: number };
+  // `rating` is optional: no current data source provides it (see the /salons audit).
+  // `startingPrice` is the lowest valid service price (getStartingPrices); absent → no label.
+  salon: Tables<"salons"> & {
+    queueCount: number;
+    waitTime: number;
+    distance?: number;
+    rating?: number | null;
+    startingPrice?: number | null;
+    /** Real service categories (from service names), e.g. ["Haircut", "Spa"]. */
+    serviceLabels?: string[];
+    /** Distance is approximate (coarse device reading or approximate salon location). */
+    distanceApproximate?: boolean;
+    /** How trustworthy the salon position is (row layout labels it). */
+    locationQuality?: LocationQuality;
+    /** Show "Distance unavailable" for salons without coordinates (when distances are expected). */
+    flagMissingLocation?: boolean;
+    /** The closest salon to the customer (by calculated straight-line distance). */
+    isNearest?: boolean;
+    /** A demo/test coordinate (lib/demoLocations.ts). */
+    locationDemo?: unknown;
+  };
   index: number;
   onSelect: (salon: Tables<"salons">) => void;
   isFavorited?: boolean;
   onToggleFavorite?: (salon: Tables<"salons">) => void;
+  /** "tile" (default: image on top, used by Favorites) or "row" (compact, image left: /salons). */
+  layout?: "tile" | "row";
+  /** Row layout in the map view: a labelled button that selects this salon on the map. */
+  onShowOnMap?: () => void;
+  /** This salon is the one selected on the map. */
+  shownOnMap?: boolean;
 }
 
-const SalonCard = ({ salon, index, onSelect, isFavorited, onToggleFavorite }: SalonCardProps) => {
+const SalonCard = ({
+  salon,
+  index,
+  onSelect,
+  isFavorited,
+  onToggleFavorite,
+  layout = "tile",
+  onShowOnMap,
+  shownOnMap,
+}: SalonCardProps) => {
+  // A salon photo that fails to load falls back to the default image (row layout).
+  const [photoFailed, setPhotoFailed] = useState(false);
   // Logic: If manually closed, always show closed. Otherwise check operating hours.
   const isManuallyClosed = salon.is_manual_closed;
   const isWithinHours = isWithinOperatingHours(salon.open_time, salon.close_time);
   const isOpen = !isManuallyClosed && isWithinHours;
-  
+  // A genuine rating only (a finite number above zero); otherwise nothing is shown.
+  const rating = typeof salon.rating === "number" && Number.isFinite(salon.rating) && salon.rating > 0 ? salon.rating : null;
+  // "Free" for ₹0, "From ₹…" otherwise, null (nothing shown) without a valid price.
+  const startingPriceLabel = formatStartingPrice(salon.startingPrice);
+  // Queue wait: an unknown wait stays unknown (no invented minutes).
+  const waitBadge = getWaitBadge(salon.waitTime, isOpen);
+  const waitText =
+    waitBadge.tone === "now" ? "No wait" : waitBadge.tone === "unknown" ? "Wait unknown" : `${waitBadge.label} wait`;
+
   if (index === 0) {
     const now = new Date();
     const currentTimeNum = now.getHours() * 100 + now.getMinutes();
@@ -93,6 +122,157 @@ const SalonCard = ({ salon, index, onSelect, isFavorited, onToggleFavorite }: Sa
       currentTimeNum,
       isOpen,
     });
+  }
+
+  if (layout === "row") {
+    // No uploaded photo: the app's default image is shown, labelled the way the
+    // landing page labels stand-in photos, so it never passes for the salon itself.
+    const representativePhoto = !salon.image_url || photoFailed;
+    const priceValue = startingPriceLabel?.startsWith("From ") ? startingPriceLabel.slice(5) : startingPriceLabel;
+    return (
+      <motion.div
+        custom={index}
+        initial="hidden"
+        animate="visible"
+        variants={cardFloat}
+        className="group flex h-full cursor-pointer overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:border-primary/40"
+        onClick={() => onSelect(salon)}
+      >
+        <div className="relative w-24 shrink-0 self-stretch overflow-hidden bg-muted sm:w-36 md:w-28 xl:w-36">
+          <img
+            src={photoFailed ? "/default-salon.jpg" : getSalonImageSrc(salon.image_url)}
+            onError={() => {
+              if (salon.image_url) setPhotoFailed(true);
+            }}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+          />
+          {representativePhoto ? (
+            <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-black/0 px-1 pb-1.5 pt-4 text-center font-mono text-[8px] uppercase leading-tight tracking-[0.08em] text-white/85">
+              Representative photo
+            </span>
+          ) : null}
+        </div>
+
+        <div className="flex min-w-0 flex-1 flex-col p-3.5 sm:p-4">
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="line-clamp-2 font-display text-[17px] font-semibold leading-snug tracking-[-0.01em] text-foreground">
+              {salon?.name ?? "Unknown Salon"}
+            </h3>
+            <div className="-mr-2 -mt-2 flex shrink-0">
+              {onShowOnMap ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onShowOnMap();
+                  }}
+                  aria-label={`Show ${salon?.name ?? "salon"} on the map`}
+                  aria-pressed={!!shownOnMap}
+                  title="Show on map"
+                  className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                    shownOnMap ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <LocateFixed className="h-4 w-4" aria-hidden="true" />
+                </button>
+              ) : null}
+              {onToggleFavorite ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleFavorite(salon);
+                  }}
+                  aria-label={isFavorited ? "Remove from favorites" : "Add to favorites"}
+                  aria-pressed={!!isFavorited}
+                  className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  <Heart className={`h-4 w-4 ${isFavorited ? "fill-primary text-primary" : ""}`} />
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          {/* The full address is available on hover (and in the map preview). */}
+          <p className="mt-0.5 truncate text-sm text-muted-foreground" title={salon.address || salon.location || undefined}>
+            {salon.location || "Location not available"}
+          </p>
+          <p data-testid="service-labels" className="mt-0.5 min-h-4 truncate text-xs text-muted-foreground">
+            {(salon.serviceLabels ?? []).slice(0, 3).join(" · ")}
+          </p>
+
+          <div className="mt-2.5 flex min-h-5 flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+            <span className={`flex items-center gap-1.5 font-semibold ${isOpen ? "text-emerald-700" : "text-muted-foreground"}`}>
+              <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${isOpen ? "bg-success" : "bg-muted-foreground/50"}`} />
+              {isOpen ? "Open now" : "Closed"}
+            </span>
+            {isOpen && (
+              <span data-testid="wait-badge" className="flex items-center gap-1.5 font-mono text-foreground/80">
+                <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${ROW_WAIT_DOT_CLASS[waitBadge.color]}`} />
+                <span aria-hidden="true">{waitText}</span>
+                <span className="sr-only">{waitBadge.description}</span>
+              </span>
+            )}
+            {salon.distance !== undefined && formatDistance(salon.distance, !!salon.distanceApproximate) ? (
+              <span
+                className="font-mono text-muted-foreground"
+                title={distanceDescription(formatDistance(salon.distance, !!salon.distanceApproximate)!, !!salon.distanceApproximate)}
+              >
+                <span aria-hidden="true">{formatDistance(salon.distance, !!salon.distanceApproximate)}</span>
+                <span className="sr-only">
+                  {distanceDescription(formatDistance(salon.distance, !!salon.distanceApproximate)!, !!salon.distanceApproximate)}
+                </span>
+              </span>
+            ) : null}
+            {salon.isNearest ? <NearestBadge demo={!!salon.locationDemo} /> : null}
+            {salon.locationQuality === "approximate" ? (
+              <span className="text-muted-foreground">Approximate test location</span>
+            ) : salon.locationQuality === "missing" && salon.flagMissingLocation ? (
+              <span className="text-muted-foreground" title="This salon hasn't added its map location yet">
+                {DISTANCE_UNAVAILABLE}
+              </span>
+            ) : null}
+          </div>
+
+          {/* Below 1024px the action grows to fill its row: beside the price when both fit,
+              otherwise on its own full-width row — never an awkward half-wrapped button. */}
+          <div className="mt-auto flex flex-wrap items-end justify-between gap-x-3 gap-y-2 pt-3 sm:pt-4">
+            {startingPriceLabel !== null ? (
+              <p data-testid="starting-price" className="whitespace-nowrap text-foreground">
+                {startingPriceLabel.startsWith("From ") ? (
+                  <>
+                    <span className="text-xs text-muted-foreground">From</span>{" "}
+                    <span className="font-mono text-[15px] font-semibold">{priceValue}</span>
+                  </>
+                ) : (
+                  <span className="font-mono text-[15px] font-semibold">{priceValue}</span>
+                )}
+              </p>
+            ) : (
+              <span />
+            )}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect(salon);
+              }}
+              disabled={!isOpen}
+              className={`min-h-10 shrink-0 rounded-lg px-4 text-xs font-semibold transition max-lg:min-w-[8.5rem] max-lg:flex-1 ${
+                isOpen
+                  ? "bg-primary text-primary-foreground hover:brightness-110 active:scale-[0.98]"
+                  : "cursor-not-allowed border border-border text-muted-foreground"
+              }`}
+            >
+              {isOpen ? "Book a Snipp" : "Currently Closed"}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    );
   }
 
   return (
@@ -144,9 +324,14 @@ const SalonCard = ({ salon, index, onSelect, isFavorited, onToggleFavorite }: Sa
 
         {isOpen && (
           <div className="absolute bottom-4 left-4">
-            <span className="bg-black/40 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1">
-              <Clock className="w-3.5 h-3.5" />
-              {salon.waitTime}m wait
+            <span
+              data-testid="wait-badge"
+              className="bg-black/40 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1"
+            >
+              <span aria-hidden="true" className={`h-2 w-2 rounded-full ${WAIT_DOT_CLASS[waitBadge.color]}`} />
+              <Clock className="w-3.5 h-3.5" aria-hidden="true" />
+              <span aria-hidden="true">{waitText}</span>
+              <span className="sr-only">{waitBadge.description}</span>
             </span>
           </div>
         )}
@@ -157,10 +342,13 @@ const SalonCard = ({ salon, index, onSelect, isFavorited, onToggleFavorite }: Sa
           <h3 className="font-display font-bold text-xl text-foreground line-clamp-1">
             {salon?.name ?? "Unknown Salon"}
           </h3>
-          <div className="flex items-center gap-1 text-foreground">
-            <Star className="text-primary w-[18px] h-[18px] fill-primary" />
-            <span className="font-bold text-sm">{salon.rating || "4.8"}</span>
-          </div>
+          {/* Only a genuine rating is shown; none is available today, so nothing is invented. */}
+          {rating !== null && (
+            <div className="flex items-center gap-1 text-foreground">
+              <Star className="text-primary w-[18px] h-[18px] fill-primary" />
+              <span className="font-bold text-sm">{rating}</span>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-3 text-muted-foreground text-sm mb-6 whitespace-nowrap overflow-hidden text-ellipsis">
@@ -175,6 +363,12 @@ const SalonCard = ({ salon, index, onSelect, isFavorited, onToggleFavorite }: Sa
           )}
           <span className="truncate">{salon.location || "Location not available"}</span>
         </div>
+
+        {startingPriceLabel !== null && (
+          <p data-testid="starting-price" className="-mt-4 mb-6 text-sm font-semibold text-foreground">
+            {startingPriceLabel}
+          </p>
+        )}
 
         <button 
           onClick={(e) => {

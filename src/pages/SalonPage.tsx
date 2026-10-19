@@ -15,32 +15,14 @@ import { pageFade, cardFloat, motionEase } from "@/lib/motion";
 import type { Tables } from "@/integrations/supabase/types";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { appCanonicalOrigin } from "@/lib/domains";
+// Shared with QuickBooking and the /salons cards, so every page agrees on open/closed.
+import { formatStartingPrice, getStartingPrices, isWithinOperatingHours } from "@/lib/salonDiscovery";
 
 const getSalonImageSrc = (imageUrl: string | null) => {
   if (!imageUrl) return "/default-salon.jpg";
   if (imageUrl.startsWith("http") || imageUrl.startsWith("/")) return imageUrl;
   const { data } = supabase.storage.from("salon-images").getPublicUrl(imageUrl);
   return data.publicUrl || "/default-salon.jpg";
-};
-
-// Same rule SalonCard.tsx uses for the discovery grid, duplicated locally so this
-// page doesn't reach into another page's file to share a few lines of pure logic.
-const isWithinOperatingHours = (openTime: string | null, closeTime: string | null): boolean => {
-  if (!openTime || !closeTime) return true;
-  try {
-    const now = new Date();
-    const currentTime = now.getHours() * 100 + now.getMinutes();
-    const openParts = openTime.split(":").map(Number);
-    const closeParts = closeTime.split(":").map(Number);
-    const openTimeNum = openParts[0] * 100 + (openParts[1] || 0);
-    const closeTimeNum = closeParts[0] * 100 + (closeParts[1] || 0);
-    if (openTimeNum <= closeTimeNum) {
-      return currentTime >= openTimeNum && currentTime <= closeTimeNum;
-    }
-    return currentTime >= openTimeNum || currentTime <= closeTimeNum;
-  } catch {
-    return true;
-  }
 };
 
 const formatTime12h = (time: string | null): string | null => {
@@ -227,9 +209,11 @@ export default function SalonPage() {
   const openLabel = formatTime12h(salon.open_time);
   const closeLabel = formatTime12h(salon.close_time);
   const hasQueueData = salon.queue_count !== null && salon.wait_time !== null;
-  const cheapestPrice = services.length
-    ? Math.min(...services.map((s) => s.price ?? Infinity).filter((p) => Number.isFinite(p)))
-    : null;
+  // Lowest valid service price, labelled like the /salons cards ("From ₹199" / "Free");
+  // null (nothing shown) when no service has a valid price.
+  const startingPriceLabel = formatStartingPrice(
+    getStartingPrices(services.map((s) => ({ salon_id: salon.id, price: s.price }))).get(salon.id),
+  );
   const selectedServices = services.filter((s) => selectedServiceIds.has(s.id));
   const selectedCount = selectedServices.length;
   const selectedTotal = selectedServices.reduce((sum, s) => sum + (s.price ?? 0), 0);
@@ -442,9 +426,9 @@ export default function SalonPage() {
 
         {/* Desktop booking CTA */}
         <div className="mt-10 hidden items-center justify-between gap-4 sm:flex">
-          {isOpen && cheapestPrice !== null && (
-            <span className="text-sm text-muted-foreground">
-              Services from <span className="font-mono font-semibold text-foreground">{formatINR(cheapestPrice)}</span>
+          {isOpen && startingPriceLabel !== null && (
+            <span data-testid="starting-price" className="font-mono text-sm font-semibold text-foreground">
+              {startingPriceLabel}
             </span>
           )}
           <Button
